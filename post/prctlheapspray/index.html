@@ -47,27 +47,27 @@
 
 <div class="row-fluid navmargin">
     <div class="page-header">
-        <h1>prctl anon_vma_name: An Amusing Heap Spray - Sat, Jul 22, 2023</h1>
+        <h1>prctl anon_vma_name: An Amusing Linux Kernel Heap Spray - Sat, Jul 22, 2023</h1>
     </div>
     <p class="lead"></p>
     <h4 id="tldr">TLDR</h4>
-<p>prctl PR_SET_VMA (PR_SET_VMA_ANON_NAME) can be used as a (possibly new!) heap spray method targeting the kmalloc-8 to kmalloc-96 caches. The sprayed object, anon_vma_name, is dynamically sized, and can range from larger than 4 bytes to a maximum of 84 bytes. The object can be easily allocated and freed via the prctl syscall, and leaked information can be obtained via reading the proc/pid/maps file. The advantage of this method is that it does not require a cross-cache attack from cg/other caches (unlike other objects such as msg_msg) as anon_vma_name is allocated with the GFP_KERNEL flag.</p>
+<p><code>prctl PR_SET_VMA (PR_SET_VMA_ANON_NAME)</code> can be used as a (possibly new!) heap spray method targeting the <code>kmalloc-8</code> to <code>kmalloc-96</code> caches. The sprayed object, <code>anon_vma_name</code>, is dynamically sized, and can range from larger than 4 bytes to a maximum of 84 bytes. The object can be easily allocated and freed via the <code>prctl</code> syscall, and leaked information can be obtained via reading the <code>proc/pid/maps</code> file. The advantage of this method is that it does not require a cross-cache attack from cg/other caches (unlike other objects such as <code>msg_msg</code>) as <code>anon_vma_name</code> is allocated with the <code>GFP_KERNEL</code> flag.</p>
 <h4 id="introduction-and-backstory">Introduction and Backstory</h4>
-<p>While doing my internship, I was given a kernel pwn CTF challenge to teach me some fundamental techniques. The vulnerability involved was a race condition leading to a write, and part of the challenge involved leaking a randomly generated secret key which would be XORed with your data before it was written to the memory location. However, how the write worked meant that it wrote a large number of bytes from the start of your target memory location (since you don&rsquo;t know the XOR key, the write is uncontrollable), and would destroy the headers of many common sprayable objects such as msg_msg, setxattr or add_key. The restrictions on the size of the object and its allocation into GFP_KERNEL kmalloc caches also meant that in order to spray some of these common objects, I would have to perform a cross-cache attack, and for some objects such as sk_buff the cross-cache would have to be across pages of different orders :(((</p>
+<p>While doing my internship, I was given a kernel pwn CTF challenge to teach me some fundamental techniques. The vulnerability involved was a race condition leading to a write, and part of the challenge involved leaking a randomly generated secret key which would be XORed with your data before it was written to the memory location. However, how the write worked meant that it wrote a large number of bytes from the start of your target memory location (since you don&rsquo;t know the XOR key, the write is uncontrollable), and would destroy the headers of many common sprayable objects such as <code>msg_msg</code>, <code>setxattr</code> or <code>add_key</code>. The restrictions on the size of the object and its allocation into <code>GFP_KERNEL</code> kmalloc caches also meant that in order to spray some of these common objects, I would have to perform a cross-cache attack, and for some objects such as <code>sk_buff</code> the cross-cache would have to be across pages of different orders :(((</p>
 <p>Out of desperation to find a slightly less annoying sprayable object, I started looking at syscalls. Ideally, I wanted something that:</p>
 <ol>
 <li>Could be allocated and freed from userspace</li>
 <li>Could be read from userspace</li>
 <li>Is pretty useless/has useless headers (so that it would not cause a kernel panic if I overwrote the headers with random garbage and then tried to free the object)</li>
 </ol>
-<p>Objects that tend to fit these criteria would probably be those that store strings which would be names of some stuff (e.g. hostname), though the struct used by uname (which I was hoping would be a viable spray) was unfortunately allocated on the stack. Then, I found prctl.</p>
+<p>Objects that tend to fit these criteria would probably be those that store strings which would be names of some stuff (e.g. hostname), though the struct used by uname (which I was hoping would be a viable spray) was unfortunately allocated on the stack. Then, I found <code>prctl</code>.</p>
 <h4 id="what-is-prctl">What is prctl?</h4>
-<p>According to the Linux man pages, prctl() manipulates various aspects of the behavior of the calling thread or process.</p>
+<p>According to the Linux man pages, <code>prctl()</code> manipulates various aspects of the behavior of the calling thread or process.</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;sys/prctl.h&gt;</span><span style="color:#75715e">
 </span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">int</span> <span style="color:#a6e22e">prctl</span>(<span style="color:#66d9ef">int</span> option, <span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> arg2, <span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> arg3, <span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> arg4, <span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> arg5);
-</span></span></code></pre></div><p>It does a lot of different stuff, but the option I was interested in is <code>PR_SET_VMA</code>, and its suboption <code>PR_SET_VMA_ANON_NAME</code>. Basically PR_SET_VMA sets an attribute defined in arg2 for a virtual memory area (arg3) of size arg4. arg5 specifies the value of the attribute to be set. If arg2 is PR_SET_VMA_ANON_NAME, it will set a name for an anonymous virtual memory area. This sounds like something that would have a useless, sprayable struct!</p>
-<p>In order for this to work, the option <code>CONFIG_ANON_VMA_NAME</code> must be enabled. As far as I know, this is enabled on the <a href="/ubuntu_config_file">default ubuntu kernel config file</a>. For this challenge, I was using Linux kernel version 6.1.37.</p>
-<p>Let&rsquo;s look at the anon_vma_name struct:</p>
+</span></span></code></pre></div><p>It does a lot of different stuff, but the option I was interested in is <code>PR_SET_VMA</code>, and its suboption <code>PR_SET_VMA_ANON_NAME</code>. Basically <code>PR_SET_VMA</code> sets an attribute defined in <code>arg2</code> for a virtual memory area <code>arg3</code> of size <code>arg4</code>. <code>arg5</code> specifies the value of the attribute to be set. If <code>arg2</code> is <code>PR_SET_VMA_ANON_NAME</code>, it will set a name for an anonymous virtual memory area. This sounds like something that would have a useless, sprayable struct!</p>
+<p>In order for this to work, the option <code>CONFIG_ANON_VMA_NAME</code> must be enabled. As far as I know, this is enabled on the default ubuntu kernel config. For this challenge, I was using Linux kernel version 6.1.37.</p>
+<p>Let&rsquo;s look at the <code>anon_vma_name</code> struct:</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> anon_vma_name {
 </span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">struct</span> kref kref;
 </span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">char</span> name[]; <span style="color:#75715e">/* The name needs to be at the end because it is dynamically sized. */</span>
@@ -76,7 +76,7 @@
 </span></span><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> kref {
 </span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">refcount_t</span> refcount;
 </span></span><span style="display:flex;"><span>};
-</span></span></code></pre></div><p>Looks very useless! The header would be 4 bytes (since struct kref is 4 bytes), and name is dynamically sized. The maximum size of the name character array is 80, hence this object can have a size ranging from greater than 4 bytes to 84 bytes.</p>
+</span></span></code></pre></div><p>Looks very useless! The header would be 4 bytes (since <code>struct kref</code> is 4 bytes), and name is dynamically sized. The maximum size of the name character array is 80, hence this object can have a size ranging from greater than 4 bytes to 84 bytes.</p>
 <p>Let&rsquo;s trace the kernel code flow:</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">int</span> <span style="color:#a6e22e">prctl_set_vma</span>(<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> opt, <span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> addr,
 </span></span><span style="display:flex;"><span>			 <span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> size, <span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> arg)
@@ -97,14 +97,14 @@
 </span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">PTR_ERR</span>(name);
 </span></span><span style="display:flex;"><span>
 </span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">for</span> (pch <span style="color:#f92672">=</span> name; <span style="color:#f92672">*</span>pch <span style="color:#f92672">!=</span> <span style="color:#e6db74">&#39;\0&#39;</span>; pch<span style="color:#f92672">++</span>) {
-</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span><span style="color:#a6e22e">is_valid_name_char</span>(<span style="color:#f92672">*</span>pch)) {
-</span></span><span style="display:flex;"><span>					<span style="color:#a6e22e">kfree</span>(name);
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span><span style="color:#a6e22e">is_valid_name_char</span>(<span style="color:#f92672">*</span>pch)) { <span style="color:#75715e">// [1]
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>					<span style="color:#a6e22e">kfree</span>(name);
 </span></span><span style="display:flex;"><span>					<span style="color:#66d9ef">return</span> <span style="color:#f92672">-</span>EINVAL;
 </span></span><span style="display:flex;"><span>				}
 </span></span><span style="display:flex;"><span>			}
 </span></span><span style="display:flex;"><span>			<span style="color:#75715e">/* anon_vma has its own copy */</span>
-</span></span><span style="display:flex;"><span>			anon_name <span style="color:#f92672">=</span> <span style="color:#a6e22e">anon_vma_name_alloc</span>(name);
-</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">kfree</span>(name);
+</span></span><span style="display:flex;"><span>			anon_name <span style="color:#f92672">=</span> <span style="color:#a6e22e">anon_vma_name_alloc</span>(name); <span style="color:#75715e">// [2]
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>			<span style="color:#a6e22e">kfree</span>(name);
 </span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>anon_name)
 </span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">return</span> <span style="color:#f92672">-</span>ENOMEM;
 </span></span><span style="display:flex;"><span>
@@ -121,7 +121,7 @@
 </span></span><span style="display:flex;"><span>
 </span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> error;
 </span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p>Here, it checks whether the inputted name has valid, printable characters. If the check passes, anon_vma_name_alloc is called:</p>
+</span></span></code></pre></div><p>In the code above, it checks ([1]) whether the inputted name has valid, printable characters. If the check passes ([2]), <code>anon_vma_name_alloc</code> is called:</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> anon_vma_name <span style="color:#f92672">*</span><span style="color:#a6e22e">anon_vma_name_alloc</span>(<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">char</span> <span style="color:#f92672">*</span>name)
 </span></span><span style="display:flex;"><span>{
 </span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> anon_vma_name <span style="color:#f92672">*</span>anon_name;
@@ -129,16 +129,16 @@
 </span></span><span style="display:flex;"><span>
 </span></span><span style="display:flex;"><span>	<span style="color:#75715e">/* Add 1 for NUL terminator at the end of the anon_name-&gt;name */</span>
 </span></span><span style="display:flex;"><span>	count <span style="color:#f92672">=</span> <span style="color:#a6e22e">strlen</span>(name) <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span>;
-</span></span><span style="display:flex;"><span>	anon_name <span style="color:#f92672">=</span> <span style="color:#a6e22e">kmalloc</span>(<span style="color:#a6e22e">struct_size</span>(anon_name, name, count), GFP_KERNEL);
-</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> (anon_name) {
+</span></span><span style="display:flex;"><span>	anon_name <span style="color:#f92672">=</span> <span style="color:#a6e22e">kmalloc</span>(<span style="color:#a6e22e">struct_size</span>(anon_name, name, count), GFP_KERNEL); <span style="color:#75715e">// [3]
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	<span style="color:#66d9ef">if</span> (anon_name) {
 </span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">kref_init</span>(<span style="color:#f92672">&amp;</span>anon_name<span style="color:#f92672">-&gt;</span>kref);
 </span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">memcpy</span>(anon_name<span style="color:#f92672">-&gt;</span>name, name, count);
 </span></span><span style="display:flex;"><span>	}
 </span></span><span style="display:flex;"><span>
 </span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> anon_name;
 </span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p>Here, the struct is allocated by kmalloc, and as GFP_KERNEL is specificed, it will go into a normal kmalloc cache. This is very convenient because we can basically spray this into any cache from kmalloc-8 to kmalloc-96, and we can avoid any annoying cross-caching from cg caches!</p>
-<p>Let&rsquo;s see how to read from the spray (thanks to my mentor for this bit!). Looking at the show_map_vma function:</p>
+</span></span></code></pre></div><p>Here ([3]), the struct is allocated by <code>kmalloc</code>, and as <code>GFP_KERNEL</code> is specificed, it will go into a normal kmalloc cache. This is very convenient because we can basically spray this into any cache from <code>kmalloc-8</code> to <code>kmalloc-96</code>, and we can avoid any annoying cross-caching from cg caches!</p>
+<p>Let&rsquo;s see how to read from the spray (thanks to my mentor for this bit!). Looking at the <code>show_map_vma</code> function:</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> (file) {
 </span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">seq_pad</span>(m, <span style="color:#e6db74">&#39; &#39;</span>);
 </span></span><span style="display:flex;"><span>		<span style="color:#75715e">/*
@@ -151,7 +151,7 @@
 </span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">seq_file_path</span>(m, file, <span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
 </span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">goto</span> done;
 </span></span><span style="display:flex;"><span>	}
-</span></span></code></pre></div><p>As the newly set name is used, it appears we can read from it via the /proc/pid/maps file, allowing us to possibly leak stuff from kernel memory from the maps file. However, the limitation of this method is that if the information to be leaked contains null bytes, it will print up to those null bytes, and then stop. If you are lucky and you have a kernel text/heap pointer with no null bytes, this method could potentially be used to bypass KASLR.</p>
+</span></span></code></pre></div><p>As the newly set name is used, it appears we can read from it via the <code>/proc/pid/maps</code> file, allowing us to possibly leak stuff from kernel memory from the maps file. However, the limitation of this method is that if the information to be leaked contains null bytes, it will print up to those null bytes, and then stop. If you are lucky and you have a kernel text/heap pointer with no null bytes, this method could potentially be used to bypass KASLR.</p>
 <p>Let&rsquo;s look at how the spray can be freed:</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">anon_vma_name_free</span>(<span style="color:#66d9ef">struct</span> kref <span style="color:#f92672">*</span>kref)
 </span></span><span style="display:flex;"><span>{
@@ -159,9 +159,9 @@
 </span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">container_of</span>(kref, <span style="color:#66d9ef">struct</span> anon_vma_name, kref);
 </span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">kfree</span>(anon_name);
 </span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p>Presumably how this object is freed is similar to how files are freed. When the process dies, or if prctl is called again and the name buffer is set to NULL, the reference count is decremented. If the reference count becomes 0, the anon_vma_name object is freed.</p>
+</span></span></code></pre></div><p>Presumably how this object is freed is similar to how files are freed. When the process dies, or if <code>prctl</code> is called again and the name buffer is set to <code>NULL</code>, the reference count is decremented. If the reference count becomes 0, the <code>anon_vma_name</code> object is freed.</p>
 <h4 id="how-to-spray-anon_vma_name">How to spray anon_vma_name</h4>
-<p>Spraying anon_vma_name is simple: just use the prctl syscall with PR_SET_VMA and PR_SET_VMA_ANON_NAME arguments. One way of doing this is as shown (sorry for bad code):</p>
+<p>Spraying <code>anon_vma_name</code> is simple: just use the <code>prctl</code> syscall with <code>PR_SET_VMA</code> and <code>PR_SET_VMA_ANON_NAME</code> arguments. One way of doing this is as shown (sorry for bad code):</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#75715e">#define NUM_PRCTLS 1024
 </span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">void</span> <span style="color:#f92672">*</span> address[NUM_PRCTLS];
 </span></span><span style="display:flex;"><span>
@@ -189,7 +189,7 @@
 </span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">rename_vma</span>((<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span>) address[idx], <span style="color:#ae81ff">1024</span>, buf);
 </span></span><span style="display:flex;"><span>    }
 </span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p>The names assigned need to be different, because if the same name is used, the kernel would reuse the same anon_vma_name object, and the spray will fail. This is shown in the kernel code:</p>
+</span></span></code></pre></div><p>The names assigned need to be different, because if the same name is used, the kernel would reuse the same <code>anon_vma_name</code> object, and the spray will fail. This is shown in the kernel code:</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">inline</span>
 </span></span><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> anon_vma_name <span style="color:#f92672">*</span><span style="color:#a6e22e">anon_vma_name_reuse</span>(<span style="color:#66d9ef">struct</span> anon_vma_name <span style="color:#f92672">*</span>anon_name)
 </span></span><span style="display:flex;"><span>{
@@ -203,18 +203,18 @@
 </span></span><span style="display:flex;"><span>}
 </span></span></code></pre></div><p>On gdb, the spray looks as such (the garbage data above the spray is what I wanted to read, it was written to the same address as the sprayed object due to how the challenge works):</p>
 <p><img src="/prctlheapspray1.png" alt="Spray on gdb"></p>
-<p>In order to read from the spray, all you need to do is to cat the /proc/pid/maps file!</p>
+<p>In order to read from the spray, all you need to do is to cat the <code>/proc/pid/maps</code> file!</p>
 <p><img src="/prctlheapspray3.png" alt="Reading from maps file"></p>
 <p>You can also do it programmatically in your code:</p>
 <p><img src="/prctlheapspray2.png" alt="Leaked key"></p>
-<p>The last hexadecimal number is the leaked secret key which was written to the anon_vma_name object, and is the same as that in the first image.</p>
+<p>The last hexadecimal number is the leaked secret key which was written to the <code>anon_vma_name</code> object, and is the same as that in the first image.</p>
 <p>As very well put by my fellow intern, this is the equivalent of leaking stuff from kernel memory via the task manager :D</p>
-<p>To free the spray, all you need to do is to use the prctl syscall again, but this time setting the name buffer to NULL.</p>
+<p>To free the spray, all you need to do is to use the <code>prctl</code> syscall again, but this time setting the name buffer to <code>NULL</code>.</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_PRCTLS; i<span style="color:#f92672">++</span>) {
 </span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">rename_vma</span>((<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span>) address[i], <span style="color:#ae81ff">1024</span>, NULL);
 </span></span><span style="display:flex;"><span>}
 </span></span></code></pre></div><h4 id="conclusion">Conclusion</h4>
-<p>prctl&rsquo;s PR_SET_VMA can be used as a nice convenient heap spray into kmalloc-8 to kmalloc-96. Thanks to Billy for mentoring me and I hope to learn and find more interesting things in the weeks to come! :D</p>
+<p>prctl&rsquo;s <code>PR_SET_VMA</code> can be used as a nice convenient heap spray into <code>kmalloc-8</code> to <code>kmalloc-96</code>. Thanks to Billy for mentoring me and I hope to learn and find more interesting things in the weeks to come! :D</p>
 <h4 id="references">References</h4>
 <ol>
 <li><a href="https://elixir.bootlin.com/linux/v6.1.37/source/include/linux/mm_inline.h">https://elixir.bootlin.com/linux/v6.1.37/source/include/linux/mm_inline.h</a></li>

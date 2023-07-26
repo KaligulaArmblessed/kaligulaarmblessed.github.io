@@ -8,7 +8,7 @@
     <language>en</language>
     <lastBuildDate>Sat, 22 Jul 2023 00:00:00 +0000</lastBuildDate><atom:link href="https://kaligulaarmblessed.github.io/index.xml" rel="self" type="application/rss+xml" />
     <item>
-      <title>prctl anon_vma_name: An Amusing Heap Spray</title>
+      <title>prctl anon_vma_name: An Amusing Linux Kernel Heap Spray</title>
       <link>https://kaligulaarmblessed.github.io/post/prctlheapspray/</link>
       <pubDate>Sat, 22 Jul 2023 00:00:00 +0000</pubDate>
       
