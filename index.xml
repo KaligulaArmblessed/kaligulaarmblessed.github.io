@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Kernels and Cats</title>
+    <link>https://kaligulaarmblessed.github.io/</link>
+    <description>Recent content on Kernels and Cats</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en</language>
+    <lastBuildDate>Sat, 22 Jul 2023 00:00:00 +0000</lastBuildDate><atom:link href="https://kaligulaarmblessed.github.io/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>prctl anon_vma_name: An Amusing Heap Spray</title>
+      <link>https://kaligulaarmblessed.github.io/post/prctlheapspray/</link>
+      <pubDate>Sat, 22 Jul 2023 00:00:00 +0000</pubDate>
+      
+      <guid>https://kaligulaarmblessed.github.io/post/prctlheapspray/</guid>
+      <description>TLDR prctl PR_SET_VMA (PR_SET_VMA_ANON_NAME) can be used as a (possibly new!) heap spray method targeting the kmalloc-8 to kmalloc-96 caches. The sprayed object, anon_vma_name, is dynamically sized, and can range from larger than 4 bytes to a maximum of 84 bytes. The object can be easily allocated and freed via the prctl syscall, and leaked information can be obtained via reading the proc/pid/maps file. The advantage of this method is that it does not require a cross-cache attack from cg/other caches (unlike other objects such as msg_msg) as anon_vma_name is allocated with the GFP_KERNEL flag.</description>
+    </item>
+    
+    <item>
+      <title>About</title>
+      <link>https://kaligulaarmblessed.github.io/about/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>https://kaligulaarmblessed.github.io/about/</guid>
+      <description>I really like computers, chemistry and cats. :3</description>
+    </item>
+    
+  </channel>
+</rss>
