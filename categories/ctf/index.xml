@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
-    <title>Posts on Kernels and Cats</title>
-    <link>https://kaligulaarmblessed.github.io/post/</link>
-    <description>Recent content in Posts on Kernels and Cats</description>
+    <title>CTF on Kernels and Cats</title>
+    <link>https://kaligulaarmblessed.github.io/categories/ctf/</link>
+    <description>Recent content in CTF on Kernels and Cats</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en</language>
-    <lastBuildDate>Thu, 28 Sep 2023 00:00:00 +0000</lastBuildDate><atom:link href="https://kaligulaarmblessed.github.io/post/index.xml" rel="self" type="application/rss+xml" />
+    <lastBuildDate>Thu, 28 Sep 2023 00:00:00 +0000</lastBuildDate><atom:link href="https://kaligulaarmblessed.github.io/categories/ctf/index.xml" rel="self" type="application/rss+xml" />
     <item>
       <title>nftables Adventures: CVE-2023-31248 -- Oh How The Turn Tables! [Part 2]</title>
       <link>https://kaligulaarmblessed.github.io/post/nftables-adventures-2/</link>

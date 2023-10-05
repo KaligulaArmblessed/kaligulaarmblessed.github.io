@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+    <title>Kernels and Cats</title>
+    <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+    <meta content="utf-8" http-equiv="encoding">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="theme-color" content="#000084" />
+    <meta name="google-site-verification" content="733C7I2uDZnatcput9zZupeQ_PX5Z0BJ1HmTnGi0SJI" />
+	<link rel="icon" href="https://kaligulaarmblessed.github.io/favicon.ico">
+    <link rel="canonical" href="https://kaligulaarmblessed.github.io">
+    
+    
+</head>
+<body>
+<nav class="navbar navbar-inverse navbar-fixed-top">
+    <div class="navbar-inner">
+        <div class="container">
+            <button type="button" class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse"></button>
+            <a class="brand" href="https://kaligulaarmblessed.github.io">Kernels and Cats</a>
+            <div class="nav-collapse collapse">
+                <ul class="nav">
+                    
+                    
+                        
+                            <li>
+                                <a href="/about/">
+                                    
+                                    <span>About</span>
+                                </a>
+                            </li>
+                        
+                    
+                        
+                            <li>
+                                <a href="/post/">
+                                    
+                                    <span>All posts</span>
+                                </a>
+                            </li>
+                        
+                    
+                </ul>
+            </div>
+        </div>
+    </div>
+</nav><div id="content" class="container">
+
+<div class="row-fluid navmargin">
+    <div class="page-header">
+        <h1>nftables Adventures: An Introduction to Bug Hunting and the Dormant State Bug [Part 1] - Wed, Sep 27, 2023</h1>
+    </div>
+    <p class="lead"></p>
+    <h4 id="tldr">TLDR</h4>
+<p>I tried my hand at bug hunting within the nftables subsystem in the Linux kernel, and managed to find a bug where if the dormant state of a table was toggled in a certain way, the kernel would attempt to deactivate hooks that were never activated in the first place. The bug report can be found here: <a href="https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/net/netfilter/nf_tables_api.c?id=c9bd26513b3a11b3adb3c2ed8a31a01a87173ff1">https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/net/netfilter/nf_tables_api.c?id=c9bd26513b3a11b3adb3c2ed8a31a01a87173ff1</a>. Unfortunately (or fortunately), the bug cannot be transformed into a UAF as the kernel performs certain checks that prevents us from reaching any interesting frees.</p>
+<p>This is going to be a more rambly writeup where I will talk about my experiences and thought processes while bug hunting in addition to explaining the root cause of the bug; if you would like to read a more official and concise version, check out this link: <a href="https://starlabs.sg/blog/2023/09-nftables-adventures-bug-hunting-and-n-day-exploitation/">https://starlabs.sg/blog/2023/09-nftables-adventures-bug-hunting-and-n-day-exploitation/</a>. Otherwise, gather &lsquo;round the nftable; let&rsquo;s go on an adventure!</p>
+<h4 id="nftable-of-contents">nfTable of Contents</h4>
+<ol>
+<li><a href="#introduction-to-nftables">Introduction to nftables</a>
+<ul>
+<li><a href="#tables">Tables</a></li>
+<li><a href="#chains">Chains</a></li>
+<li><a href="#rules">Rules</a></li>
+<li><a href="#expressions">Expressions</a></li>
+<li><a href="#genmask-system">Genmask System</a></li>
+<li><a href="#control-plane-transaction-system-and-transaction-worker">Control Plane, Transaction System and Transaction Worker</a></li>
+</ul>
+</li>
+<li><a href="#nftables-dormant-state-chain-hook-deactivation-bug">nftables Dormant State Chain Hook Deactivation Bug</a></li>
+<li><a href="#triggering-the-bug">Triggering the Bug</a></li>
+<li><a href="#patch-analysis">Patch Analysis</a></li>
+<li><a href="#my-bug-hunting-experience">My Bug Hunting Experience</a></li>
+<li><a href="#references-and-credits">References and Credits</a></li>
+</ol>
+<h4 id="introduction-to-nftables">Introduction to nftables</h4>
+<p>nftables is a modern packet filtering framework that aims to replace the legacy {ip,ip6,arp,eb}_tables (xtables) infrastructure. It reuses the existing netfilter hooks, which act as entry points for handlers that perform various operations on packets. Nftables table objects contain a list of chain objects, which contain a list of rule objects, which finally contain expressions, which perform the operations of the pseudo-state machine.</p>
+<h4 id="tables">Tables</h4>
+<p>Tables are top-level objects which contain chains, sets, objects and flowtables. Internally, tables are represented by <code>struct nft_table</code>.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#75715e">/**
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	struct nft_table - nf_tables table
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@list: used internally
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@chains_ht: chains in the table
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@chains: same, for stable walks
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@sets: sets in the table
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@objects: stateful objects in the table
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@flowtables: flow tables in the table
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@hgenerator: handle generator state
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@handle: table handle
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@use: number of chain references to this table
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@flags: table flag (see enum nft_table_flags)
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@genmask: generation mask
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@afinfo: address family info
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@name: name of the table
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@validate_state: internal, set when transaction adds jumps
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> */</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> nft_table {
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> list_head		list;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> rhltable			chains_ht;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> list_head		chains;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> list_head		sets;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> list_head		objects;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> list_head		flowtables;
+</span></span><span style="display:flex;"><span>	u64				hgenerator;
+</span></span><span style="display:flex;"><span>	u64				handle;
+</span></span><span style="display:flex;"><span>	u32				use;
+</span></span><span style="display:flex;"><span>	u16				family:<span style="color:#ae81ff">6</span>,
+</span></span><span style="display:flex;"><span>					flags:<span style="color:#ae81ff">8</span>,
+</span></span><span style="display:flex;"><span>					genmask:<span style="color:#ae81ff">2</span>;
+</span></span><span style="display:flex;"><span>	u32				nlpid;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">char</span>		    <span style="color:#f92672">*</span>name;
+</span></span><span style="display:flex;"><span>	u16				udlen;
+</span></span><span style="display:flex;"><span>	u8				<span style="color:#f92672">*</span>udata;
+</span></span><span style="display:flex;"><span>	u8				validate_state;
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><p>A table can have multiple different flags. The user is able to set the flags <code>NFT_TABLE_F_DORMANT</code> and/or <code>NFT_TABLE_F_OWNER</code> when the table is created (<code>nf_tables_newtable</code>). The dormant state flag (<code>NFT_TABLE_F_DORMANT</code>) can be updated in <code>nf_tables_updtable</code>. If <code>NFT_TABLE_F_DORMANT</code> (0x1) is set, the table will be made dormant, and all its basechain hooks will be unregistered, but the table will not be deleted. There are also internally set <code>__NFT_TABLE_F_UPDATE</code> flags, which comprise of <code>__NFT_TABLE_F_WAS_AWAKEN</code> and <code>__NFT_TABLE_F_WAS_DORMANT</code>.</p>
+<h4 id="chains">Chains</h4>
+<p>Chains can either be base chains, which are registered with a netfilter hook and cannot be jumped to, or normal chains, which are not registered with a hook but can be jumped to. Internally, chains are represented by <code>struct nft_chain</code>.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#75715e">/**
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	struct nft_chain - nf_tables chain
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@rules: list of rules in the chain
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@list: used internally
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@rhlhead: used internally
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@table: table that this chain belongs to
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@handle: chain handle
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@use: number of jump references to this chain
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@flags: bitmask of enum nft_chain_flags
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@name: name of the chain
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> */</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> nft_chain {
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> nft_rule_blob		__rcu <span style="color:#f92672">*</span>blob_gen_0;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> nft_rule_blob		__rcu <span style="color:#f92672">*</span>blob_gen_1;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> list_head		rules;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> list_head		list;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> rhlist_head		rhlhead;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> nft_table		<span style="color:#f92672">*</span>table;
+</span></span><span style="display:flex;"><span>	u64				handle;
+</span></span><span style="display:flex;"><span>	u32				use;
+</span></span><span style="display:flex;"><span>	u8				flags:<span style="color:#ae81ff">5</span>,
+</span></span><span style="display:flex;"><span>					bound:<span style="color:#ae81ff">1</span>,
+</span></span><span style="display:flex;"><span>					genmask:<span style="color:#ae81ff">2</span>;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">char</span>			<span style="color:#f92672">*</span>name;
+</span></span><span style="display:flex;"><span>	u16				udlen;
+</span></span><span style="display:flex;"><span>	u8				<span style="color:#f92672">*</span>udata;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#75715e">/* Only used during control plane commit phase: */</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> nft_rule_blob		<span style="color:#f92672">*</span>blob_next;
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><p>Basechains are represented by <code>struct nft_base_chain</code>.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#75715e">/**
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	struct nft_base_chain - nf_tables base chain
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@ops: netfilter hook ops
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@hook_list: list of netfilter hooks (for NFPROTO_NETDEV family)
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@type: chain type
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@policy: default policy
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@stats: per-cpu chain stats
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@chain: the chain
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@flow_block: flow block (for hardware offload)
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> */</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> nft_base_chain {
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> nf_hook_ops		ops;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> list_head		hook_list;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">struct</span> nft_chain_type	<span style="color:#f92672">*</span>type;
+</span></span><span style="display:flex;"><span>	u8				policy;
+</span></span><span style="display:flex;"><span>	u8				flags;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> nft_stats __percpu	<span style="color:#f92672">*</span>stats;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> nft_chain		chain;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> flow_block		flow_block;
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><h4 id="rules">Rules</h4>
+<p>Rules contain nftables expressions. Internally, rules are represented by <code>struct nft_rule</code>.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#75715e">/**
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	struct nft_rule - nf_tables rule
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@list: used internally
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@handle: rule handle
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@genmask: generation mask
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@dlen: length of expression data
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@udata: user data is appended to the rule
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@data: expression data
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> */</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> nft_rule {
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> list_head		list;
+</span></span><span style="display:flex;"><span>	u64				handle:<span style="color:#ae81ff">42</span>,
+</span></span><span style="display:flex;"><span>					genmask:<span style="color:#ae81ff">2</span>,
+</span></span><span style="display:flex;"><span>					dlen:<span style="color:#ae81ff">12</span>,
+</span></span><span style="display:flex;"><span>					udata:<span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">char</span>			data[]
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">__attribute__</span>((<span style="color:#a6e22e">aligned</span>(<span style="color:#a6e22e">__alignof__</span>(<span style="color:#66d9ef">struct</span> nft_expr))));
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><h4 id="expressions">Expressions</h4>
+<p>Expressions act as the operations of the state machine. There are many expressions, here are some for example:</p>
+<ul>
+<li>Bitwise: Performs bitwise operations</li>
+<li>Immediate: To load data into registers. Also allows for jumps/goto to another normal chain</li>
+<li>Byteorder: To change from host/network endianness</li>
+<li>Compare: To compare values in two registers</li>
+<li>Counter: To enable counters in rules</li>
+</ul>
+<p>Interally, expressions are represented by <code>struct nft_expr</code>.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#75715e">/**
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	struct nft_expr - nf_tables expression
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@ops: expression ops
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@data: expression private data
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> */</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> nft_expr {
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">struct</span> nft_expr_ops	<span style="color:#f92672">*</span>ops;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">char</span>			data[]
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">__attribute__</span>((<span style="color:#a6e22e">aligned</span>(<span style="color:#a6e22e">__alignof__</span>(u64))));
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><p>Each expression also has a <code>struct nft_expr_ops</code> representing various operations.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#75715e">/**
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	struct nft_expr_ops - nf_tables expression operations
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@eval: Expression evaluation function
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@size: full expression size, including private data size
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@init: initialization function
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@activate: activate expression in the next generation
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@deactivate: deactivate expression in next generation
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@destroy: destruction function, called after synchronize_rcu
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@dump: function to dump parameters
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@type: expression type
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@validate: validate expression, called during loop detection
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *	@data: extra data to attach to this expression operation
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> */</span>
+</span></span><span style="display:flex;"><span> <span style="color:#66d9ef">struct</span> nft_expr_ops {
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">void</span>			(<span style="color:#f92672">*</span>eval)(<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">struct</span> nft_expr <span style="color:#f92672">*</span>expr,
+</span></span><span style="display:flex;"><span>						<span style="color:#66d9ef">struct</span> nft_regs <span style="color:#f92672">*</span>regs,
+</span></span><span style="display:flex;"><span>						<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">struct</span> nft_pktinfo <span style="color:#f92672">*</span>pkt);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">int</span>				(<span style="color:#f92672">*</span>clone)(<span style="color:#66d9ef">struct</span> nft_expr <span style="color:#f92672">*</span>dst,
+</span></span><span style="display:flex;"><span>						<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">struct</span> nft_expr <span style="color:#f92672">*</span>src);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">int</span>	size;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">int</span>				(<span style="color:#f92672">*</span>init)(<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">struct</span> nft_ctx <span style="color:#f92672">*</span>ctx,
+</span></span><span style="display:flex;"><span>						<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">struct</span> nft_expr <span style="color:#f92672">*</span>expr,
+</span></span><span style="display:flex;"><span>						<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">struct</span> nlattr <span style="color:#f92672">*</span> <span style="color:#66d9ef">const</span> tb[]);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">void</span>			(<span style="color:#f92672">*</span>activate)(<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">struct</span> nft_ctx <span style="color:#f92672">*</span>ctx,
+</span></span><span style="display:flex;"><span>						<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">struct</span> nft_expr <span style="color:#f92672">*</span>expr);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">void</span>			(<span style="color:#f92672">*</span>deactivate)(<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">struct</span> nft_ctx <span style="color:#f92672">*</span>ctx,
+</span></span><span style="display:flex;"><span>						<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">struct</span> nft_expr <span style="color:#f92672">*</span>expr,
+</span></span><span style="display:flex;"><span>						<span style="color:#66d9ef">enum</span> nft_trans_phase phase);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">void</span>			(<span style="color:#f92672">*</span>destroy)(<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">struct</span> nft_ctx <span style="color:#f92672">*</span>ctx,
+</span></span><span style="display:flex;"><span>						<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">struct</span> nft_expr <span style="color:#f92672">*</span>expr);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">void</span>			(<span style="color:#f92672">*</span>destroy_clone)(<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">struct</span> nft_ctx <span style="color:#f92672">*</span>ctx,
+</span></span><span style="display:flex;"><span>						<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">struct</span> nft_expr <span style="color:#f92672">*</span>expr);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">int</span>				(<span style="color:#f92672">*</span>dump)(<span style="color:#66d9ef">struct</span> sk_buff <span style="color:#f92672">*</span>skb,
+</span></span><span style="display:flex;"><span>						<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">struct</span> nft_expr <span style="color:#f92672">*</span>expr,
+</span></span><span style="display:flex;"><span>						<span style="color:#66d9ef">bool</span> reset);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">int</span>				(<span style="color:#f92672">*</span>validate)(<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">struct</span> nft_ctx <span style="color:#f92672">*</span>ctx,
+</span></span><span style="display:flex;"><span>						<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">struct</span> nft_expr <span style="color:#f92672">*</span>expr,
+</span></span><span style="display:flex;"><span>						<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">struct</span> nft_data <span style="color:#f92672">**</span>data);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">bool</span>			(<span style="color:#f92672">*</span>reduce)(<span style="color:#66d9ef">struct</span> nft_regs_track <span style="color:#f92672">*</span>track,
+</span></span><span style="display:flex;"><span>					    <span style="color:#66d9ef">const</span> <span style="color:#66d9ef">struct</span> nft_expr <span style="color:#f92672">*</span>expr);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">bool</span>			(<span style="color:#f92672">*</span>gc)(<span style="color:#66d9ef">struct</span> net <span style="color:#f92672">*</span>net,
+</span></span><span style="display:flex;"><span>					    <span style="color:#66d9ef">const</span> <span style="color:#66d9ef">struct</span> nft_expr <span style="color:#f92672">*</span>expr);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">int</span>				(<span style="color:#f92672">*</span>offload)(<span style="color:#66d9ef">struct</span> nft_offload_ctx <span style="color:#f92672">*</span>ctx,
+</span></span><span style="display:flex;"><span>						<span style="color:#66d9ef">struct</span> nft_flow_rule <span style="color:#f92672">*</span>flow,
+</span></span><span style="display:flex;"><span>						<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">struct</span> nft_expr <span style="color:#f92672">*</span>expr);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">bool</span>			(<span style="color:#f92672">*</span>offload_action)(<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">struct</span> nft_expr <span style="color:#f92672">*</span>expr);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">void</span>			(<span style="color:#f92672">*</span>offload_stats)(<span style="color:#66d9ef">struct</span> nft_expr <span style="color:#f92672">*</span>expr,
+</span></span><span style="display:flex;"><span>						<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">struct</span> flow_stats <span style="color:#f92672">*</span>stats);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">struct</span> nft_expr_type	<span style="color:#f92672">*</span>type;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">void</span>				        <span style="color:#f92672">*</span>data;
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><h4 id="genmask-system">Genmask System</h4>
+<p>Many nftables objects have a 2 bit genmask, which specifies whether an object is active in the current and/or next generation. If a bit is set, the object is not active in that generation. There is an overall gencursor defining the bit that represents the current generation. Objects can have the following states:</p>
+<ul>
+<li>Active in both the current and next generation (e.g. unchanged objects)</li>
+<li>Active in the current generation, inactive in the next generation (e.g. objects marked for deletion)</li>
+<li>Inactive in the current generation, active in the next generation (e.g. newly created objects)</li>
+</ul>
+<h4 id="control-plane-transaction-system-and-transaction-worker">Control Plane, Transaction System and Transaction Worker</h4>
+<p>In nftables, actions requested by userspace (via a netlink message) are performed in the control plane, which include functions such as <code>nf_tables_newtable</code>, <code>nf_tables_updtable</code>, <code>nf_tables_newchain</code> and more. The control plane is in charge of the creation and allocation of objects, activating/deactivating objects in the next generation, linking objects, and modifying the &ldquo;use&rdquo; refcount of objects. However, newly created objects are not immediately activated after creation; they are only activated in the commit phase when a new generation is started. All actions in the control plane that involve the creation or updating of objects will add a new transaction to the transaction list.</p>
+<p>When a netlink batch transaction is considered to be valid (i.e. all actions in the control plane do not return errors), the commit phase is entered and <code>nf_tables_commit</code> is called. A new generation will be started, resulting in all newly created objects becoming active, and actions in the transaction list will be performed. The commit phase is also in charge of unlinking objects that are to be deleted, and queuing the asynchronous transaction worker in charge of destroying objects (<code>nf_tables_trans_destroy_work</code>).</p>
+<p>The asynchronous transaction worker, when run, will call <code>nft_commit_release</code>, which will finally call functions that will destroy and free objects marked for deletion.</p>
+<h4 id="nftables-dormant-state-chain-hook-deactivation-bug">nftables Dormant State Chain Hook Deactivation Bug</h4>
+<p>While researching nftables, through manual source code review, I was able to identify a bug that resulted in a warning splat. The bug report can be seen here: <a href="https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/net/netfilter/nf_tables_api.c?id=c9bd26513b3a11b3adb3c2ed8a31a01a87173ff1">https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/net/netfilter/nf_tables_api.c?id=c9bd26513b3a11b3adb3c2ed8a31a01a87173ff1</a></p>
+<p>When a newly created table table is updated via <code>nf_tables_updtable</code> from active to dormant, the table flag is set to <code>NFT_TABLE_F_DORMANT</code>, and as none of the <code>__NFT_TABLE_F_UPDATE</code> flags are set, the <code>__NFT_TABLE_F_WAS_AWAKEN</code> flag will be set. When updating a table from active to dormant, the chain hooks are not deactivated until <code>nf_tables_commit</code> is called. However, when a table is updated from dormant to active, the <code>NFT_TABLE_F_DORMANT</code> flag is unset. It then checks if any of the <code>__NFT_TABLE_F_UPDATE</code> flags are set, and if none are set, the chain hooks are instantly activated by <code>nf_tables_table_enable</code> (i.e. before <code>nf_tables_commit</code> is called). This code behaviour can be seen below:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">int</span> <span style="color:#a6e22e">nf_tables_updtable</span>(<span style="color:#66d9ef">struct</span> nft_ctx <span style="color:#f92672">*</span>ctx) {
+</span></span><span style="display:flex;"><span>	...
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> ((flags <span style="color:#f92672">&amp;</span> NFT_TABLE_F_DORMANT) <span style="color:#f92672">&amp;&amp;</span>
+</span></span><span style="display:flex;"><span>	    <span style="color:#f92672">!</span>(ctx<span style="color:#f92672">-&gt;</span>table<span style="color:#f92672">-&gt;</span>flags <span style="color:#f92672">&amp;</span> NFT_TABLE_F_DORMANT)) {
+</span></span><span style="display:flex;"><span>		ctx<span style="color:#f92672">-&gt;</span>table<span style="color:#f92672">-&gt;</span>flags <span style="color:#f92672">|=</span> NFT_TABLE_F_DORMANT;
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>(ctx<span style="color:#f92672">-&gt;</span>table<span style="color:#f92672">-&gt;</span>flags <span style="color:#f92672">&amp;</span> __NFT_TABLE_F_UPDATE))
+</span></span><span style="display:flex;"><span>			ctx<span style="color:#f92672">-&gt;</span>table<span style="color:#f92672">-&gt;</span>flags <span style="color:#f92672">|=</span> __NFT_TABLE_F_WAS_AWAKEN;
+</span></span><span style="display:flex;"><span>	} <span style="color:#66d9ef">else</span> <span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>(flags <span style="color:#f92672">&amp;</span> NFT_TABLE_F_DORMANT) <span style="color:#f92672">&amp;&amp;</span>
+</span></span><span style="display:flex;"><span>		   ctx<span style="color:#f92672">-&gt;</span>table<span style="color:#f92672">-&gt;</span>flags <span style="color:#f92672">&amp;</span> NFT_TABLE_F_DORMANT) {
+</span></span><span style="display:flex;"><span>		ctx<span style="color:#f92672">-&gt;</span>table<span style="color:#f92672">-&gt;</span>flags <span style="color:#f92672">&amp;=</span> <span style="color:#f92672">~</span>NFT_TABLE_F_DORMANT;
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>(ctx<span style="color:#f92672">-&gt;</span>table<span style="color:#f92672">-&gt;</span>flags <span style="color:#f92672">&amp;</span> __NFT_TABLE_F_UPDATE)) {
+</span></span><span style="display:flex;"><span>			ret <span style="color:#f92672">=</span> <span style="color:#a6e22e">nf_tables_table_enable</span>(ctx<span style="color:#f92672">-&gt;</span>net, ctx<span style="color:#f92672">-&gt;</span>table);
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">if</span> (ret <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>)
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">goto</span> err_register_hooks;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>			ctx<span style="color:#f92672">-&gt;</span>table<span style="color:#f92672">-&gt;</span>flags <span style="color:#f92672">|=</span> __NFT_TABLE_F_WAS_DORMANT;
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>	...
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>It is possible to activate/deactivate tables in a way such that at one point of time, some chains are registered and some are not registered. This can be done by updating an active table to dormant so that the <code>__NFT_TABLE_F_WAS_AWAKEN</code> flag, which is one of the <code>__NFT_TABLE_F_UPDATE</code> flags are set, and then updating the dormant table to active. As one of the <code>__NFT_TABLE_F_UPDATE</code> flags are set, <code>nf_tables_table_enable</code> is skipped, leaving some chains unregistered. When an active table is deleted, <code>nf_tables_unregister_hook</code> only checks if the <code>NFT_TABLE_F_DORMANT</code> flag is zeroed out. If the flag is unset, all the base chains are assumed to be active and hence all the chain hooks will be deactivated, even if they are not registered in the first place. This causes the following warning to be displayed:</p>
+<pre tabindex="0"><code>[ 1411.118307] ------------[ cut here ]------------
+[ 1411.119665] hook not found, pf 2 num 3
+[ 1411.119708] WARNING: CPU: 1 PID: 367 at net/netfilter/core.c:517 __nf_unregister_net_hook+0xf8/0x2e0
+[ 1411.124338] Modules linked in:
+[ 1411.125549] CPU: 1 PID: 367 Comm: nft Not tainted 6.5.2 #2
+[ 1411.127933] Hardware name: QEMU Standard PC (i440FX + PIIX, 1996), BIOS 1.16.2-debian-1.16.2-1 04/01/2014
+[ 1411.130939] RIP: 0010:__nf_unregister_net_hook+0xf8/0x2e0
+[ 1411.133576] Code: 01 00 0f 85 90 00 00 00 48 8b 3c 24 c6 05 a5 77 dd 01 01 e8 3a 49 fc fe 8b 53 1c 44 89 e6 48 c7 c7 e0 59 31 83 e8 c8 4c c1 fe &lt;0f&gt; 0b eb 6a 44 89 f8 48 c1 e0 04 4c 01 f0 48 8d 78 08 48 89 44 24
+[ 1411.143107] RSP: 0018:ffff8880158f7388 EFLAGS: 00010282
+[ 1411.145200] RAX: 0000000000000000 RBX: ffff888006c0f200 RCX: 0000000000000000
+[ 1411.147892] RDX: 0000000000000002 RSI: ffffffff8114726f RDI: ffffffff85bd0200
+[ 1411.150749] RBP: ffffffff85ffdac0 R08: 0000000000000001 R09: ffffed100da64f01
+[ 1411.153231] R10: ffff88806d32780b R11: 0000000000000001 R12: 0000000000000002
+[ 1411.156197] R13: ffff888007a4cab8 R14: ffff888007a4ca80 R15: 0000000000000002
+[ 1411.159507] FS:  00007f03b7cd5d80(0000) GS:ffff88806d300000(0000) knlGS:0000000000000000
+[ 1411.162667] CS:  0010 DS: 0000 ES: 0000 CR0: 0000000080050033
+[ 1411.164773] CR2: 00007ffc14b40558 CR3: 0000000017ce8000 CR4: 00000000000006e0
+[ 1411.169262] Call Trace:
+[ 1411.171044]  &lt;TASK&gt;
+[ 1411.172713]  ? __warn+0x9c/0x200
+[ 1411.174282]  ? __nf_unregister_net_hook+0xf8/0x2e0
+[ 1411.176416]  ? report_bug+0x1f2/0x220
+[ 1411.177947]  ? handle_bug+0x3c/0x80
+[ 1411.179123]  ? exc_invalid_op+0x13/0x40
+[ 1411.180361]  ? asm_exc_invalid_op+0x16/0x20
+[ 1411.181887]  ? preempt_count_sub+0xf/0xc0
+[ 1411.183772]  ? __nf_unregister_net_hook+0xf8/0x2e0
+[ 1411.185357]  ? __nf_unregister_net_hook+0xf8/0x2e0
+[ 1411.187045]  nf_tables_commit+0x1a15/0x2600
+[ 1411.189373]  ? __pfx___nla_validate_parse+0x20/0x20
+[ 1411.191535]  ? __pfx_lock_release+0x20/0x20
+[ 1411.193486]  ? __pfx_nf_tables_commit+0x20/0x20
+[ 1411.195470]  nfnetlink_rcv_batch+0x860/0x1100
+[ 1411.197345]  ? __pfx_nfnetlink_rcv_batch+0x20/0x20
+[ 1411.199436]  ? find_held_lock+0x83/0xa0
+[ 1411.200948]  nfnetlink_rcv+0x1da/0x220
+[ 1411.202570]  ? __pfx_nfnetlink_rcv+0x20/0x20
+[ 1411.204341]  ? netlink_deliver_tap+0xf7/0x5e0
+[ 1411.206507]  netlink_unicast+0x2ca/0x460
+[ 1411.208166]  ? __pfx_netlink_unicast+0x20/0x20
+[ 1411.210278]  ? __virt_addr_valid+0xd4/0x160
+[ 1411.212405]  netlink_sendmsg+0x3d5/0x700
+[ 1411.214076]  ? __pfx_netlink_sendmsg+0x20/0x20
+[ 1411.215943]  ? import_ubuf+0xc1/0x100
+[ 1411.217517]  ? __pfx_netlink_sendmsg+0x20/0x20
+[ 1411.219358]  sock_sendmsg+0xda/0xe0
+[ 1411.220915]  ? import_iovec+0x54/0x80
+[ 1411.222655]  ____sys_sendmsg+0x436/0x500
+[ 1411.224223]  ? __pfx_____sys_sendmsg+0x20/0x20
+[ 1411.226046]  ? __pfx_copy_msghdr_from_user+0x20/0x20
+[ 1411.227928]  ? sk_getsockopt+0xbc7/0x1b20
+[ 1411.229274]  ? find_held_lock+0x83/0xa0
+[ 1411.230507]  ___sys_sendmsg+0xf8/0x160
+[ 1411.231712]  ? __pfx____sys_sendmsg+0x20/0x20
+[ 1411.233656]  ? __pfx_sk_setsockopt+0x20/0x20
+[ 1411.235285]  ? sock_has_perm+0xc9/0x1a0
+[ 1411.236601]  ? __fget_light+0xda/0x100
+[ 1411.238418]  __sys_sendmsg+0xe5/0x180
+[ 1411.240445]  ? __pfx___sys_sendmsg+0x20/0x20
+[ 1411.241861]  ? __sys_getsockopt+0x17d/0x1a0
+[ 1411.243273]  ? syscall_enter_from_user_mode+0x1c/0x60
+[ 1411.244890]  do_syscall_64+0x3a/0xa0
+[ 1411.246060]  entry_SYSCALL_64_after_hwframe+0x6e/0xd8
+</code></pre><p>This bug was introduced in the following commit:
+<a href="https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/net/netfilter/nf_tables_api.c?id=179d9ba5559a756f4322583388b3213fe4e391b0">https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/net/netfilter/nf_tables_api.c?id=179d9ba5559a756f4322583388b3213fe4e391b0</a></p>
+<h4 id="triggering-the-bug">Triggering the Bug</h4>
+<p>To trigger the bug, the following steps should be taken (in the same batch transaction):</p>
+<ol>
+<li>Create a table &ldquo;test_table&rdquo; &ndash; this table is active [1]</li>
+<li>Update the table &ldquo;test_table&rdquo; from active to dormant [2]
+a. The <code>NFT_TABLE_F_DORMANT</code> and <code>__NFT_TABLE_F_WAS_AWAKEN</code> table flags are set</li>
+<li>Add a basechain &ldquo;chain1&rdquo; &ndash; this basechain is added to a dormant table and hence is not registered [3]</li>
+<li>Update the table &ldquo;test_table&rdquo; from dormant to active [4]
+a. The <code>NFT_TABLE_F_DORMANT</code> flag is zeroed out, but the <code>__NFT_TABLE_F_WAS_AWAKEN</code> flag is still set, causing <code>nf_tables_enable_table</code> to be skipped</li>
+<li>Delete the active table &ldquo;test_table&rdquo; using the nft utility: <code>nft delete table test_table</code> [5]</li>
+</ol>
+<p>The table is active when it was deleted, so when the table is being flushed, all the basechains are treated as registered and will be unregistered. However, as basechain &ldquo;chain1&rdquo; was never registered, the kernel will try to unregister an unregistered chain, causing a warning.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#75715e">#define _GNU_SOURCE
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;stdio.h&gt; </span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;stdlib.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;string.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;signal.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;stddef.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;netinet/in.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;netinet/ip.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;netinet/tcp.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;arpa/inet.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;sys/types.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;sys/stat.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;sys/socket.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;errno.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;fcntl.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;sys/mman.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;time.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;linux/netfilter.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;linux/netfilter/nfnetlink.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;linux/netfilter/nf_tables.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;libmnl/libmnl.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;libnftnl/table.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;libnftnl/chain.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> unft_base_chain_param {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">uint32_t</span> hook_num;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">uint32_t</span> prio;
+</span></span><span style="display:flex;"><span>};
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> nftnl_table<span style="color:#f92672">*</span> <span style="color:#a6e22e">build_table</span>(<span style="color:#66d9ef">char</span><span style="color:#f92672">*</span> name, <span style="color:#66d9ef">uint16_t</span> family) {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">struct</span> nftnl_table<span style="color:#f92672">*</span> t <span style="color:#f92672">=</span> <span style="color:#a6e22e">nftnl_table_alloc</span>();
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">nftnl_table_set_u32</span>(t, NFTNL_TABLE_FAMILY, family);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">nftnl_table_set_str</span>(t, NFTNL_TABLE_NAME, name);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> t;
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> nftnl_chain<span style="color:#f92672">*</span> <span style="color:#a6e22e">build_chain</span>(<span style="color:#66d9ef">char</span><span style="color:#f92672">*</span> table_name, <span style="color:#66d9ef">char</span><span style="color:#f92672">*</span> chain_name, <span style="color:#66d9ef">struct</span> unft_base_chain_param<span style="color:#f92672">*</span> base_param, <span style="color:#66d9ef">uint32_t</span> chain_id) {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">struct</span> nftnl_chain<span style="color:#f92672">*</span> c;
+</span></span><span style="display:flex;"><span>    c <span style="color:#f92672">=</span> <span style="color:#a6e22e">nftnl_chain_alloc</span>();
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">nftnl_chain_set_str</span>(c, NFTNL_CHAIN_NAME, chain_name);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">nftnl_chain_set_str</span>(c, NFTNL_CHAIN_TABLE, table_name);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (base_param) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">nftnl_chain_set_u32</span>(c, NFTNL_CHAIN_HOOKNUM, base_param<span style="color:#f92672">-&gt;</span>hook_num);
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">nftnl_chain_set_u32</span>(c, NFTNL_CHAIN_PRIO, base_param<span style="color:#f92672">-&gt;</span>prio);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (chain_id) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">nftnl_chain_set_u32</span>(c, NFTNL_CHAIN_ID, chain_id);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> c;
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">int</span> <span style="color:#a6e22e">main</span>(<span style="color:#66d9ef">void</span>) {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">char</span> buf[MNL_SOCKET_BUFFER_SIZE];
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">struct</span> nlmsghdr <span style="color:#f92672">*</span>nlh;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">struct</span> mnl_nlmsg_batch <span style="color:#f92672">*</span>batch;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">int</span> ret;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">int</span> seq <span style="color:#f92672">=</span> <span style="color:#a6e22e">time</span>(NULL);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">uint8_t</span> family <span style="color:#f92672">=</span> NFPROTO_IPV4;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">struct</span> mnl_socket<span style="color:#f92672">*</span> nl <span style="color:#f92672">=</span> <span style="color:#a6e22e">mnl_socket_open</span>(NETLINK_NETFILTER);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (nl <span style="color:#f92672">==</span> NULL) {
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;mnl_socket_open&#34;</span>);
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">exit</span>(EXIT_FAILURE);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>	
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">mnl_socket_bind</span>(nl, <span style="color:#ae81ff">0</span>, MNL_SOCKET_AUTOPID) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;mnl_socket_bind&#34;</span>);
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">exit</span>(EXIT_FAILURE);
+</span></span><span style="display:flex;"><span>	} 
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Start nl message
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	batch <span style="color:#f92672">=</span> <span style="color:#a6e22e">mnl_nlmsg_batch_start</span>(buf, <span style="color:#66d9ef">sizeof</span>(buf));
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">nftnl_batch_begin</span>(<span style="color:#a6e22e">mnl_nlmsg_batch_current</span>(batch), seq<span style="color:#f92672">++</span>);
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">mnl_nlmsg_batch_next</span>(batch);
+</span></span><span style="display:flex;"><span>	
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Create active table &#34;test_table&#34; [1]
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">struct</span> nftnl_table <span style="color:#f92672">*</span> t <span style="color:#f92672">=</span> <span style="color:#a6e22e">build_table</span>(<span style="color:#e6db74">&#34;test_table&#34;</span>, NFPROTO_IPV4);
+</span></span><span style="display:flex;"><span>    nlh <span style="color:#f92672">=</span> <span style="color:#a6e22e">nftnl_nlmsg_build_hdr</span>(<span style="color:#a6e22e">mnl_nlmsg_batch_current</span>(batch), NFT_MSG_NEWTABLE, family, NLM_F_CREATE <span style="color:#f92672">|</span> NLM_F_ACK, seq<span style="color:#f92672">++</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">nftnl_table_nlmsg_build_payload</span>(nlh, t);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">mnl_nlmsg_batch_next</span>(batch);
+</span></span><span style="display:flex;"><span>	
+</span></span><span style="display:flex;"><span>	<span style="color:#75715e">// Update table &#34;test_table&#34; -- table is now dormant [2]
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	nlh <span style="color:#f92672">=</span> <span style="color:#a6e22e">nftnl_nlmsg_build_hdr</span>(<span style="color:#a6e22e">mnl_nlmsg_batch_current</span>(batch), NFT_MSG_NEWTABLE, family, NLM_F_CREATE <span style="color:#f92672">|</span> NLM_F_ACK, seq<span style="color:#f92672">++</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">nftnl_table_set_u32</span>(t, NFTNL_TABLE_FLAGS, <span style="color:#ae81ff">0x1</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">nftnl_table_nlmsg_build_payload</span>(nlh, t);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">mnl_nlmsg_batch_next</span>(batch);
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Add basechain &#34;chain1&#34; -- not registered [3]
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">struct</span> unft_base_chain_param bp2;
+</span></span><span style="display:flex;"><span>    bp2.hook_num <span style="color:#f92672">=</span> NF_INET_LOCAL_OUT;
+</span></span><span style="display:flex;"><span>    bp2.prio <span style="color:#f92672">=</span> <span style="color:#ae81ff">11</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">struct</span> nftnl_chain <span style="color:#f92672">*</span> c <span style="color:#f92672">=</span> <span style="color:#a6e22e">build_chain</span>(<span style="color:#e6db74">&#34;test_table&#34;</span>, <span style="color:#e6db74">&#34;chain1&#34;</span>, <span style="color:#f92672">&amp;</span>bp2, <span style="color:#ae81ff">11</span>);
+</span></span><span style="display:flex;"><span>    nlh <span style="color:#f92672">=</span> <span style="color:#a6e22e">nftnl_nlmsg_build_hdr</span>(<span style="color:#a6e22e">mnl_nlmsg_batch_current</span>(batch), NFT_MSG_NEWCHAIN, family, NLM_F_CREATE <span style="color:#f92672">|</span> NLM_F_ACK, seq<span style="color:#f92672">++</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">nftnl_chain_nlmsg_build_payload</span>(nlh, c);
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">mnl_nlmsg_batch_next</span>(batch);
+</span></span><span style="display:flex;"><span>	
+</span></span><span style="display:flex;"><span>	<span style="color:#75715e">// Update table &#34;test_table&#34; -- table is now active [4]
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	nlh <span style="color:#f92672">=</span> <span style="color:#a6e22e">nftnl_nlmsg_build_hdr</span>(<span style="color:#a6e22e">mnl_nlmsg_batch_current</span>(batch), NFT_MSG_NEWTABLE, family, NLM_F_CREATE <span style="color:#f92672">|</span> NLM_F_ACK, seq<span style="color:#f92672">++</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">nftnl_table_set_u32</span>(t, NFTNL_TABLE_FLAGS, <span style="color:#ae81ff">0x0</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">nftnl_table_nlmsg_build_payload</span>(nlh, t);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">mnl_nlmsg_batch_next</span>(batch);
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">nftnl_batch_end</span>(<span style="color:#a6e22e">mnl_nlmsg_batch_current</span>(batch), seq<span style="color:#f92672">++</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">mnl_nlmsg_batch_next</span>(batch);
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Send netlink message
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Sending netlink message 1</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>	ret <span style="color:#f92672">=</span> <span style="color:#a6e22e">mnl_socket_sendto</span>(nl, <span style="color:#a6e22e">mnl_nlmsg_batch_head</span>(batch), <span style="color:#a6e22e">mnl_nlmsg_batch_size</span>(batch));
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">mnl_nlmsg_batch_stop</span>(batch);
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Trigger warning [5]
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">system</span>(<span style="color:#e6db74">&#34;nft delete table test_table&#34;</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>If you would like to see a graphical representation, here are some slides from my internship presentation:</p>
+<iframe src="https://docs.google.com/presentation/d/e/2PACX-1vQE8cRZGWJfYU1898BTWWbfZ3j5S5wWZIAS9KvLZSWvSljsftPSc3PFV7Ks4sg_bTRJ4krs_wTxx5x9/embed?start=false&loop=false&delayms=3000" frameborder="0" width="960" height="569" allowfullscreen="true" mozallowfullscreen="true" webkitallowfullscreen="true"></iframe>
+<p>Unfortunately (actually fortunately), the bug is unexploitable as we are unable to reach any interesting frees. For filter/route hooks, <code>nf_remove_net_hook</code> will fail and result in the warning, and for NAT hooks, <code>nat_proto_net-&gt;users == 0</code>, resulting in another warning, preventing us from reaching the free.</p>
+<h4 id="patch-analysis">Patch Analysis</h4>
+<p>To patch the bug, the developers decided that it was best to prevent toggling the dormant state more than once in a single batch transaction. I guess the tables were not meant to be updated&hellip;periodically ;)</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-diff" data-lang="diff"><span style="display:flex;"><span>diff --git a/net/netfilter/nf_tables_api.c b/net/netfilter/nf_tables_api.c
+</span></span><span style="display:flex;"><span>index d819b4d429624..a3680638ec60f 100644
+</span></span><span style="display:flex;"><span><span style="color:#f92672">--- a/net/netfilter/nf_tables_api.c
+</span></span></span><span style="display:flex;"><span><span style="color:#f92672"></span><span style="color:#a6e22e">+++ b/net/netfilter/nf_tables_api.c
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e"></span><span style="color:#75715e">@@ -1219,6 +1219,10 @@ static int nf_tables_updtable(struct nft_ctx *ctx)
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span> 	     flags &amp; NFT_TABLE_F_OWNER))
+</span></span><span style="display:flex;"><span> 		return -EOPNOTSUPP;
+</span></span><span style="display:flex;"><span> 
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">+	/* No dormant off/on/off/on games in single transaction */
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">+	if (ctx-&gt;table-&gt;flags &amp; __NFT_TABLE_F_UPDATE)
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">+		return -EINVAL;
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">+
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e"></span> 	trans = nft_trans_alloc(ctx, NFT_MSG_NEWTABLE,
+</span></span><span style="display:flex;"><span> 				sizeof(struct nft_trans_table));
+</span></span><span style="display:flex;"><span> 	if (trans == NULL)
+</span></span></code></pre></div><p>If the update flag was previously set (by toggling the dormant state previously in the same batch transaction), <code>nf_tables_updtable</code> will simply fail.</p>
+<h4 id="my-bug-hunting-experience">My Bug Hunting Experience</h4>
+<p>Being a noob pwner, every time I see a new zero day drop, I would be like a cat with stars in their eyes :3</p>
+<p><img src="/starsineyescat.gif" alt="Stars in eyes cat :3"></p>
+<p>I really hoped that one day, I could find a kernel zero day and report it on my own, so I took up a vulnerability research internship to learn the ropes of bug hunting. At that time (around August 2023), there were many new bugs found in the nftables subsystem, so my mentor and I decided that it would be a good target to explore.</p>
+<p>In the initial stages of bug hunting, I explored using the <a href="https://github.com/google/syzkaller">Syzkaller fuzzer</a> developed by Google to try fuzzing nftables. I focused on fuzzing net/netfilter/nf_tables_api.c as well as nf_tables_core.c and nf_tables_trace.c using some custom configurations and playing around with <a href="https://xairy.io/articles/syzkaller-external-network">external network fuzzing</a>, but had no luck finding any interesting crashes. This is when I decided to turn to manual source code review, as somehow I felt like the bug hunting I was doing was not very directed as fuzzing is a random process which I have little control over. In hindsight, I should have probably explored using custom fuzzing grammar a little harder, as there were indeed nftables bugs found using Syzkaller (such as <a href="https://research.nccgroup.com/2022/09/01/settlers-of-netlink-exploiting-a-limited-uaf-in-nf_tables-cve-2022-32250/">this one</a> found by the NCC research group).</p>
+<p>My mentor suggested that I try to get more familiar and understand nftables as well as the Linux networking stack a little better before I jump headfirst into bug hunting, so I started furiously reading source code and random writeups on the Internet. I also looked at some past CVEs and wrote some code using <code>libmnl</code> and <code>libnftnl</code> to get familiar with interacting with nftables from userspace. I felt that I was pretty comfortable with nftables at that point, so I started looking for potential bugs in the source code, thinking that now I would certainly be able to spot some UAF lurking somewhere&hellip;</p>
+<p>The thing is that I was rather trigger happy, and saw almost everything as a potential point of attack. But of course, the kernel developers expected that random people would try to do miscellaneous terrible things to the kernel, and hence they implemented extensive error checking to prevent easy wins (and my numerous crappy PoCs from doing what I wanted them to do :&lt;). About 2 weeks in, the stats were something like this:</p>
+<pre tabindex="0"><code>Kaligula  vs  Kernel
+       0  :   13
+
+Number of terrible ideas: 13
+Number of terrible ideas that worked: 0
+</code></pre><p>We then decided that it would be a good idea to take a known CVE and write an exploit for it as practise (which you can read about in <a href="https://kaligulaarmblessed.github.io/post/nftables-adventures-2/">Part 2</a>). Seeing a root shell pop on an Ubuntu machine was indeed very exciting, and the process of debugging the exploit deepened by understanding of nftables even more.</p>
+<p>Looking at the <a href="https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/log/net/netfilter">nftables commit logs</a> showed that many of the bugs found were found in the net/netfilter/nf_tables_api.c file. This is likely due to many code paths there being easily reachable by interacting with nftables via netlink (as compared to having to send a packet with specific configurations to interact with nf_tables_core or other components). Most nftables bugs also pertained to the following:</p>
+<ul>
+<li>Genmask issues: Being able to access deactivated objects</li>
+<li>Refcount issues: Errors in modifying the <code>use</code> refcount in many nftables objects</li>
+<li>Asymmetry in allocating/activating and freeing/deactivating objects</li>
+<li>Race conditions</li>
+</ul>
+<p>As such, we decided to start searching for variant bugs and start carefully tracing the allocation and deallocation of nftables objects. However, as more and more bugs were found, less errors were present in the code, and bug hunting got more and more difficult. At this point, I started learning and experimenting with CodeQL to see if I can improve the efficiency of my bug hunting process (something that I should probably continue exploring). However, at this point, I still had no luck and was starting to doubt if I could actually find anything within this subsystem :(((</p>
+<pre tabindex="0"><code>Kaligula :&#34;( vs  Kernel &gt;:)
+         0   :   15
+
+Number of terrible ideas: 15
+Number of terrible ideas that worked: 0
+</code></pre><p>At that point I was getting slightly demoralized and was contemplating switching to another target, but on the other hand I was also really invested in nftables and really wanted to find any random bug in the subsystem. I thought that if I learned to think like the kernel developer and see what they intended to do by introducing certain features, I could think of ways to make something go terribly wrong and hopefully find a bug! I started reading nftables commit logs from the start, to track the timeline of when certain features (e.g. toggling a table between dormant/active) were introduced, and what they were actually meant to do. By a stroke of luck I realized that it was possible to mess with the dormant/active states of a table and try to unregister hooks that were never even registered. Finally, I was able to report a bug and trigger a warning, even though in the end the bug proved to be unexploitable.</p>
+<p>Some key takeaways I had while bug hunting:</p>
+<ol>
+<li>Try to get a good understanding of the target subsystem before starting to hunt for bugs</li>
+<li>Trace the life cycle of a target kernel object &ndash; know where objects are allocated and deallocated</li>
+<li>Know what you can control from userspace &ndash; it is possible to find issues that are impossible to exploit simply because you cannot control any of the variables from userspace</li>
+<li>Static analysis tools could possibly be helpful in streamlining your workflow</li>
+</ol>
+<p>While trying to find bugs in nftables, I started aggressively re-binging Battle Angel Alita (by the wonderful Yukito Kishiro). This panel really stuck with me throughout and kept me going through the entire bug hunting process:</p>
+<p><img src="/jashugan.jpg" alt="Jashugan"></p>
+<p>Do check out part 2 of this series <a href="https://kaligulaarmblessed.github.io/post/nftables-adventures-2/">here</a>, where I analyze the root cause of CVE-2023-31248 and do a deep dive into the exploitation process.</p>
+<p>Thanks for reading, and happy hacking!</p>
+<h4 id="references-and-credits">References and Credits</h4>
+<ol>
+<li>David Bouman for his article on nftables and for the helper library functions <a href="https://blog.dbouman.nl/2022/04/02/How-The-Tables-Have-Turned-CVE-2022-1015-1016/">https://blog.dbouman.nl/2022/04/02/How-The-Tables-Have-Turned-CVE-2022-1015-1016/</a></li>
+<li>Elixir Bootlin for the kernel source code <a href="https://elixir.bootlin.com/linux/v6.2/source/net/netfilter/nf_tables_api.c">https://elixir.bootlin.com/linux/v6.2/source/net/netfilter/nf_tables_api.c</a></li>
+<li>Billy for putting up with my terrible ideas</li>
+<li>Nobeko for the adorable stars in eyes cat gif :3</li>
+<li>Yukito Kishiro for the amazing manga that is Battle Angel Alita and for the image of Jashugan&rsquo;s face</li>
+</ol>
+
+    <h4><a href="https://kaligulaarmblessed.github.io">Back to Home</a></h4>
+</div>
+
+
+        </div><footer class="container">
+    <hr class="soften">
+    <p>
+&copy; 
+
+    Kaligula Armblessed
+
+<span id="thisyear">2023</span>
+
+
+        | Built on <a href="//gohugo.io" target="_blank">Hugo</a>
+
+</p>
+    <p class="text-center">
+        
+        <a href="https://twitter.com/KaligulaSec">Twitter</a> 
+        
+        <a href="https://github.com/KaligulaArmblessed">GitHub</a> 
+        
+    </p>
+</footer>
+
+</body><link rel="stylesheet" href="/css/bootstrap.css">
+<link rel="stylesheet" href="/css/bootstrap-responsive.css">
+<link rel="stylesheet" href="/css/style.css">
+
+<script src="/js/jquery.js"></script>
+<script src="/js/bootstrap-386.js"></script>
+<script src="/js/bootstrap-transition.js"></script>
+<script src="/js/bootstrap-alert.js"></script>
+<script src="/js/bootstrap-modal.js"></script>
+<script src="/js/bootstrap-dropdown.js"></script>
+<script src="/js/bootstrap-scrollspy.js"></script>
+<script src="/js/bootstrap-tab.js"></script>
+<script src="/js/bootstrap-tooltip.js"></script>
+<script src="/js/bootstrap-popover.js"></script>
+<script src="/js/bootstrap-button.js"></script>
+<script src="/js/bootstrap-collapse.js"></script>
+<script src="/js/bootstrap-carousel.js"></script>
+<script src="/js/bootstrap-typeahead.js"></script>
+<script src="/js/bootstrap-affix.js"></script>
+<script>
+    _386 = { 
+        fastLoad: false ,
+        onePass: true , 
+        speedFactor: 1 
+    };
+
+    
+    function ThisYear() {
+        document.getElementById('thisyear').innerHTML = new Date().getFullYear();
+    };
+</script></html>
