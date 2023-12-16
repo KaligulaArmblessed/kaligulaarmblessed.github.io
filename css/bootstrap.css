@@ -862,10 +862,9 @@ ol ul {
 }
 
 li {
-  padding-left: 0;
-  margin-left: 0;
+  padding-left: 10px;
+  margin-left: 25px;
   line-height: 20px;
-  list-style: none;
 }
 
 ul.unstyled,
@@ -3814,8 +3813,8 @@ input[type="submit"].btn.btn-mini {
 
 .nav-list > li > a,
 .nav-list .nav-header {
-  margin-right: -10px;
-  margin-left: -10px;
+  margin-right: 0;
+  margin-left: -35px;
 }
 
 .nav-list > li > a {

