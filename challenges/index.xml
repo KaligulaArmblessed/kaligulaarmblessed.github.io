@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Challenges on Kernels and Cats</title>
+    <link>https://kaligulaarmblessed.github.io/challenges/</link>
+    <description>Recent content in Challenges on Kernels and Cats</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en</language>
+    <lastBuildDate>Fri, 08 Dec 2023 00:00:00 +0000</lastBuildDate><atom:link href="https://kaligulaarmblessed.github.io/challenges/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>STANDCON 2023: Meowcrosoft Word</title>
+      <link>https://kaligulaarmblessed.github.io/challenges/test/</link>
+      <pubDate>Fri, 08 Dec 2023 00:00:00 +0000</pubDate>
+      
+      <guid>https://kaligulaarmblessed.github.io/challenges/test/</guid>
+      <description>I&amp;rsquo;ve got a new installation of Meowcrosoft Word V1.0 TM! But as part of the #linuxmasterrace, I want to prove that it is vulnerable! Can you help me root this box?
+Challenge files: https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Meowcrosoft_Word
+Writeup: https://kaligulaarmblessed.github.io/post/meowcrosoft-word/</description>
+    </item>
+    
+  </channel>
+</rss>

