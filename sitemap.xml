@@ -2,28 +2,37 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
   xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
+    <loc>https://kaligulaarmblessed.github.io/post/faronics-deep-freeze/</loc>
+    <lastmod>2023-12-22T00:00:00+00:00</lastmod>
+  </url><url>
     <loc>https://kaligulaarmblessed.github.io/categories/</loc>
-    <lastmod>2023-12-11T00:00:00+00:00</lastmod>
+    <lastmod>2023-12-22T00:00:00+00:00</lastmod>
   </url><url>
     <loc>https://kaligulaarmblessed.github.io/categories/ctf/</loc>
-    <lastmod>2023-12-11T00:00:00+00:00</lastmod>
+    <lastmod>2023-12-22T00:00:00+00:00</lastmod>
+  </url><url>
+    <loc>https://kaligulaarmblessed.github.io/tags/cve/</loc>
+    <lastmod>2023-12-22T00:00:00+00:00</lastmod>
   </url><url>
     <loc>https://kaligulaarmblessed.github.io/</loc>
-    <lastmod>2023-12-11T00:00:00+00:00</lastmod>
+    <lastmod>2023-12-22T00:00:00+00:00</lastmod>
+  </url><url>
+    <loc>https://kaligulaarmblessed.github.io/post/</loc>
+    <lastmod>2023-12-22T00:00:00+00:00</lastmod>
+  </url><url>
+    <loc>https://kaligulaarmblessed.github.io/tags/</loc>
+    <lastmod>2023-12-22T00:00:00+00:00</lastmod>
   </url><url>
     <loc>https://kaligulaarmblessed.github.io/post/meowcrosoft-word/</loc>
     <lastmod>2023-12-11T00:00:00+00:00</lastmod>
   </url><url>
-    <loc>https://kaligulaarmblessed.github.io/post/</loc>
-    <lastmod>2023-12-11T00:00:00+00:00</lastmod>
+    <loc>https://kaligulaarmblessed.github.io/challenges/</loc>
+    <lastmod>2023-12-08T00:00:00+00:00</lastmod>
   </url><url>
-    <loc>https://kaligulaarmblessed.github.io/tags/cve/</loc>
-    <lastmod>2023-09-28T00:00:00+00:00</lastmod>
+    <loc>https://kaligulaarmblessed.github.io/challenges/test/</loc>
+    <lastmod>2023-12-08T00:00:00+00:00</lastmod>
   </url><url>
     <loc>https://kaligulaarmblessed.github.io/post/nftables-adventures-2/</loc>
-    <lastmod>2023-09-28T00:00:00+00:00</lastmod>
-  </url><url>
-    <loc>https://kaligulaarmblessed.github.io/tags/</loc>
     <lastmod>2023-09-28T00:00:00+00:00</lastmod>
   </url><url>
     <loc>https://kaligulaarmblessed.github.io/post/nftables-adventures-1/</loc>

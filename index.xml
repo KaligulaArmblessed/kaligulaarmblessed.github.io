@@ -6,7 +6,16 @@
     <description>Recent content on Kernels and Cats</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en</language>
-    <lastBuildDate>Mon, 11 Dec 2023 00:00:00 +0000</lastBuildDate><atom:link href="https://kaligulaarmblessed.github.io/index.xml" rel="self" type="application/rss+xml" />
+    <lastBuildDate>Fri, 22 Dec 2023 00:00:00 +0000</lastBuildDate><atom:link href="https://kaligulaarmblessed.github.io/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>A Deep Dive into Faronics Deep Freeze Enterprise [Legacy Windows Software]</title>
+      <link>https://kaligulaarmblessed.github.io/post/faronics-deep-freeze/</link>
+      <pubDate>Fri, 22 Dec 2023 00:00:00 +0000</pubDate>
+      
+      <guid>https://kaligulaarmblessed.github.io/post/faronics-deep-freeze/</guid>
+      <description>TLDR Faronics Deep Freeze Enterprise version 8.38.220.5256 is vulnerable to a stack buffer overflow vulnerability. It uses 2 XOR encoding schemes, as well as an additional third checksum, to ensure that the packets sent to it are valid. As DEP is enabled, the stack buffer overflow can be exploited by building a ROP chain with a dummy VirtualAlloc skeleton, patching the arguments in, and performing a stack pivot to call VirtualAlloc and finally return to our shellcode.</description>
+    </item>
+    
     <item>
       <title>Meowcrosoft Word [STANDCON 2023]</title>
       <link>https://kaligulaarmblessed.github.io/post/meowcrosoft-word/</link>
@@ -14,6 +23,17 @@
       
       <guid>https://kaligulaarmblessed.github.io/post/meowcrosoft-word/</guid>
       <description>TLDR Meowcrosoft Word is a kernel pwn challenge where only one allocate, one write, and one free is supposed to be possible. However, by exploiting a race condition and blocking/unblocking threads with FUSE (userfaultfd is disabled), as well as using a race condition, privilege escalation from user to root is possible. timerfd_ctx is used to leak the kernel base, msg_msg is used to leak the kernel heap, and pipe buf is used to control RIP and start off a ROP chain to call prepare_kernel_cred() and commit_creds() to get root.</description>
+    </item>
+    
+    <item>
+      <title>STANDCON 2023: Meowcrosoft Word</title>
+      <link>https://kaligulaarmblessed.github.io/challenges/test/</link>
+      <pubDate>Fri, 08 Dec 2023 00:00:00 +0000</pubDate>
+      
+      <guid>https://kaligulaarmblessed.github.io/challenges/test/</guid>
+      <description>I&amp;rsquo;ve got a new installation of Meowcrosoft Word V1.0 TM! But as part of the #linuxmasterrace, I want to prove that it is vulnerable! Can you help me root this box?
+Challenge files: https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Meowcrosoft_Word
+Writeup: https://kaligulaarmblessed.github.io/post/meowcrosoft-word/</description>
     </item>
     
     <item>

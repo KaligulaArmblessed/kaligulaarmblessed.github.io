@@ -6,7 +6,16 @@
     <description>Recent content in CVE on Kernels and Cats</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en</language>
-    <lastBuildDate>Thu, 28 Sep 2023 00:00:00 +0000</lastBuildDate><atom:link href="https://kaligulaarmblessed.github.io/tags/cve/index.xml" rel="self" type="application/rss+xml" />
+    <lastBuildDate>Fri, 22 Dec 2023 00:00:00 +0000</lastBuildDate><atom:link href="https://kaligulaarmblessed.github.io/tags/cve/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>A Deep Dive into Faronics Deep Freeze Enterprise [Legacy Windows Software]</title>
+      <link>https://kaligulaarmblessed.github.io/post/faronics-deep-freeze/</link>
+      <pubDate>Fri, 22 Dec 2023 00:00:00 +0000</pubDate>
+      
+      <guid>https://kaligulaarmblessed.github.io/post/faronics-deep-freeze/</guid>
+      <description>TLDR Faronics Deep Freeze Enterprise version 8.38.220.5256 is vulnerable to a stack buffer overflow vulnerability. It uses 2 XOR encoding schemes, as well as an additional third checksum, to ensure that the packets sent to it are valid. As DEP is enabled, the stack buffer overflow can be exploited by building a ROP chain with a dummy VirtualAlloc skeleton, patching the arguments in, and performing a stack pivot to call VirtualAlloc and finally return to our shellcode.</description>
+    </item>
+    
     <item>
       <title>nftables Adventures: CVE-2023-31248 -- Oh How The Turn Tables! [Part 2]</title>
       <link>https://kaligulaarmblessed.github.io/post/nftables-adventures-2/</link>
