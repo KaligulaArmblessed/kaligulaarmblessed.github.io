@@ -27,10 +27,10 @@
     
     <item>
       <title>STANDCON 2023: Meowcrosoft Word</title>
-      <link>https://kaligulaarmblessed.github.io/challenges/test/</link>
+      <link>https://kaligulaarmblessed.github.io/challenges/standcon2023-meowcrosoft-word/</link>
       <pubDate>Fri, 08 Dec 2023 00:00:00 +0000</pubDate>
       
-      <guid>https://kaligulaarmblessed.github.io/challenges/test/</guid>
+      <guid>https://kaligulaarmblessed.github.io/challenges/standcon2023-meowcrosoft-word/</guid>
       <description>I&amp;rsquo;ve got a new installation of Meowcrosoft Word V1.0 TM! But as part of the #linuxmasterrace, I want to prove that it is vulnerable! Can you help me root this box?
 Challenge files: https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Meowcrosoft_Word
 Writeup: https://kaligulaarmblessed.github.io/post/meowcrosoft-word/</description>
@@ -63,6 +63,60 @@ nfTable of Contents Vulnerability Analysis Triggering the Bug Obtaining a Use-Af
       
       <guid>https://kaligulaarmblessed.github.io/post/prctlheapspray/</guid>
       <description>TLDR prctl PR_SET_VMA (PR_SET_VMA_ANON_NAME) can be used as a (possibly new!) heap spray method targeting the kmalloc-8 to kmalloc-96 caches. The sprayed object, anon_vma_name, is dynamically sized, and can range from larger than 4 bytes to a maximum of 84 bytes. The object can be easily allocated and freed via the prctl syscall, and leaked information can be obtained via reading the proc/pid/maps file. The advantage of this method is that it does not require a cross-cache attack from cg/other caches (unlike other objects such as msg_msg) as anon_vma_name is allocated with the GFP_KERNEL flag.</description>
+    </item>
+    
+    <item>
+      <title>idekCTF 2022*: Gone Fishing</title>
+      <link>https://kaligulaarmblessed.github.io/challenges/idekctf2022-gone-fishing/</link>
+      <pubDate>Fri, 13 Jan 2023 00:00:00 +0000</pubDate>
+      
+      <guid>https://kaligulaarmblessed.github.io/challenges/idekctf2022-gone-fishing/</guid>
+      <description>Fishing is a great hobby; if you look around very very carefully you are bound to get hooked!
+This is a boot2root challenge with a rev twist. Participants were not given source; just run the Docker container!
+Challenge files: https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Gone_Fishing</description>
+    </item>
+    
+    <item>
+      <title>idekCTF 2022*: Sus Meow</title>
+      <link>https://kaligulaarmblessed.github.io/challenges/idekctf2022-sus-meow/</link>
+      <pubDate>Fri, 13 Jan 2023 00:00:00 +0000</pubDate>
+      
+      <guid>https://kaligulaarmblessed.github.io/challenges/idekctf2022-sus-meow/</guid>
+      <description>I see a bunch of cats talking to each other, but what are they really saying?
+Collab challenge with the wonderful Mochi Nishimiya.
+Challenge files: https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Sus_Meow</description>
+    </item>
+    
+    <item>
+      <title>STANDCON 2022: New Math</title>
+      <link>https://kaligulaarmblessed.github.io/challenges/standcon2022-newmath/</link>
+      <pubDate>Sat, 18 Jun 2022 00:00:00 +0000</pubDate>
+      
+      <guid>https://kaligulaarmblessed.github.io/challenges/standcon2022-newmath/</guid>
+      <description>New Math! New Hoo Hoo Math!
+https://www.youtube.com/watch?v=UIKGV2cTgqA
+Challenge files: https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/New_Math</description>
+    </item>
+    
+    <item>
+      <title>idekCTF 2021: Are you lstening to me??</title>
+      <link>https://kaligulaarmblessed.github.io/challenges/idekctf2021-are-you-lstening-to-me/</link>
+      <pubDate>Sat, 11 Dec 2021 00:00:00 +0000</pubDate>
+      
+      <guid>https://kaligulaarmblessed.github.io/challenges/idekctf2021-are-you-lstening-to-me/</guid>
+      <description>Yo lsten! That&amp;rsquo;s the sound of a flag fluttering somewhere&amp;hellip;
+docker pull kaligulasec/idekctf2021:are_you_lstening_to_me</description>
+    </item>
+    
+    <item>
+      <title>idekCTF 2021: Retrosynthesis</title>
+      <link>https://kaligulaarmblessed.github.io/challenges/idekctf2021-retrosynthesis/</link>
+      <pubDate>Sat, 11 Dec 2021 00:00:00 +0000</pubDate>
+      
+      <guid>https://kaligulaarmblessed.github.io/challenges/idekctf2021-retrosynthesis/</guid>
+      <description>You can do reverse engineering, but can you do retrosynthesis?
+Challenge files: https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Retrosynthesis
+Writeup: https://github.com/KaligulaArmblessed/CTF-Writeups/blob/main/idekCTF%202021/Retrosynthesis.md</description>
     </item>
     
     <item>
