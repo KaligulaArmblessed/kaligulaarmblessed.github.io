@@ -61,7 +61,7 @@
     </div>
     <p class="lead"></p>
     <h4 id="tldr">TLDR</h4>
-<p>Meowcrosoft Word is a kernel pwn challenge where only one allocate, one write, and one free is supposed to be possible. However, by exploiting a race condition and blocking/unblocking threads with FUSE (userfaultfd is disabled), as well as using a race condition, privilege escalation from user to root is possible. timerfd_ctx is used to leak the kernel base, msg_msg is used to leak the kernel heap, and pipe buf is used to control RIP and start off a ROP chain to call prepare_kernel_cred() and commit_creds() to get root.</p>
+<p>Meowcrosoft Word is a kernel pwn challenge where only one allocate, one write, and one free is supposed to be possible. However, by exploiting a race condition and blocking/unblocking threads with FUSE (userfaultfd is disabled), privilege escalation from user to root is possible. timerfd_ctx is used to leak the kernel base, msg_msg is used to leak the kernel heap, and pipe buf is used to control RIP and start off a ROP chain to call prepare_kernel_cred() and commit_creds() to get root.</p>
 <h4 id="table-of-contents">Table of Contents</h4>
 <ol>
 <li><a href="#the-story-behind-meowcrosoft-word">The Story Behind Meowcrosoft Word</a></li>
@@ -76,7 +76,7 @@
 <li><a href="#rop-time">ROP Time!!!</a></li>
 </ol>
 <h4 id="the-story-behind-meowcrosoft-word">The Story Behind Meowcrosoft Word</h4>
-<p>Meowcrosoft Word was inspired by HITCON 2022&rsquo;s Fourchain Kernel (a really great writeup by Organizers can be found here: <a href="https://org.anize.rs/HITCON-2022/pwn/fourchain-kernel)">https://org.anize.rs/HITCON-2022/pwn/fourchain-kernel)</a>, as well as my time in STAR Labs, where I had to deal with FUSE. Having had to do multiple writes by synchronizing threads and blocking/unblocking them, I was like &ldquo;why not give people one single write, and force them to do it as well &gt;:3&rdquo;. However, because kernel pwn was already very cursed, and I wanted people to do it, so I had to give it a cute name, and hence Meowcrosoft Word came into existence.</p>
+<p>Meowcrosoft Word was inspired by HITCON 2022&rsquo;s Fourchain Kernel (a really great writeup by Organizers can be found here: <a href="https://org.anize.rs/HITCON-2022/pwn/fourchain-kernel">https://org.anize.rs/HITCON-2022/pwn/fourchain-kernel</a> ), as well as my time in STAR Labs, where I had to deal with FUSE. Having had to do multiple writes by synchronizing threads and blocking/unblocking them, I was like &ldquo;why not give people one single write, and force them to do it as well &gt;:3&rdquo;. However, because kernel pwn was already very cursed, and I wanted people to do it, so I had to give it a cute name, and hence Meowcrosoft Word came into existence.</p>
 <p>However, because I was busy with school and lab and OSED and stuff, and then I had to fly back home for the holidays, I only really started working on the challenge right before the CTF (sorry violenttestpen!). This led to a lot of stupid funny crap happening during the competition.</p>
 <p>On the first day of the CTF, people were saying that they wanted more pwn, so I tried to coerce (read: convince nicely) people to do Meowcrosoft Word. And so, within 1 hours and 20 minutes of the CTF starting, the challenge was blooded.</p>
 <p><img src="/images/flag_in_root_image.jpg" alt="Flag in root image"></p>
@@ -539,6 +539,8 @@
 </span></span></code></pre></div><p>I was then able to leak a huge number of bytes (greater than the original 0x100) from the corrupted msg_msg object, which thinks that its size is 0x960. From there, I leaked the next pointer of the next message (which points to a kmalloc-cg-1024 heap address, which will be our target for spraying pipe buffer objects), as well as another set of next and prev pointers which will be used later in the exploit. Here is the current state of the system (prev pointers not shown for simplicity):</p>
 <p><img src="/images/meowcrosoft_word_diagram1.jpg" alt="Diagram1"></p>
 <p>So remember when I said that the cross cache was the intended solution? Later on in the CTF, someone remarked that they did not have to spray a lot of msg_msg objects to reclaim the freed document data region. So, I went to check the challenge again, and the kmalloc-cg caches seem to be missing from /proc/slabinfo or /sys/kernel/slab 0.0 I am currently not sure why this is the case, though I suspect it may have something to do with cache aliasing, but I may update this blog post or write another one when I find out why. If anyone knows why, please let me know!</p>
+<p><strong>UPDATE</strong></p>
+<p>So I found out why this was happening! Being a noob, I forgot to set <code>CONFIG_MEMCG=y</code>, which basically caused the cg caches to not exist. Whoops (skill issue moment). For more about CONFIG_MEMCG, check this out: <a href="https://cateee.net/lkddb/web-lkddb/MEMCG.html">https://cateee.net/lkddb/web-lkddb/MEMCG.html</a></p>
 <h4 id="getting-a-double-free">Getting a Double Free</h4>
 <p>So here is how we are going to get a double free. We are going to first overwrite the next and prev pointer of the corrupted primary msg_msg object with the leaked next and free pointer by unblocking /write2. We are then going to free the secondary message belonging the primary msg_msg whose next and free pointer we leaked. Note that when freeing the secondary messages, they are located via the next pointer. If we wanted to instantly get the double free, we could free the secondary message which the next pointer of the corrupted primary msg_msg object is pointing to (which would be the already freed secondary message), but to not cause crashes, we will spray a fake secondary msg_msg of size 1024 over the freed area, and then free the second time (which is why we needed another set of next/prev pointers because they would be the next/prev pointers of the fake secondary message). After freeing for the second time, we will spray pipe_buf over the freed region of size 1024, and get to controlling RIP!</p>
 <p>Let&rsquo;s first talk about overwriting the next/prev pointer of the corrupted primary msg_msg object. We would do this with the next/prev pointers that we have leaked, but remember that previously, I mentioned that the contents of a FUSE file are &ldquo;fixed&rdquo; once the filesystem has been started in the setup phase. But fret not, there is a very cursed way of getting around this.</p>
@@ -746,7 +748,7 @@ STAGE 3: ROP TIME
 </code></pre><p>Hope that yall had fun with the challenge and thanks for reading this! :3</p>
 <p>You can get the challenge files here: <a href="https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Meowcrosoft_Word">https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Meowcrosoft_Word</a></p>
 <p>The full exploit can be obtained here: <a href="https://github.com/KaligulaArmblessed/CTF-Challenges/blob/main/Meowcrosoft_Word/exploit.c">https://github.com/KaligulaArmblessed/CTF-Challenges/blob/main/Meowcrosoft_Word/exploit.c</a></p>
-<p>Special thanks to HITCON for inspiration, STAR Labs for the idea, and everyone for playing :D</p>
+<p>Special thanks to HITCON and Billy for inspiration, STAR Labs for the idea, and everyone for playing :D</p>
 
     <h4><a href="https://kaligulaarmblessed.github.io">Back to Home</a></h4>
 </div>
@@ -759,7 +761,7 @@ STAGE 3: ROP TIME
 
     Kaligula Armblessed
 
-<span id="thisyear">2023</span>
+<span id="thisyear">2024</span>
 
 
         | Built on <a href="//gohugo.io" target="_blank">Hugo</a>

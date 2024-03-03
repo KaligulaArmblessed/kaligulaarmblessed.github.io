@@ -6,71 +6,49 @@
     <description>Recent content in Challenges on Kernels and Cats</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en</language>
-    <lastBuildDate>Fri, 08 Dec 2023 00:00:00 +0000</lastBuildDate><atom:link href="https://kaligulaarmblessed.github.io/challenges/index.xml" rel="self" type="application/rss+xml" />
+    <lastBuildDate>Fri, 08 Dec 2023 00:00:00 +0000</lastBuildDate>
+    <atom:link href="https://kaligulaarmblessed.github.io/challenges/index.xml" rel="self" type="application/rss+xml" />
     <item>
       <title>STANDCON 2023: Meowcrosoft Word</title>
       <link>https://kaligulaarmblessed.github.io/challenges/standcon2023-meowcrosoft-word/</link>
       <pubDate>Fri, 08 Dec 2023 00:00:00 +0000</pubDate>
-      
       <guid>https://kaligulaarmblessed.github.io/challenges/standcon2023-meowcrosoft-word/</guid>
-      <description>I&amp;rsquo;ve got a new installation of Meowcrosoft Word V1.0 TM! But as part of the #linuxmasterrace, I want to prove that it is vulnerable! Can you help me root this box?
-Challenge files: https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Meowcrosoft_Word
-Writeup: https://kaligulaarmblessed.github.io/post/meowcrosoft-word/</description>
+      <description>I&amp;rsquo;ve got a new installation of Meowcrosoft Word V1.0 TM! But as part of the #linuxmasterrace, I want to prove that it is vulnerable! Can you help me root this box?&#xA;Challenge files: https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Meowcrosoft_Word&#xA;Writeup: https://kaligulaarmblessed.github.io/post/meowcrosoft-word/</description>
     </item>
-    
     <item>
       <title>idekCTF 2022*: Gone Fishing</title>
       <link>https://kaligulaarmblessed.github.io/challenges/idekctf2022-gone-fishing/</link>
       <pubDate>Fri, 13 Jan 2023 00:00:00 +0000</pubDate>
-      
       <guid>https://kaligulaarmblessed.github.io/challenges/idekctf2022-gone-fishing/</guid>
-      <description>Fishing is a great hobby; if you look around very very carefully you are bound to get hooked!
-This is a boot2root challenge with a rev twist. Participants were not given source; just run the Docker container!
-Challenge files: https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Gone_Fishing</description>
+      <description>Fishing is a great hobby; if you look around very very carefully you are bound to get hooked!&#xA;This is a boot2root challenge with a rev twist. Participants were not given source; just run the Docker container!&#xA;Challenge files: https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Gone_Fishing</description>
     </item>
-    
     <item>
       <title>idekCTF 2022*: Sus Meow</title>
       <link>https://kaligulaarmblessed.github.io/challenges/idekctf2022-sus-meow/</link>
       <pubDate>Fri, 13 Jan 2023 00:00:00 +0000</pubDate>
-      
       <guid>https://kaligulaarmblessed.github.io/challenges/idekctf2022-sus-meow/</guid>
-      <description>I see a bunch of cats talking to each other, but what are they really saying?
-Collab challenge with the wonderful Mochi Nishimiya.
-Challenge files: https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Sus_Meow</description>
+      <description>I see a bunch of cats talking to each other, but what are they really saying?&#xA;Collab challenge with the wonderful Mochi Nishimiya.&#xA;Challenge files: https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Sus_Meow</description>
     </item>
-    
     <item>
       <title>STANDCON 2022: New Math</title>
       <link>https://kaligulaarmblessed.github.io/challenges/standcon2022-newmath/</link>
       <pubDate>Sat, 18 Jun 2022 00:00:00 +0000</pubDate>
-      
       <guid>https://kaligulaarmblessed.github.io/challenges/standcon2022-newmath/</guid>
-      <description>New Math! New Hoo Hoo Math!
-https://www.youtube.com/watch?v=UIKGV2cTgqA
-Challenge files: https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/New_Math</description>
+      <description>New Math! New Hoo Hoo Math!&#xA;https://www.youtube.com/watch?v=UIKGV2cTgqA&#xA;Challenge files: https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/New_Math</description>
     </item>
-    
     <item>
       <title>idekCTF 2021: Are you lstening to me??</title>
       <link>https://kaligulaarmblessed.github.io/challenges/idekctf2021-are-you-lstening-to-me/</link>
       <pubDate>Sat, 11 Dec 2021 00:00:00 +0000</pubDate>
-      
       <guid>https://kaligulaarmblessed.github.io/challenges/idekctf2021-are-you-lstening-to-me/</guid>
-      <description>Yo lsten! That&amp;rsquo;s the sound of a flag fluttering somewhere&amp;hellip;
-docker pull kaligulasec/idekctf2021:are_you_lstening_to_me</description>
+      <description>Yo lsten! That&amp;rsquo;s the sound of a flag fluttering somewhere&amp;hellip;&#xA;docker pull kaligulasec/idekctf2021:are_you_lstening_to_me</description>
     </item>
-    
     <item>
       <title>idekCTF 2021: Retrosynthesis</title>
       <link>https://kaligulaarmblessed.github.io/challenges/idekctf2021-retrosynthesis/</link>
       <pubDate>Sat, 11 Dec 2021 00:00:00 +0000</pubDate>
-      
       <guid>https://kaligulaarmblessed.github.io/challenges/idekctf2021-retrosynthesis/</guid>
-      <description>You can do reverse engineering, but can you do retrosynthesis?
-Challenge files: https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Retrosynthesis
-Writeup: https://github.com/KaligulaArmblessed/CTF-Writeups/blob/main/idekCTF%202021/Retrosynthesis.md</description>
+      <description>You can do reverse engineering, but can you do retrosynthesis?&#xA;Challenge files: https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Retrosynthesis&#xA;Writeup: https://github.com/KaligulaArmblessed/CTF-Writeups/blob/main/idekCTF%202021/Retrosynthesis.md</description>
     </item>
-    
   </channel>
 </rss>

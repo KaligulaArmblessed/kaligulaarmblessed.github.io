@@ -270,7 +270,7 @@ data += p32(0x145) ## Second opcode for opcode 0x1f6
 data += cyclic(cyclic_find(&#34;aacc&#34;))
 data += p32(0xdeadbeef) ## EIP overwrite
 data += p32(0x0135faf0) ## Valid pointer for edx
-</code></pre><p>We can overwrite EIP with 0xdeadbeef, but naturally we would want to overwrite it with something that is actually useful. However, all the pointers in the DFServerService executable start with \x00, which is a bad character! This means that if we overwrite EIP with a pointer from DFServerService, we will no longer be able to control the value inside edx, hence the condition to cause the direct EIP overwriteg will not be fulfilled :(((</p>
+</code></pre><p>We can overwrite EIP with 0xdeadbeef, but naturally we would want to overwrite it with something that is actually useful. However, all the pointers in the DFServerService executable start with \x00, which is a bad character! This means that if we overwrite EIP with a pointer from DFServerService, we will no longer be able to control the value inside edx, hence the condition to cause the direct EIP overwrite will not be fulfilled :(((</p>
 <p>I spent a lot of time thinking of ways around this, but could not, and sadly had to abandon this opcode and write it off as a Denial of Service instead of an RCE :((((</p>
 <h4 id="the-actual-vulnerable-opcode">The Actual Vulnerable Opcode</h4>
 <p>I then went back to fuzzing, and chanced upon opcode 0xc9. Spamming a lot of As gave me a SEH overwrite this time, which I could now use to kickstart my ROP chain :DDD</p>
@@ -601,7 +601,7 @@ data += p32(0x0135faf0) ## Valid pointer for edx
 
     Kaligula Armblessed
 
-<span id="thisyear">2023</span>
+<span id="thisyear">2024</span>
 
 
         | Built on <a href="//gohugo.io" target="_blank">Hugo</a>
