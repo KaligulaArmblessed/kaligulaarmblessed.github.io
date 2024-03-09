@@ -7,7 +7,7 @@
     <meta name="format-detection" content="telephone=no" />
     <meta name="theme-color" content="#000084" />
     <meta name="google-site-verification" content="733C7I2uDZnatcput9zZupeQ_PX5Z0BJ1HmTnGi0SJI" />
-	<link rel="icon" href="https://kaligulaarmblessed.github.io/favicon.ico">
+    <link rel="icon" href="https://kaligulaarmblessed.github.io/favicon.ico">
     <link rel="canonical" href="https://kaligulaarmblessed.github.io">
     
     
@@ -525,7 +525,7 @@ a. The <code>NFT_TABLE_F_DORMANT</code> flag is zeroed out, but the <code>__NFT_
 </span></span></code></pre></div><p>If the update flag was previously set (by toggling the dormant state previously in the same batch transaction), <code>nf_tables_updtable</code> will simply fail.</p>
 <h4 id="my-bug-hunting-experience">My Bug Hunting Experience</h4>
 <p>Being a noob pwner, every time I see a new zero day drop, I would be like a cat with stars in their eyes :3</p>
-<p><img src="/images/starsineyescat.gif" alt="Stars in eyes cat :3"></p>
+<p><img src="/images/nftables-adventures-1/starsineyescat.gif" alt="Stars in eyes cat :3"></p>
 <p>I really hoped that one day, I could find a kernel zero day and report it on my own, so I took up a vulnerability research internship to learn the ropes of bug hunting. At that time (around August 2023), there were many new bugs found in the nftables subsystem, so my mentor and I decided that it would be a good target to explore.</p>
 <p>In the initial stages of bug hunting, I explored using the <a href="https://github.com/google/syzkaller">Syzkaller fuzzer</a> developed by Google to try fuzzing nftables. I focused on fuzzing net/netfilter/nf_tables_api.c as well as nf_tables_core.c and nf_tables_trace.c using some custom configurations and playing around with <a href="https://xairy.io/articles/syzkaller-external-network">external network fuzzing</a>, but had no luck finding any interesting crashes. This is when I decided to turn to manual source code review, as somehow I felt like the bug hunting I was doing was not very directed as fuzzing is a random process which I have little control over. In hindsight, I should have probably explored using custom fuzzing grammar a little harder, as there were indeed nftables bugs found using Syzkaller (such as <a href="https://research.nccgroup.com/2022/09/01/settlers-of-netlink-exploiting-a-limited-uaf-in-nf_tables-cve-2022-32250/">this one</a> found by the NCC research group).</p>
 <p>My mentor suggested that I try to get more familiar and understand nftables as well as the Linux networking stack a little better before I jump headfirst into bug hunting, so I started furiously reading source code and random writeups on the Internet. I also looked at some past CVEs and wrote some code using <code>libmnl</code> and <code>libnftnl</code> to get familiar with interacting with nftables from userspace. I felt that I was pretty comfortable with nftables at that point, so I started looking for potential bugs in the source code, thinking that now I would certainly be able to spot some UAF lurking somewhere&hellip;</p>
@@ -558,7 +558,7 @@ Number of terrible ideas that worked: 0
 <li>Static analysis tools could possibly be helpful in streamlining your workflow</li>
 </ol>
 <p>While trying to find bugs in nftables, I started aggressively re-binging Battle Angel Alita (by the wonderful Yukito Kishiro). This panel really stuck with me throughout and kept me going through the entire bug hunting process:</p>
-<p><img src="/images/jashugan.jpg" alt="Jashugan"></p>
+<p><img src="/images/nftables-adventures-1/jashugan.jpg" alt="Jashugan"></p>
 <p>Do check out part 2 of this series <a href="https://kaligulaarmblessed.github.io/post/nftables-adventures-2/">here</a>, where I analyze the root cause of CVE-2023-31248 and do a deep dive into the exploitation process.</p>
 <p>Thanks for reading, and happy hacking!</p>
 <h4 id="references-and-credits">References and Credits</h4>

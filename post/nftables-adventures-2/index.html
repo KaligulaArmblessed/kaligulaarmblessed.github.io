@@ -7,7 +7,7 @@
     <meta name="format-detection" content="telephone=no" />
     <meta name="theme-color" content="#000084" />
     <meta name="google-site-verification" content="733C7I2uDZnatcput9zZupeQ_PX5Z0BJ1HmTnGi0SJI" />
-	<link rel="icon" href="https://kaligulaarmblessed.github.io/favicon.ico">
+    <link rel="icon" href="https://kaligulaarmblessed.github.io/favicon.ico">
     <link rel="canonical" href="https://kaligulaarmblessed.github.io">
     
     
@@ -374,7 +374,7 @@
 </span></span></code></pre></div><h4 id="obtaining-a-heap-leak">Obtaining a heap leak</h4>
 <p>Ideally, to have enough space for our fake <code>struct nft_rule</code>, <code>struct nft_expr</code> and <code>struct nft_expr_ops</code>, we would like to have a kmalloc-cg-1024 heap leak (where we can allocate the <code>struct msg_msg</code> which contains all our fake objects). However, kmalloc-cg-1024 addresses will always end with a null byte, hence preventing us from directly printing the address via chain-&gt;name.</p>
 <p>In order to circumvent this limitation, we will spray <code>struct msg_msg</code> in the following way as shown below (prev pointers are omitted for simplicity):</p>
-<p><img src="/images/diagram1.png" alt="Leak kmalloc-cg-96 pointer"></p>
+<p><img src="/images/nftables-adventures-2/diagram1.png" alt="Leak kmalloc-cg-96 pointer"></p>
 <p>In a single message queue, there will be:</p>
 <ol>
 <li>Primary message (size 64) &ndash; this will reclaim the free space where chain-&gt;name originally was</li>
@@ -383,7 +383,7 @@
 </ol>
 <p>We will first attempt to leak a <code>kmalloc-cg-96</code> pointer via the UAF read from the freed chain. chain-&gt;name would point to the next pointer of the primary message, which would be the address of the secondary message. A size of 96 bytes was chosen as since <code>kmalloc-cg-96</code> cache objects are small, there is a much lower probability that the last byte of the address would be 0x0 and cause our leak to truncate and fail.</p>
 <p>After obtaining a valid <code>kmalloc-cg-96</code> heap pointer, we now want to leak the <code>kmalloc-cg-1024</code> heap pointer. The next pointer of the secondary message points to the third message, which is allocated in <code>kmalloc-cg-1024</code>. We also know that the <code>struct nft_chain</code> object (which is now freed) was allocated in <code>kmalloc-cg-128</code>. To obtain the leak, we spray a fourth message of size 128 into the space of the freed chain object, and set the fake chain-&gt;name to the address of the <code>kmalloc-cg-96</code> pointer + 1 to bypass the null byte. This is shown in the diagram below:</p>
-<p><img src="/images/diagram2.png" alt="Leak kmalloc-cg-1024 pointer"></p>
+<p><img src="/images/nftables-adventures-2/diagram2.png" alt="Leak kmalloc-cg-1024 pointer"></p>
 <p>We can now read from chain-&gt;name to obtain a <code>kmalloc-cg-1024</code> pointer.</p>
 <h4 id="controlling-rip">Controlling RIP</h4>
 <p>When a new rule is added to a base chain, the following functions are called to ensure that the ruleset will not result in any loops:</p>
@@ -437,7 +437,7 @@
 </span></span><span style="display:flex;"><span>        }
 </span></span><span style="display:flex;"><span>    }
 </span></span></code></pre></div><p>We then spray a fourth <code>struct msg_msg</code> which will act as our fake chain. Shown below is a summary of the objects involved:</p>
-<p><img src="/images/diagram3.png" alt="Setup for ROP"></p>
+<p><img src="/images/nftables-adventures-2/diagram3.png" alt="Setup for ROP"></p>
 <p>To kick off the ROP chain, simply add a new rule to the previously created base chain &ldquo;chain2&rdquo;, and enjoy your root shell!</p>
 <p>As before, if you would like a graphical representation of the entire exploit chain, check out these slides:</p>
 <iframe src="https://docs.google.com/presentation/d/e/2PACX-1vSVhUbq-ZbzzuM0HE0DRrwOkU8H7DYVcWDlH7DU9S9SM4HJKpXte80GyKWuyFvPFlrqSksLyehdVGsl/embed?start=false&loop=false&delayms=3000" frameborder="0" width="960" height="569" allowfullscreen="true" mozallowfullscreen="true" webkitallowfullscreen="true"></iframe>

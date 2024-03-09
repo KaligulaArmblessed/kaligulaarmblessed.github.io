@@ -7,7 +7,7 @@
     <meta name="format-detection" content="telephone=no" />
     <meta name="theme-color" content="#000084" />
     <meta name="google-site-verification" content="733C7I2uDZnatcput9zZupeQ_PX5Z0BJ1HmTnGi0SJI" />
-	<link rel="icon" href="https://kaligulaarmblessed.github.io/favicon.ico">
+    <link rel="icon" href="https://kaligulaarmblessed.github.io/favicon.ico">
     <link rel="canonical" href="https://kaligulaarmblessed.github.io">
     
     
@@ -212,11 +212,11 @@
 </span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">anon_vma_name_alloc</span>(anon_name<span style="color:#f92672">-&gt;</span>name);
 </span></span><span style="display:flex;"><span>}
 </span></span></code></pre></div><p>On gdb, the spray looks as such (the garbage data above the spray is what I wanted to read, it was written to the same address as the sprayed object due to how the challenge works):</p>
-<p><img src="/images/prctlheapspray1.png" alt="Spray on gdb"></p>
+<p><img src="/images/prctlheapspray/prctlheapspray1.png" alt="Spray on gdb"></p>
 <p>In order to read from the spray, all you need to do is to cat the <code>/proc/pid/maps</code> file!</p>
-<p><img src="/images/prctlheapspray3.png" alt="Reading from maps file"></p>
+<p><img src="/images/prctlheapspray/prctlheapspray3.png" alt="Reading from maps file"></p>
 <p>You can also do it programmatically in your code:</p>
-<p><img src="/images/prctlheapspray2.png" alt="Leaked key"></p>
+<p><img src="/images/prctlheapspray/prctlheapspray2.png" alt="Leaked key"></p>
 <p>The last hexadecimal number is the leaked secret key which was written to the <code>anon_vma_name</code> object, and is the same as that in the first image.</p>
 <p>As very well put by my fellow intern, this is the equivalent of leaking stuff from kernel memory via the task manager :D</p>
 <p>To free the spray, all you need to do is to use the <code>prctl</code> syscall again, but this time setting the name buffer to <code>NULL</code>.</p>

@@ -7,7 +7,7 @@
     <meta name="format-detection" content="telephone=no" />
     <meta name="theme-color" content="#000084" />
     <meta name="google-site-verification" content="733C7I2uDZnatcput9zZupeQ_PX5Z0BJ1HmTnGi0SJI" />
-	<link rel="icon" href="https://kaligulaarmblessed.github.io/favicon.ico">
+    <link rel="icon" href="https://kaligulaarmblessed.github.io/favicon.ico">
     <link rel="canonical" href="https://kaligulaarmblessed.github.io">
     
     
@@ -79,7 +79,7 @@
 <p>Meowcrosoft Word was inspired by HITCON 2022&rsquo;s Fourchain Kernel (a really great writeup by Organizers can be found here: <a href="https://org.anize.rs/HITCON-2022/pwn/fourchain-kernel">https://org.anize.rs/HITCON-2022/pwn/fourchain-kernel</a> ), as well as my time in STAR Labs, where I had to deal with FUSE. Having had to do multiple writes by synchronizing threads and blocking/unblocking them, I was like &ldquo;why not give people one single write, and force them to do it as well &gt;:3&rdquo;. However, because kernel pwn was already very cursed, and I wanted people to do it, so I had to give it a cute name, and hence Meowcrosoft Word came into existence.</p>
 <p>However, because I was busy with school and lab and OSED and stuff, and then I had to fly back home for the holidays, I only really started working on the challenge right before the CTF (sorry violenttestpen!). This led to a lot of stupid funny crap happening during the competition.</p>
 <p>On the first day of the CTF, people were saying that they wanted more pwn, so I tried to coerce (read: convince nicely) people to do Meowcrosoft Word. And so, within 1 hours and 20 minutes of the CTF starting, the challenge was blooded.</p>
-<p><img src="/images/flag_in_root_image.jpg" alt="Flag in root image"></p>
+<p><img src="/images/meowcrosoft-word/flag_in_root_image.jpg" alt="Flag in root image"></p>
 <p>(Thank you GenericUser for being an Upright and Honest Citizen TM)</p>
 <p>Basically, what happened was that in my mad rush to submit the challenge, I told infra to run the root.img containing the flag on the challenge server, AND distribute the SAME root.img to the participants. So all you needed to do to get the flag was to extract the image and cat the flag 💀💀💀</p>
 <p>The challenge went down for a while, but the disaster continues. On the same day that I submitted the challenge to infra, I managed to blow up my Kali VM (where I was developing the challenge and exploit on) by using too much hard disk space, resulting in me having to revert the VM and lose a lot of my work. Fortunately most of the challenge files were on GitHub, but somehow extracting root.img into a filesystem and then recreating the image file caused some explosions, so I had to completely remake the root.img via debootstrap, installing FUSE, etc etc. This took some time, but I managed to change the flag, rebuild root.img (for the server) and dist.img (for the players), and submit them to infra. &hellip;And then infra exploded again.</p>
@@ -250,7 +250,7 @@
 <h4 id="exploitation-overview">Exploitation Overview</h4>
 <p>So we know that it is possible to trigger a race condition on the kernel module, and that there is a use-after-free in the delete function, where the pointer to the data object in struct document is not zeroed out.</p>
 <p>So here is what we are going to do:</p>
-<p><img src="/images/meowcrosoft_word_flow.jpg" alt="Meowcrosoft Word Exploit Flow"></p>
+<p><img src="/images/meowcrosoft-word/meowcrosoft_word_flow.jpg" alt="Meowcrosoft Word Exploit Flow"></p>
 <ol>
 <li>Create a new document of size 0x100. The data section will be allocated in kmalloc-256.</li>
 <li>Create a new thread &ldquo;write2_thread&rdquo;.</li>
@@ -537,7 +537,7 @@
 </span></span><span style="display:flex;"><span>        }
 </span></span><span style="display:flex;"><span>    }
 </span></span></code></pre></div><p>I was then able to leak a huge number of bytes (greater than the original 0x100) from the corrupted msg_msg object, which thinks that its size is 0x960. From there, I leaked the next pointer of the next message (which points to a kmalloc-cg-1024 heap address, which will be our target for spraying pipe buffer objects), as well as another set of next and prev pointers which will be used later in the exploit. Here is the current state of the system (prev pointers not shown for simplicity):</p>
-<p><img src="/images/meowcrosoft_word_diagram1.jpg" alt="Diagram1"></p>
+<p><img src="/images/meowcrosoft-word/meowcrosoft_word_diagram1.jpg" alt="Diagram1"></p>
 <p>So remember when I said that the cross cache was the intended solution? Later on in the CTF, someone remarked that they did not have to spray a lot of msg_msg objects to reclaim the freed document data region. So, I went to check the challenge again, and the kmalloc-cg caches seem to be missing from /proc/slabinfo or /sys/kernel/slab 0.0 I am currently not sure why this is the case, though I suspect it may have something to do with cache aliasing, but I may update this blog post or write another one when I find out why. If anyone knows why, please let me know!</p>
 <p><strong>UPDATE</strong></p>
 <p>So I found out why this was happening! Being a noob, I forgot to set <code>CONFIG_MEMCG=y</code>, which basically caused the cg caches to not exist. Whoops (skill issue moment). For more about CONFIG_MEMCG, check this out: <a href="https://cateee.net/lkddb/web-lkddb/MEMCG.html">https://cateee.net/lkddb/web-lkddb/MEMCG.html</a></p>
@@ -553,7 +553,7 @@
 </span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">write</span>(fuse_write2_data[<span style="color:#ae81ff">1</span>], <span style="color:#f92672">&amp;</span>buf, <span style="color:#ae81ff">0x18</span>);
 </span></span></code></pre></div><p>That way, when the read from the pipe completes, and FUSE unblocks, it can use that data as the contents of the FUSE file, which will then be used to perform the write.</p>
 <p>At this point, this is the state of the system:</p>
-<p><img src="/images/meowcrosoft_word_diagram2.jpg" alt="Diagram2"></p>
+<p><img src="/images/meowcrosoft-word/meowcrosoft_word_diagram2.jpg" alt="Diagram2"></p>
 <p>We are then going to free the secondary message belonging to the next primary msg_msg.</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#75715e">// Free the next_idx secondary msg_msg first
 </span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Freeing the next_idx secondary msg_msg</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
@@ -563,7 +563,7 @@
 </span></span><span style="display:flex;"><span>    }
 </span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>);
 </span></span></code></pre></div><p>The system now looks like this:</p>
-<p><img src="/images/meowcrosoft_word_diagram3.jpg" alt="Diagram3"></p>
+<p><img src="/images/meowcrosoft-word/meowcrosoft_word_diagram3.jpg" alt="Diagram3"></p>
 <p>Then, we are going to spray a fake secondary msg_msg object via sk_buff. Note that I have set the security pointer to 0; I had to explicitly disable SELinux in the kernel config for this to work, or not there would be a NULL pointer dereference, and everything would explode. Theoretically we could leak a security pointer when we leak all the other stuff and use that as the security pointer, but I was lazy (whoops).</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Spraying sk_buff objects</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
 </span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">memset</span>(secondary_buf, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(secondary_buf));
@@ -577,7 +577,7 @@
 </span></span><span style="display:flex;"><span>        }
 </span></span><span style="display:flex;"><span>    }
 </span></span></code></pre></div><p>The system after the spray:</p>
-<p><img src="/images/meowcrosoft_word_diagram4.jpg" alt="Diagram4"></p>
+<p><img src="/images/meowcrosoft-word/meowcrosoft_word_diagram4.jpg" alt="Diagram4"></p>
 <p>After that, we are going to free the fake secondary msg_msg by freeing the secondary message of the corrupted msg_msg object.</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#75715e">// Free the secondary message of corrupted_idx
 </span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Freeing the corrupted_idx secondary msg_msg</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
@@ -587,7 +587,7 @@
 </span></span><span style="display:flex;"><span>    }
 </span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>);
 </span></span></code></pre></div><p>The system now, with sk_buff pointing to the freed region:</p>
-<p><img src="/images/meowcrosoft_word_diagram5.jpg" alt="Diagram5"></p>
+<p><img src="/images/meowcrosoft-word/meowcrosoft_word_diagram5.jpg" alt="Diagram5"></p>
 <p>At this point, we can setup the pipe_buf spray via sk_buff:</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Spraying pipe_buf over freed 1024 area</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
 </span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_PIPEFDS; i<span style="color:#f92672">++</span>) {

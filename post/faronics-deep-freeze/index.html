@@ -7,7 +7,7 @@
     <meta name="format-detection" content="telephone=no" />
     <meta name="theme-color" content="#000084" />
     <meta name="google-site-verification" content="733C7I2uDZnatcput9zZupeQ_PX5Z0BJ1HmTnGi0SJI" />
-	<link rel="icon" href="https://kaligulaarmblessed.github.io/favicon.ico">
+    <link rel="icon" href="https://kaligulaarmblessed.github.io/favicon.ico">
     <link rel="canonical" href="https://kaligulaarmblessed.github.io">
     
     
@@ -80,34 +80,34 @@
 <p>(Disclaimer 2: I wrote this quite a while later after I have pwned Faronics; if I do write any garbage, please correct me!)</p>
 <h4 id="basic-analysis">Basic Analysis</h4>
 <p>A quick look using TCPView from the SysInternals suite shows us that it is listening on both TCP and UDP port 7725 for connections.</p>
-<p><img src="/images/faronics_tcpview.jpg" alt="Faronics TCPView"></p>
+<p><img src="/images/faronics-deep-freeze/faronics_tcpview.jpg" alt="Faronics TCPView"></p>
 <p>I then opened the binary (DFServerService.exe) in IDA (note that the executable is packed with UPX; it must first be unpacked before reversing), and realized that at the function at 0x0045EBE0, there were two other functions, 0x0045EB58 and 0x0045EACC, which both called recv. Wanting to make my life easier, I opened the binary in WinDBG, set breakpoints on WSOCK32!recv, made a simple script using pwntools to send 1000 As, and tried to see what would happen. I realized that the function with the recv call at 0x0045EB58 would be called first, but as once my script finished executing it closed the socket, and hence the recv would fail. Adding a pause() after sending the As helped, and I realized that recv was called twice; the call at 0x0045EB58 was to receive the number of bytes that would be received as data, and the second call at 0x0045EACC was to actually receive the data.</p>
 <p>However, as there was a lot of assembly code (we are not allowed to use a decompiler in the OSED) <del>and I was lazy</del>, instead of looking through the pile of assembly after the recv calls, I turned to wireshark to help me in my analysis.</p>
 <h4 id="wireshark">Wireshark</h4>
 <p>I pulled Wireshark onto the debugging machine where Faronics was installed, and started pressing random things in the admin control panel to try to trigger messages sent by the admin panel to DFServerService in an attempt to get an easy pass on understanding the protocol. The local admin panel also initiates a connection to the server service via port 7725, so if we sniff traffic on localhost, we would be able to see all communication between the server service and the admin.</p>
-<p><img src="/images/faronics_adminconsole.jpg" alt="Faronics Admin Console"></p>
+<p><img src="/images/faronics-deep-freeze/faronics_adminconsole.jpg" alt="Faronics Admin Console"></p>
 <p>(The Faronics Deep Freeze Admin Console &ndash; in this case, the admin console on localhost is connected to the server service running on port 7725. I performed random operations such as the Add Group as shown above to try to trigger messages which I could capture.)</p>
 <p>After sniffing the traffic on wireshark, I could see the message sending the length and data very clearly. The packet containing the length of the data is as such:</p>
-<p><img src="/images/faronics_wireshark1.jpg" alt="Faronics packet with length of data"></p>
+<p><img src="/images/faronics-deep-freeze/faronics_wireshark1.jpg" alt="Faronics packet with length of data"></p>
 <p>And the packet containing the data (which is currently gibberish):</p>
-<p><img src="/images/faronics_wireshark2.jpg" alt="Faronics data packet"></p>
+<p><img src="/images/faronics-deep-freeze/faronics_wireshark2.jpg" alt="Faronics data packet"></p>
 <p>And an actual wireshark:</p>
-<p><img src="/images/faronics_wireshark3.png" alt="Shork"></p>
+<p><img src="/images/faronics-deep-freeze/faronics_wireshark3.png" alt="Shork"></p>
 <p>Apparently the sharks will attack internet cables as the cables generate an electric field, possibly making the sharks (which are very sensitive to electromagnetic fields due to special organs known as ampullae of Lorenzini) think of them as prey.</p>
 <p>Anyways, we can clearly see that the data is being encoded in some form, which means that we have to reverse engineer some form of encoding mechanism. From the IDA screenshot below, you can see the function that calls recv for the size, as well as for the data. After the data has been successfully received, code execution proceeds to 0x0045EE0B, and then 0x0045EE31, where it will call the &ldquo;do_encrypt_and_checksum&rdquo; function at 0x0045E36C.</p>
-<p><img src="/images/faronics_ida1.jpg" alt="Faronics IDA recv functions"></p>
-<p><img src="/images/faronics_ida2.jpg" alt="Faronics IDA right before do_encrypt_and_checksum"></p>
+<p><img src="/images/faronics-deep-freeze/faronics_ida1.jpg" alt="Faronics IDA recv functions"></p>
+<p><img src="/images/faronics-deep-freeze/faronics_ida2.jpg" alt="Faronics IDA right before do_encrypt_and_checksum"></p>
 <p>Inside the do_encrypt_and_checksum function at 0x0045E36C, there is another function &ldquo;do_encrypt_and_memcpy&rdquo; (sorry for the shitty names) at 0x0046F074, which will call two functions &ldquo;do_xor_part_one&rdquo; at 0x0046F220 and &ldquo;do_xor_part_two&rdquo; at 0x0046F1B4. This is where the fun begins.</p>
-<p><img src="/images/faronics_ida3.jpg" alt="Faronics IDA in do_encrypt_and_checksum"></p>
-<p><img src="/images/faronics_ida4.jpg" alt="Faronics IDA in do_encrypt_and_memcpy"></p>
+<p><img src="/images/faronics-deep-freeze/faronics_ida3.jpg" alt="Faronics IDA in do_encrypt_and_checksum"></p>
+<p><img src="/images/faronics-deep-freeze/faronics_ida4.jpg" alt="Faronics IDA in do_encrypt_and_memcpy"></p>
 <h4 id="xor-part-one">XOR Part One</h4>
 <p>The gist of the XOR algorithm is this: an XOR key array will be generated based on a certain seed, and then each of the bytes of the payload would be XORed with its respective key byte.</p>
 <p>The &ldquo;do_xor_part_one&rdquo; function at 0x0046F220 will first call &ldquo;generate_xor_one_key&rdquo; at 0x004B04DC.</p>
-<p><img src="/images/faronics_ida5.jpg" alt="Faronics IDA in do_xor_part_one calling generate_xor_one_key"></p>
+<p><img src="/images/faronics-deep-freeze/faronics_ida5.jpg" alt="Faronics IDA in do_xor_part_one calling generate_xor_one_key"></p>
 <p>In the &ldquo;generate_xor_one_key&rdquo; function at 0x004B04DC, a seed value from DFServerService+0x5ed208 will first be extracted. Note that the seed value is generated based on the customization code entered when Faronics is installed. In this case, the customization code I used was &ldquo;meowmeow&rdquo;, which led to a seed value of 0x0c6e3d57. I suspect the seed value is generated by some hashing algorithm in the DFInit.exe executable that runs once Faronics has been installed, but that would be another reversing adventure for another day. Another value at DFServerService+0x5ed208+4 will be zeroed out &ndash; this value will be important later, and I will call this &ldquo;value2&rdquo;. After that is all done, the &ldquo;generate_xor_one_key_actual_math&rdquo; function at 0x004B04F8 will be called &ndash; this is the first part of the actual math to generate the key_array.</p>
-<p><img src="/images/faronics_ida6.jpg" alt="Faronics IDA in generate_xor_one_key"></p>
+<p><img src="/images/faronics-deep-freeze/faronics_ida6.jpg" alt="Faronics IDA in generate_xor_one_key"></p>
 <p>Some math is then done in &ldquo;generate_xor_one_key_actual_math&rdquo; to kick off the key generation process for the first XOR:</p>
-<p><img src="/images/faronics_ida7.jpg" alt="Faronics IDA in generate_xor_one_key_actual_math"></p>
+<p><img src="/images/faronics-deep-freeze/faronics_ida7.jpg" alt="Faronics IDA in generate_xor_one_key_actual_math"></p>
 <p>These are the helper functions that I have used to make life a little easier:</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">truncate</span>(num): 
 </span></span><span style="display:flex;"><span>    num <span style="color:#f92672">=</span> num <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">0xffffffff</span>
@@ -143,9 +143,9 @@
 </span></span><span style="display:flex;"><span><span style="color:#f92672">...</span>
 </span></span></code></pre></div><p>Both seed and value2 are modified by the function, and will be further modified later in a loop in the XOR operation.</p>
 <p>After the seed value and value2 have been initialized, the loop to perform the XOR operation begins.</p>
-<p><img src="/images/faronics_ida8.jpg" alt="Faronics IDA XOR one loop"></p>
+<p><img src="/images/faronics-deep-freeze/faronics_ida8.jpg" alt="Faronics IDA XOR one loop"></p>
 <p>Returning back to &ldquo;do_xor_part_one&rdquo; at 0x0046F220, another function &ldquo;generate_xor_one_key_actual_math_2&rdquo; at 0x004B051C is then called to generate the values of the XOR key. Note that after &ldquo;generate_xor_one_key_actual_math_2&rdquo; is done, there is an additional <code>and eax, 0x800000FF</code> step in &ldquo;do_xor_part_one&rdquo;. The line <code>xor [ecx+eax], dl</code> then performs the actual XOR operation.</p>
-<p><img src="/images/faronics_ida9.jpg" alt="Faronics IDA in generate_xor_one_key_actual_math_2"></p>
+<p><img src="/images/faronics-deep-freeze/faronics_ida9.jpg" alt="Faronics IDA in generate_xor_one_key_actual_math_2"></p>
 <p>I have also implemented this in python (hopefully this is readable; this is spaghetti code whoops) &ndash; continuing from the code above:</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span>        <span style="color:#66d9ef">else</span>: 
 </span></span><span style="display:flex;"><span>            part2 <span style="color:#f92672">=</span> value2 <span style="color:#f92672">*</span> <span style="color:#ae81ff">0x4e35</span>
@@ -166,9 +166,9 @@
 </span></span></code></pre></div><h4 id="xor-part-two">XOR Part Two</h4>
 <p>Once &ldquo;do_xor_part_one&rdquo; is complete, it returns back to &ldquo;do_encrypt_and_memcpy&rdquo; at 0x0046F074, which will then call &ldquo;do_xor_part_two&rdquo; at 0x0046F1B4. &ldquo;do_xor_part_two&rdquo; will take the first 4 bytes of the payload decrypted by the first XOR scheme as the seed, and will start decrypting from the start of the payload + 4.</p>
 <p>&ldquo;do_xor_part_two&rdquo; will first call &ldquo;generate_xor_two_key&rdquo; at 0x0046F150, which will initialize the key generator by doing some math on the seed. The actual loop that performs the XOR operation will then start after the key generator has been initialized, and will call &ldquo;generate_xor_two_key&rdquo; for every loop. Similarly, the XOR operation is performed by the instruction <code>xor [ecx+eax], dl</code>.</p>
-<p><img src="/images/faronics_ida10.jpg" alt="Faronics IDA in do_xor_part_two"></p>
+<p><img src="/images/faronics-deep-freeze/faronics_ida10.jpg" alt="Faronics IDA in do_xor_part_two"></p>
 <p>The function &ldquo;generate_xor_two_key&rdquo; at 0x0046F150 can be seen here:</p>
-<p><img src="/images/faronics_ida11.jpg" alt="Faronics IDA in generate_xor_two_key"></p>
+<p><img src="/images/faronics-deep-freeze/faronics_ida11.jpg" alt="Faronics IDA in generate_xor_two_key"></p>
 <p>I have also converted this XOR encoding scheme into a python function to generate the key array:</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">gen_key_xor2</span>(num, header):
 </span></span><span style="display:flex;"><span>    key_arr <span style="color:#f92672">=</span> [] 
@@ -222,11 +222,11 @@ Opcode: 0x1f6
 0x24 - 0x27: Size (?)
 </code></pre><p>Before proceeding to the opcode jumptable, there is a final &ldquo;encode_three&rdquo; checksum check (it&rsquo;s only called that because that was the name of the function in my python code) to ensure that the message is valid.</p>
 <p>After &ldquo;do_encrypt_and_memcpy&rdquo; returns back into &ldquo;do_encrypt_and_checksum&rdquo; at 0x0045E36C, &ldquo;do_checksums&rdquo; at 0x0046EED4 is called.</p>
-<p><img src="/images/faronics_ida12.jpg" alt="Faronics IDA in do_encrypt_and_checksum calling do_checksums"></p>
+<p><img src="/images/faronics-deep-freeze/faronics_ida12.jpg" alt="Faronics IDA in do_encrypt_and_checksum calling do_checksums"></p>
 <p>&ldquo;do_checksums&rdquo; will first check if checksum 1 (header 0x08 - 0x0b) is equals to 0x0a953 via the instruction <code>cmp dword ptr [edx+8], 0A958h</code>, before calling &ldquo;do_encode_three_checksum&rdquo; at 0x007A921C to proceed with the next check.</p>
-<p><img src="/images/faronics_ida13.jpg" alt="Faronics IDA in do_checksums"></p>
+<p><img src="/images/faronics-deep-freeze/faronics_ida13.jpg" alt="Faronics IDA in do_checksums"></p>
 <p>&ldquo;do_encode_three_checksum&rdquo; will calculate a checksum based on all the data starting from byte 0x14 onwards.</p>
-<p><img src="/images/faronics_ida14.jpg" alt="Faronics IDA in do_encode_three_checksum"></p>
+<p><img src="/images/faronics-deep-freeze/faronics_ida14.jpg" alt="Faronics IDA in do_encode_three_checksum"></p>
 <p>I have translated the asm code logic into python:</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">encode_three</span>(msg, count):
 </span></span><span style="display:flex;"><span>    buffer <span style="color:#f92672">=</span> msg 
@@ -255,7 +255,7 @@ Opcode: 0x1f6
 <h4 id="opcode-jumptable">Opcode Jumptable</h4>
 <p>Back in &ldquo;do_encrypt_and_checksum&rdquo;, <code>.text:0045E42F call dword ptr [ecx+810h]</code> will call a function &ldquo;do_create_thread_call_jumptable&rdquo; at 0x0042E370, which will create a new thread, which will call a function &ldquo;do_fn_before_jumptable&rdquo; at 0x042F970, which will finally call the jumptable function at 0x0042FA18.</p>
 <p>Look at this absolutely horrifying giant function:</p>
-<p><img src="/images/faronics_ida15.jpg" alt="Faronics IDA jumptable"></p>
+<p><img src="/images/faronics-deep-freeze/faronics_ida15.jpg" alt="Faronics IDA jumptable"></p>
 <p>I then started trying to find opcodes which were potentially exploitable. There are many many ways to crash the binary, but I wanted something that would give me RCE. I mainly took a fuzzing approach to this, since there were really a lot a lot of opcodes.</p>
 <h4 id="the-rabbit-hole">The Rabbit Hole</h4>
 <p>I chanced upon opcode 0x1f6, which gave me my first crash and made me stupidly excited that I could finally pwn this damn thing. This would lead to a crash at 0x0043e2e7, as it tries to dereference edx, which is a register that we can control. Causing an invalid dereference will allow us to overwrite the SEH handler, and replacing edx with a valid pointer will give us a direct EIP overwrite!</p>

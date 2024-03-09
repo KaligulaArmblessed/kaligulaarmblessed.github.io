@@ -7,7 +7,7 @@
     <meta name="format-detection" content="telephone=no" />
     <meta name="theme-color" content="#000084" />
     <meta name="google-site-verification" content="733C7I2uDZnatcput9zZupeQ_PX5Z0BJ1HmTnGi0SJI" />
-	<link rel="icon" href="https://kaligulaarmblessed.github.io/favicon.ico">
+    <link rel="icon" href="https://kaligulaarmblessed.github.io/favicon.ico">
     <link rel="canonical" href="https://kaligulaarmblessed.github.io">
     
     
@@ -270,7 +270,7 @@ What could possibly go wrong?
 </span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> private;
 </span></span><span style="display:flex;"><span>};
 </span></span></code></pre></div><p>struct pipe_buffer is allocated in kmalloc-cg-1k, and typically looks like this in memory:</p>
-<p><img src="/images/palindromatic_pipe_buf_normal.jpg" alt="Normal pipe_buf object in memory"></p>
+<p><img src="/images/palindromatic-biosctf2024/palindromatic_pipe_buf_normal.jpg" alt="Normal pipe_buf object in memory"></p>
 <p>And the way that I sprayed pipe_buf was as such:</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_PIPEFDS; i<span style="color:#f92672">++</span>) {
 </span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">pipe</span>(pipefd[i]) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
@@ -283,14 +283,14 @@ What could possibly go wrong?
 </span></span><span style="display:flex;"><span>        }
 </span></span><span style="display:flex;"><span>    }
 </span></span></code></pre></div><p>However, we were getting this object instead of the expected pipe_buf object while doing our cross cache:</p>
-<p><img src="/images/palindromatic_pipe_buf_weird.jpg" alt="Weird pipe_buf object in memory"></p>
+<p><img src="/images/palindromatic-biosctf2024/palindromatic_pipe_buf_weird.jpg" alt="Weird pipe_buf object in memory"></p>
 <p>After some investigation, I finally managed to find out what object this is. According to <a href="https://www.interruptlabs.co.uk/articles/pipe-buffer">https://www.interruptlabs.co.uk/articles/pipe-buffer</a>, when a pipe_buffer is allocated, and data is written to a pipe, a page (size 4096) will be used by the kernel to store data for the pipe. So instead of cross caching to a pipe_buffer object, it cross cached to the page used to store data by the pipe :o</p>
 <p>Interestingly, if we wrote less than 9 bytes to the pipe, as the pages are not zeroed out before being reallocated, the magic value would remain intact. As such, if the victim object was reallocated to this page object used by the pipe to store data, technically we could still free the very same object via reap, as the magic value would be untouched.</p>
 <p>So after freeing the victim object for the first time and allocating this pipe_buf page object over the victim object, we can free the victim objecct a second time via reap. After doing so, I tried to spray msg_msg or msg_msgseg over the victim object to see if I could get a kernel text leak, but then the next weird thing happened.</p>
-<p><img src="/images/palindromatic_msg_weird.png" alt="Weird msg object"></p>
+<p><img src="/images/palindromatic-biosctf2024/palindromatic_msg_weird.png" alt="Weird msg object"></p>
 <p>Instead of a msg_msg or msg_msgseg object, I was getting this object that was full of 0x1s. I later figured out that this is likely to be the object allocated by selinux, which the security pointer in struct msg_msg points to.</p>
 <p>While trying to fix the cross cache sprays, I was wondering why the heap sprays were so unstable (and object didn&rsquo;t go where I wanted them to go), so I decided to take a look at /proc/slabinfo (I actually only realized that .config was provided after the CTF was over 😅). I then noticed that the normal cg caches were missing, and that they were seemingly replaced by these strange rnd caches:</p>
-<p><img src="/images/palindromatic_caches.jpg" alt="Caches"></p>
+<p><img src="/images/palindromatic-biosctf2024/palindromatic_caches.jpg" alt="Caches"></p>
 <p>I googled and realized that this was actually some kind of new kernel protection <code>CONFIG_RANDOM_KMALLOC_CACHES</code>, which aimed to make it more annoying for attackers to perform a reliable heap spray. This is a good article about it: <a href="https://sam4k.com/exploring-linux-random-kmalloc-caches/#introducing-random-kmalloc-caches">https://sam4k.com/exploring-linux-random-kmalloc-caches/#introducing-random-kmalloc-caches</a>, but in summary, multiple (usually 16) slab caches are introduced for each size. When an object is allocated via kmalloc, it will go into one of the 16 caches randomly based on where kmalloc is called and a per-boot generated seed. This means that our spray will be distributed amongst these 16 slab caches randomly. How annoying!</p>
 <p>The solution to this is actually simply to just spray even more objects; and hope that one of them reclaim the freed victim object.</p>
 <p>At this point, we finally managed to stabilize the pipe_buffer spray, but now that the actual struct pipe_buffer reclaimed the victim object instead of the data page, the magic value was destroyed. This also destroyed my hopes for the second free, as with the magic value corrupted, reap would not work :&quot;(</p>
