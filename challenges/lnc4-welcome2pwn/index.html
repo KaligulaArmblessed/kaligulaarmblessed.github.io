@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+    <title>Kernels and Cats</title>
+    <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+    <meta content="utf-8" http-equiv="encoding">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="theme-color" content="#000084" />
+    <meta name="google-site-verification" content="733C7I2uDZnatcput9zZupeQ_PX5Z0BJ1HmTnGi0SJI" />
+    <link rel="icon" href="https://kaligulaarmblessed.github.io/favicon.ico">
+    <link rel="canonical" href="https://kaligulaarmblessed.github.io">
+    
+    
+</head>
+<body>
+<nav class="navbar navbar-inverse navbar-fixed-top">
+    <div class="navbar-inner">
+        <div class="container">
+            <button type="button" class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse"></button>
+            <a class="brand" href="https://kaligulaarmblessed.github.io">Kernels and Cats</a>
+            <div class="nav-collapse collapse">
+                <ul class="nav">
+                    
+                    
+                        
+                            <li>
+                                <a href="/about/">
+                                    
+                                    <span>About</span>
+                                </a>
+                            </li>
+                        
+                    
+                        
+                            <li>
+                                <a href="/post/">
+                                    
+                                    <span>All posts</span>
+                                </a>
+                            </li>
+                        
+                    
+                        
+                            <li>
+                                <a href="/challenges/">
+                                    
+                                    <span>CTF Challenges</span>
+                                </a>
+                            </li>
+                        
+                    
+                </ul>
+            </div>
+        </div>
+    </div>
+</nav><div id="content" class="container">
+
+<div class="row-fluid navmargin">
+    <div class="page-header">
+        <h1>LNC 4.0: Welcome2Pwn - Sun, Mar 10, 2024</h1>
+    </div>
+    <p class="lead"></p>
+    <h4 id="welcome2pwn">Welcome2Pwn</h4>
+<p>Welcome to the land of pwn! Come follow me to the beach; however, make sure to ignore Sally standing sadly at the side selling shells. Who needs to buy shells when we can pop our own? :D</p>
+<h4 id="but-first-what-is-pwn">But first&hellip; What is pwn?</h4>
+<p>The fancy name for pwn is binary exploitation. Pwn is the art of crafting a custom exploit to hack a vulnerable program (often called a binary), be it one that is running on a remote server, or the operating system kernel itself! This will be an (almost) step-by-step guide to pwning your very first binary.</p>
+<p>If you look at the challenge files, you will see that you have been provided with the following:</p>
+<ul>
+<li>welcome: The vulnerable binary that you will exploit</li>
+<li>welcome.c: The source code for the binary</li>
+</ul>
+<h4 id="tools-of-the-trade">Tools of the Trade</h4>
+<p>In this case, we are exploiting a Linux binary, so having access to a Linux command line is crucial. The following tools would be of great help, so do make sure to install them before proceeding:</p>
+<ul>
+<li>Python
+<ul>
+<li>The pwntools python package &ndash; this is a specialized set of tools and wrappers designed to make exploit writing a lot easier</li>
+</ul>
+</li>
+<li>gdb: The GNU debugger
+<ul>
+<li><a href="https://github.com/pwndbg/pwndbg">pwndbg</a>: A plugin for gdb that adds many useful functions and pretty colors</li>
+<li>A gdb cheat sheet if you are unfamiliar with using gdb &ndash; just google one!</li>
+</ul>
+</li>
+</ul>
+<h4 id="source-code-analysis-and-vulnerability">Source Code Analysis and Vulnerability</h4>
+<p>We are provided with the source code of the binary, so let&rsquo;s look for anything that seems like it could go wrong:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">int</span> <span style="color:#a6e22e">main</span>(<span style="color:#66d9ef">void</span>) {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">char</span> buf[<span style="color:#ae81ff">0x100</span>];                                             <span style="color:#f92672">&lt;--</span> [<span style="color:#ae81ff">1</span>]
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    ...
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;Welcome to pwn!</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;Show me a cool exploit technique!</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;&gt;&gt; &#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">fgets</span>(stuff, <span style="color:#ae81ff">0x100</span>, stdin);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;Now tell me where to go: </span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;&gt;&gt; &#34;</span>); 
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">fgets</span>(buf, <span style="color:#ae81ff">0x200</span>, stdin);                                    <span style="color:#f92672">&lt;--</span> [<span style="color:#ae81ff">2</span>] 
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This is the main function. Note that at the start, we define a character buffer of size 0x100 bytes (1). However, later on in the function, we call fgets (2). The function prologue of fgets is as such:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">char</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">fgets</span>(<span style="color:#66d9ef">char</span> <span style="color:#f92672">*</span>str, <span style="color:#66d9ef">int</span> n, FILE <span style="color:#f92672">*</span>stream)
+</span></span></code></pre></div><p>So in (2), we are trying to read 0x200 bytes from the file stream stdin (which is where the user would enter text in a terminal), and write these 0x200 bytes into the buffer &ldquo;buf&rdquo;. However, remember that we defined the buffer &ldquo;buf&rdquo; to be of size 0x100. If we attempt to write more than 0x100 bytes into nuf, we will exceed its capacity, leading to a vulnerability known as a <strong>buffer overflow</strong>.</p>
+<p>When a local variable is defined in a function, it will be allocated in a location of memory known as the <strong>stack</strong>. When a function is running, all the local variables defined during its runtime would be inside a <strong>stack frame</strong>. In this case, when buf was defined, 0x100 bytes of memory would be allocated to it on the stack. Two CPU registers define the stack frame: rsp points to the top of the stack, and rbp points to its base. A typical stack layout would look like this:</p>
+<p><img src="/images/lnc4-welcome2pwn/stack1.jpg" alt="stack1"></p>
+<p>Assuming that we only key in 20 &ldquo;A&quot;s and hit enter, fgets will only write 20 characters to buf, which is less that its capacity of 0x100. Nothing is written outside of the buf region, so once fgets has finished, and the main function returns, it will pop the return address (which is stored on the stack frame) into RIP (the instruction pointer, which tells the program what instruction to run next), and allow main to return normally.</p>
+<p><img src="/images/lnc4-welcome2pwn/stack2.jpg" alt="stack2"></p>
+<p>Now, imagine you are a <del>person who really likes shells on remote servers you shouldn&rsquo;t have access to</del> malicious actor who wants to control program flow to run whatever code you want. Knowing that you have the ability to write more than 0x100 bytes into buf, and that the return address would be popped into the instruction pointer once main returns, what would you do?</p>
+<p>If your idea was to overflow &ldquo;buf&rdquo; by writing more than 0x100 bytes and overwriting the return address with whatever you want, you are on the right track! The question now would be how many bytes must I spam into the buffer in order to overwrite the return address, and calculating this is very simple. We know that the buffer is 0x100 bytes, and that the rbp of the previous stack frame (which would be 8 bytes in a x64 system) is stored before the return address, which means that we need to have a padding of 0x108 to reach the return address. If we write 0x108 As and 8 Bs, we will be able to overwrite the return address with 8 Bs. When the program returns from main, it will attempt to jump to memory address 0x4242424242424242 (&ldquo;BBBBBBBB&rdquo;), which does not exist, causing the program to crash with a <strong>segmentation fault</strong>.</p>
+<p><img src="/images/lnc4-welcome2pwn/stack3.jpg" alt="stack3"></p>
+<p>If you don&rsquo;t like math (like me), there is an even simpler way to do this. Enter pwntools, which has this wonderful utility known as &ldquo;cyclic&rdquo;. What cyclic does is that it generates a de Brujin sequence, which can be used to easily identify the offset to the return address for you.</p>
+<p>To use cyclic, simply type <code>cyclic &lt;number&gt;</code>, where the number is the length of the sequence you want to generate.</p>
+<pre tabindex="0"><code>┌──(kaligula㉿cat)-[~/Downloads/CTF/LNC4/welcome2pwn]
+└─$ cyclic 500
+aaaabaaacaaadaaaeaaafaaagaaahaaaiaaajaaakaaalaaamaaanaaaoaaapaaaqaaaraaasaaataaauaaavaaawaaaxaaayaaazaabbaabcaabdaabeaabfaabgaabhaabiaabjaabkaablaabmaabnaaboaabpaabqaabraabsaabtaabuaabvaabwaabxaabyaabzaacbaaccaacdaaceaacfaacgaachaaciaacjaackaaclaacmaacnaacoaacpaacqaacraacsaactaacuaacvaacwaacxaacyaaczaadbaadcaaddaadeaadfaadgaadhaadiaadjaadkaadlaadmaadnaadoaadpaadqaadraadsaadtaaduaadvaadwaadxaadyaadzaaebaaecaaedaaeeaaefaaegaaehaaeiaaejaaekaaelaaemaaenaaeoaaepaaeqaaeraaesaaetaaeuaaevaaewaaexaaeyaae
+</code></pre><p>Now, copy the sequence generated. We are going to start gdb with <code>gdb &lt;binary&gt;</code>, where binary would be the location of the executable file (in this case probably ./welcome). If you have downloaded pwndbg it will look like this:</p>
+<p><img src="/images/lnc4-welcome2pwn/pwndbg_start.jpg" alt="pwndbg start"></p>
+<p>Hit <code>r</code> and enter to start the program, enter some random crap when it asks you about cool exploit techniques (we will talk about this later) and hit enter, then paste in the cyclic payload you previously copied, and hit enter. You will see that the program has segfaulted, and looks something like this:</p>
+<p><img src="/images/lnc4-welcome2pwn/pwndbg_segfault.jpg" alt="pwndbg segfault"></p>
+<p>Notice that the program is trying to return to address 0x6361617263616171, which is &ldquo;qaacraac&rdquo;. Now open up a text editor, and start writing a new python script:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#f92672">from</span> pwn <span style="color:#f92672">import</span> <span style="color:#f92672">*</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>proc <span style="color:#f92672">=</span> process(<span style="color:#e6db74">&#34;./welcome&#34;</span>) <span style="color:#75715e">## Start the binary as a local process </span>
+</span></span><span style="display:flex;"><span>elf <span style="color:#f92672">=</span> ELF(<span style="color:#e6db74">&#34;./welcome&#34;</span>) <span style="color:#75715e">## To get the symbols in the binary</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>padding <span style="color:#f92672">=</span> cyclic(cyclic_find(<span style="color:#e6db74">&#34;qaac&#34;</span>))
+</span></span><span style="display:flex;"><span>rip <span style="color:#f92672">=</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;BBBBBBBB&#34;</span>
+</span></span><span style="display:flex;"><span>payload <span style="color:#f92672">=</span> padding <span style="color:#f92672">+</span> rip
+</span></span><span style="display:flex;"><span>print(payload)
+</span></span></code></pre></div><p>If you run the script and copy the payload printed out, and then run gdb again, but pasting in the newly generated payload instead of the previously generated cyclic sequence when the program asks you &ldquo;where to go&rdquo;, you will note that RIP is now 0x4242424242424242 (BBBBBBBB), and that you have successfully controlled the instruction pointer.</p>
+<h4 id="return-target">Return Target</h4>
+<p>Now that we can overwrite the return address with whatever we want, it is time to decide where to return to. Remember when we told the program some rubbish when it asked us about cool exploit techniques? Let&rsquo;s look back at what is going on with that in the source code.</p>
+<p>We know that from main, 0x100 bytes are read into a buffer called stuff. Looking at the source code would tell us that stuff is defined as a global variable (not allocated on stack), and is a character array of size 0x100. As fgets will read a maximum of (count - 1) characters, and will terminate with a null byte afterwards, there is no buffer overflow in &ldquo;stuff&rdquo;. However, there is this rather interesting function present:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">shellz</span>(<span style="color:#66d9ef">void</span>) {
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;Here&#39;s your shell!</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">memcpy</span>(code, stuff, <span style="color:#ae81ff">0x100</span>); 
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">typedef</span> <span style="color:#66d9ef">void</span> (<span style="color:#f92672">*</span><span style="color:#66d9ef">func_t</span>)(<span style="color:#66d9ef">void</span>);
+</span></span><span style="display:flex;"><span>    ((<span style="color:#66d9ef">func_t</span>)code)();
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>What this function does is that it copies memory from the &ldquo;stuff&rdquo; buffer into an executable memory region (previously set up) called &ldquo;code&rdquo;, and then executes whatever machine instructions present in that memory region. This means that if we can call the shellz function, we can run whatever machine code we want! (I wonder who put this super convenient &ldquo;run any random shellcode&rdquo; function there&hellip; 🤔)</p>
+<p>For instance, say I want to make the CPU execute 3 nops (no instruction, i.e. do nothing 3 times). The opcode (which is usually a bunch of hexadecimal numbers) corresponding to nop is \x90, hence 3 nops would be \x90\x90\x90. If I fill the &ldquo;stuff&rdquo; buffer with 3 nops, then overflow the &ldquo;buf&rdquo; buffer and overwrite the return address with the address of shellz, the code flow would be such after the program returns from main:</p>
+<pre tabindex="0"><code>-&gt; return from main
+    -&gt; call the shellz function
+        -&gt; copy whatever is inside stuff to code
+        -&gt; execute the code region as a series of machine instructions 
+</code></pre><p>When the code region is executed, the 3 nops would be run!</p>
+<p>A possible exploitation plan would hence be:</p>
+<ol>
+<li>Fill the &ldquo;stuff&rdquo; buffer with whatever machine instructions we want to execute</li>
+<li>Overflow the buffer</li>
+<li>Overwrite the return address with the address of shellz</li>
+<li>Profit!!! When main returns, it will return to shellz, which will then run the machine code that you have provided when the program asked you about cool exploits :D</li>
+</ol>
+<h4 id="pwn-time">PWN TIME!</h4>
+<p>It is time to exploit the target! This is when pwntools becomes extremely convenient, because it helps to set up pipes so that you can send and receive data from the target binary.</p>
+<p>Your exploit would be something like this:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#f92672">from</span> pwn <span style="color:#f92672">import</span> <span style="color:#f92672">*</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>proc <span style="color:#f92672">=</span> process(<span style="color:#e6db74">&#34;./welcome&#34;</span>)
+</span></span><span style="display:flex;"><span>elf <span style="color:#f92672">=</span> ELF(<span style="color:#e6db74">&#34;./welcome&#34;</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>shellcode <span style="color:#f92672">=</span> <span style="color:#75715e">## your own shellcode! Maybe something that pops a shell? :D</span>
+</span></span><span style="display:flex;"><span>proc<span style="color:#f92672">.</span>sendline(shellcode) <span style="color:#75715e">## proc.sendline lets you send whatever you want to the binary</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>padding <span style="color:#f92672">=</span> cyclic(cyclic_find(<span style="color:#e6db74">&#34;qaac&#34;</span>))
+</span></span><span style="display:flex;"><span>rip <span style="color:#f92672">=</span> p64(<span style="color:#f92672">&lt;</span>address of shellz<span style="color:#f92672">&gt;</span>) <span style="color:#75715e">## figure out how to get the address of the shellz function! </span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">## Note that the p64 function converts the order of your bytes to little endian</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>payload <span style="color:#f92672">=</span> padding <span style="color:#f92672">+</span> rip
+</span></span><span style="display:flex;"><span>print(payload)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>proc<span style="color:#f92672">.</span>sendline(payload)
+</span></span><span style="display:flex;"><span>proc<span style="color:#f92672">.</span>interactive() <span style="color:#75715e">## Open an interactive session</span>
+</span></span><span style="display:flex;"><span>proc<span style="color:#f92672">.</span>close()
+</span></span></code></pre></div><p>If you aren&rsquo;t familiar with shellcode: shellcode is a small piece of machine code written in assembly (and translated to hex opcodes) that when run, does whatever you want it to do (e.g. pop a shell, open and read a file, etc.).</p>
+<p>If all goes well, you should have your shell!</p>
+<p>In order to connect to the remote instance, swap out the <code>proc = process(&quot;./welcome&quot;)</code> line in your exploit with <code>proc = remote(&quot;&lt;ip&gt;&quot;, port)</code> and run it; it should give you a shell on the remote server!</p>
+<p>If you like pwn, there are many great pwn resources out there, such as <a href="https://guyinatuxedo.github.io/">Pwn Nightmare</a>, <a href="https://pwn.college/">pwn.college</a>, and many more. And of course, you can try the Cheminventory challenge ;)</p>
+<p>Hope you&rsquo;ve enjoyed this challenge!</p>
+
+    <h4><a href="https://kaligulaarmblessed.github.io">Back to Home</a></h4>
+</div>
+
+
+        </div><footer class="container">
+    <hr class="soften">
+    <p>
+&copy; 
+
+    Kaligula Armblessed
+
+<span id="thisyear">2024</span>
+
+
+        | Built on <a href="//gohugo.io" target="_blank">Hugo</a>
+
+</p>
+    <p class="text-center">
+        
+        <a href="https://twitter.com/KaligulaSec">Twitter</a> 
+        
+        <a href="https://github.com/KaligulaArmblessed">GitHub</a> 
+        
+    </p>
+</footer>
+
+</body><link rel="stylesheet" href="/css/bootstrap.css">
+<link rel="stylesheet" href="/css/bootstrap-responsive.css">
+<link rel="stylesheet" href="/css/style.css">
+
+<script src="/js/jquery.js"></script>
+<script src="/js/bootstrap-386.js"></script>
+<script src="/js/bootstrap-transition.js"></script>
+<script src="/js/bootstrap-alert.js"></script>
+<script src="/js/bootstrap-modal.js"></script>
+<script src="/js/bootstrap-dropdown.js"></script>
+<script src="/js/bootstrap-scrollspy.js"></script>
+<script src="/js/bootstrap-tab.js"></script>
+<script src="/js/bootstrap-tooltip.js"></script>
+<script src="/js/bootstrap-popover.js"></script>
+<script src="/js/bootstrap-button.js"></script>
+<script src="/js/bootstrap-collapse.js"></script>
+<script src="/js/bootstrap-carousel.js"></script>
+<script src="/js/bootstrap-typeahead.js"></script>
+<script src="/js/bootstrap-affix.js"></script>
+<script>
+    _386 = { 
+        fastLoad: false ,
+        onePass: true , 
+        speedFactor: 1 
+    };
+
+    
+    function ThisYear() {
+        document.getElementById('thisyear').innerHTML = new Date().getFullYear();
+    };
+</script></html>

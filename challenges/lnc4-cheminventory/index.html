@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+    <title>Kernels and Cats</title>
+    <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+    <meta content="utf-8" http-equiv="encoding">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="theme-color" content="#000084" />
+    <meta name="google-site-verification" content="733C7I2uDZnatcput9zZupeQ_PX5Z0BJ1HmTnGi0SJI" />
+    <link rel="icon" href="https://kaligulaarmblessed.github.io/favicon.ico">
+    <link rel="canonical" href="https://kaligulaarmblessed.github.io">
+    
+    
+</head>
+<body>
+<nav class="navbar navbar-inverse navbar-fixed-top">
+    <div class="navbar-inner">
+        <div class="container">
+            <button type="button" class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse"></button>
+            <a class="brand" href="https://kaligulaarmblessed.github.io">Kernels and Cats</a>
+            <div class="nav-collapse collapse">
+                <ul class="nav">
+                    
+                    
+                        
+                            <li>
+                                <a href="/about/">
+                                    
+                                    <span>About</span>
+                                </a>
+                            </li>
+                        
+                    
+                        
+                            <li>
+                                <a href="/post/">
+                                    
+                                    <span>All posts</span>
+                                </a>
+                            </li>
+                        
+                    
+                        
+                            <li>
+                                <a href="/challenges/">
+                                    
+                                    <span>CTF Challenges</span>
+                                </a>
+                            </li>
+                        
+                    
+                </ul>
+            </div>
+        </div>
+    </div>
+</nav><div id="content" class="container">
+
+<div class="row-fluid navmargin">
+    <div class="page-header">
+        <h1>LNC 4.0: Cheminventory - Sun, Mar 10, 2024</h1>
+    </div>
+    <p class="lead"></p>
+    <h4 id="setting-up-a-kernel-debugging-station">Setting Up A Kernel Debugging Station</h4>
+<p>Usually when you get a kernel challenge, the following files will be provided:</p>
+<ul>
+<li>bzImage: A compressed version of the kernel</li>
+<li>cheminventory.ko: The vulnerable kernel module</li>
+<li>config: The .config file used when the kernel was compiled &ndash; important in figuring out which protections are present</li>
+<li>initramfs.cpio.gs: A compressed filesystem</li>
+<li>run.sh: A shell script that starts qemu to run the kernel challenge &ndash; also important in figuring out which protections are present</li>
+</ul>
+<p>The objective of a kernel challenge is usually <strong>to obtain privilege escalation from the provided normal user to the root user</strong>.</p>
+<p>A typical run.sh will look like this:</p>
+<pre tabindex="0"><code>#!/bin/sh
+qemu-system-x86_64 \
+    -kernel ./bzImage \
+    -cpu qemu64,+smep,+smap \
+    -m 4G \
+    -smp 4 \
+    -initrd initramfs.cpio.gz \
+    -append &#34;console=ttyS0 quiet loglevel=3 kaslr kpti=1&#34; \
+    -monitor /dev/null \
+    -nographic \
+    -no-reboot \
+</code></pre><p>When you run run.sh (make sure you have qemu installed!), the qemu VM will start up and you will be greeted with a command prompt as the normal user:</p>
+<pre tabindex="0"><code>/ $ whoami
+cheminventory
+/ $ id
+uid=1000(cheminventory) gid=1000(cheminventory) groups=1000(cheminventory)
+</code></pre><p>However, being the normal user isn&rsquo;t terribly helpful when trying to mess with a kernel challenge as you will not have access to many useful things (e.g. /proc/kallsyms, where all the kernel symbols and their addresses are listed). As such, there is usually some setup that needs to be done before you can get down to pwning.</p>
+<h4 id="becoming-the-root-user-in-the-debug-setup">Becoming the Root User in the Debug Setup</h4>
+<p>It is very useful to be the root user while debugging a kernel challenge.</p>
+<p>The following shell script can be used to unzip the initramfs archive:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sh" data-lang="sh"><span style="display:flex;"><span>mkdir initramfs
+</span></span><span style="display:flex;"><span>cd initramfs
+</span></span><span style="display:flex;"><span>cp ../initramfs.cpio.gz .
+</span></span><span style="display:flex;"><span>gunzip ./initramfs.cpio.gz
+</span></span><span style="display:flex;"><span>cpio -idm &lt; ./initramfs.cpio
+</span></span><span style="display:flex;"><span>rm initramfs.cpio
+</span></span></code></pre></div><p>cd into the unzipped initramfs folder, and inside the /etc directory, you will see a file called <code>inittab</code>. If you open the file, you will see something like this:</p>
+<pre tabindex="0"><code>::sysinit:/etc/init.d/rcS
+::once:-sh -c &#39;clear; setuidgid 1000 sh; poweroff&#39;
+</code></pre><p>Change the 1000 to 0 so that the file looks like this now:</p>
+<pre tabindex="0"><code>::sysinit:/etc/init.d/rcS
+::once:-sh -c &#39;clear; setuidgid 0 sh; poweroff&#39;
+</code></pre><p>To recompress the initramfs archive, run the following shell script:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sh" data-lang="sh"><span style="display:flex;"><span>cd initramfs
+</span></span><span style="display:flex;"><span>find . -print0 <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>| cpio --null -ov --format<span style="color:#f92672">=</span>newc <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>| gzip -9 &gt; initramfs.cpio.gz
+</span></span><span style="display:flex;"><span>mv ./initramfs.cpio.gz ../
+</span></span></code></pre></div><p>Now run the run.sh script again, and you should be logged in as root!</p>
+<pre tabindex="0"><code>/ # whoami
+root
+/ # id
+uid=0(root) gid=0(root) groups=0(root)
+</code></pre><h4 id="modifying-runsh-for-debugging">Modifying run.sh for Debugging</h4>
+<p>Now we want to actually be able to attach gdb to the kernel so that we can debug as we craft our exploit.</p>
+<p>Firstly, extract the bzImage file into a vmlinux binary using this script <a href="https://github.com/torvalds/linux/blob/master/scripts/extract-vmlinux">https://github.com/torvalds/linux/blob/master/scripts/extract-vmlinux</a>.</p>
+<p>Once that is done, we want to modify run.sh so that we can attach a debugger. I generally like to cp run.sh into another file (debug.sh) so that if I want to debug, I can use debug.sh, but if I just want to run the challenge with full protections, I can use run.sh.</p>
+<p>Modify run.sh into debug.sh so that it looks like such:</p>
+<pre tabindex="0"><code>#!/bin/sh
+qemu-system-x86_64 -s -S \
+    -kernel ./bzImage \
+    -cpu qemu64,+smep,+smap \
+    -m 4G \
+    -smp 4 \
+    -initrd initramfs.cpio.gz \
+    -append &#34;console=ttyS0 quiet loglevel=3 nokaslr&#34; \
+    -monitor /dev/null \
+    -nographic \
+    -no-reboot \
+</code></pre><p>I have made 3 major changes:</p>
+<ul>
+<li>Adding <code>-s</code> to the qemu options: Make qemu listen for a connection on port 1234. This allows us to attach gdb as a &ldquo;remote debugger&rdquo;.</li>
+<li>Adding <code>-S</code> to the qemu options: Do not run anything until the debugger has been connected and the &ldquo;continue&rdquo; command has been issued.</li>
+<li>Changing <code>kaslr</code> to <code>nokaslr</code>: Debugging with KASLR is very annoying, so for the sake of convenience, we will turn KASLR off. However, remember that while doing the challenge, you would still require the necessary leaks to pwn the challenge.</li>
+</ul>
+<p>Now that that is done, it is time to debug! I have a very fussy way of doing this by splitting the screen into 3 so that I have everything on the same screen in a sense, but anything will work.</p>
+<p><img src="/images/lnc4-cheminventory/screensplit.jpg" alt="screen split"></p>
+<p>On the qemu panel, run ./debug.sh. You should see it hang until the debugger has been connected and &ldquo;continue&rdquo; has been issued.</p>
+<p>On the debugging screen run:</p>
+<ol>
+<li><code>gdb ./vmlinux</code></li>
+<li><code>tar rem :1234</code> &ndash; Short for <code>target remote 127.0.0.1</code>; this will connect gdb to port 1234 on your local machine (which was opened by the qemu instance)</li>
+<li><code>c</code> &ndash; Short for <code>continue</code></li>
+</ol>
+<p>When this is all done, your screen should look like this:</p>
+<p><img src="/images/lnc4-cheminventory/completesetup.jpg" alt="complete setup"></p>
+<p>Your setup is now complete! Now it is time to reverse engineer the module to find any fun bugs :D</p>
+<p>For more stuff about learning kernel pwn you can check out:</p>
+<ul>
+<li><a href="https://lkmidas.github.io/posts/20210123-linux-kernel-pwn-part-1/">https://lkmidas.github.io/posts/20210123-linux-kernel-pwn-part-1/</a></li>
+<li><a href="https://pawnyable.cafe/">https://pawnyable.cafe/</a></li>
+</ul>
+
+    <h4><a href="https://kaligulaarmblessed.github.io">Back to Home</a></h4>
+</div>
+
+
+        </div><footer class="container">
+    <hr class="soften">
+    <p>
+&copy; 
+
+    Kaligula Armblessed
+
+<span id="thisyear">2024</span>
+
+
+        | Built on <a href="//gohugo.io" target="_blank">Hugo</a>
+
+</p>
+    <p class="text-center">
+        
+        <a href="https://twitter.com/KaligulaSec">Twitter</a> 
+        
+        <a href="https://github.com/KaligulaArmblessed">GitHub</a> 
+        
+    </p>
+</footer>
+
+</body><link rel="stylesheet" href="/css/bootstrap.css">
+<link rel="stylesheet" href="/css/bootstrap-responsive.css">
+<link rel="stylesheet" href="/css/style.css">
+
+<script src="/js/jquery.js"></script>
+<script src="/js/bootstrap-386.js"></script>
+<script src="/js/bootstrap-transition.js"></script>
+<script src="/js/bootstrap-alert.js"></script>
+<script src="/js/bootstrap-modal.js"></script>
+<script src="/js/bootstrap-dropdown.js"></script>
+<script src="/js/bootstrap-scrollspy.js"></script>
+<script src="/js/bootstrap-tab.js"></script>
+<script src="/js/bootstrap-tooltip.js"></script>
+<script src="/js/bootstrap-popover.js"></script>
+<script src="/js/bootstrap-button.js"></script>
+<script src="/js/bootstrap-collapse.js"></script>
+<script src="/js/bootstrap-carousel.js"></script>
+<script src="/js/bootstrap-typeahead.js"></script>
+<script src="/js/bootstrap-affix.js"></script>
+<script>
+    _386 = { 
+        fastLoad: false ,
+        onePass: true , 
+        speedFactor: 1 
+    };
+
+    
+    function ThisYear() {
+        document.getElementById('thisyear').innerHTML = new Date().getFullYear();
+    };
+</script></html>
