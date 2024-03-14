@@ -6,21 +6,21 @@
     <description>Recent content in Challenges on Kernels and Cats</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en</language>
-    <lastBuildDate>Sun, 10 Mar 2024 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Mon, 11 Mar 2024 00:00:00 +0000</lastBuildDate>
     <atom:link href="https://kaligulaarmblessed.github.io/challenges/index.xml" rel="self" type="application/rss+xml" />
     <item>
       <title>LNC 4.0: Cheminventory</title>
       <link>https://kaligulaarmblessed.github.io/challenges/lnc4-cheminventory/</link>
-      <pubDate>Sun, 10 Mar 2024 00:00:00 +0000</pubDate>
+      <pubDate>Mon, 11 Mar 2024 00:00:00 +0000</pubDate>
       <guid>https://kaligulaarmblessed.github.io/challenges/lnc4-cheminventory/</guid>
-      <description>Setting Up A Kernel Debugging Station Usually when you get a kernel challenge, the following files will be provided:&#xA;bzImage: A compressed version of the kernel cheminventory.ko: The vulnerable kernel module config: The .config file used when the kernel was compiled &amp;ndash; important in figuring out which protections are present initramfs.cpio.gs: A compressed filesystem run.sh: A shell script that starts qemu to run the kernel challenge &amp;ndash; also important in figuring out which protections are present The objective of a kernel challenge is usually to obtain privilege escalation from the provided normal user to the root user.</description>
+      <description>Storing explosive chemicals in the kernel is a wonderful idea! Surely nothing can go wrong&amp;hellip;right?&#xA;Challenge files: https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Cheminventory&#xA;Writeup: Coming soon! :D&#xA;Setting Up A Kernel Debugging Station Usually when you get a kernel challenge, the following files will be provided:&#xA;bzImage: A compressed version of the kernel cheminventory.ko: The vulnerable kernel module config: The .config file used when the kernel was compiled &amp;ndash; important in figuring out which protections are present initramfs.</description>
     </item>
     <item>
       <title>LNC 4.0: Welcome2Pwn</title>
       <link>https://kaligulaarmblessed.github.io/challenges/lnc4-welcome2pwn/</link>
-      <pubDate>Sun, 10 Mar 2024 00:00:00 +0000</pubDate>
+      <pubDate>Mon, 11 Mar 2024 00:00:00 +0000</pubDate>
       <guid>https://kaligulaarmblessed.github.io/challenges/lnc4-welcome2pwn/</guid>
-      <description>Welcome2Pwn Welcome to the land of pwn! Come follow me to the beach; however, make sure to ignore Sally standing sadly at the side selling shells. Who needs to buy shells when we can pop our own? :D&#xA;But first&amp;hellip; What is pwn? The fancy name for pwn is binary exploitation. Pwn is the art of crafting a custom exploit to hack a vulnerable program (often called a binary), be it one that is running on a remote server, or the operating system kernel itself!</description>
+      <description>What better way to learn pwn than to go on a trip to the beach? (Because there are shells!)&#xA;Challenge files: https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Welcome2Pwn&#xA;Welcome2Pwn Welcome to the land of pwn! Come follow me to the beach; however, make sure to ignore Sally standing sadly at the side selling shells. Who needs to buy shells when we can pop our own? :D&#xA;But first&amp;hellip; What is pwn? The fancy name for pwn is binary exploitation.</description>
     </item>
     <item>
       <title>STANDCON 2023: Meowcrosoft Word</title>

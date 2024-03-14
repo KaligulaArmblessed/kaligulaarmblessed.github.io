@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+    <title>Kernels and Cats</title>
+    <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+    <meta content="utf-8" http-equiv="encoding">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="theme-color" content="#000084" />
+    <meta name="google-site-verification" content="733C7I2uDZnatcput9zZupeQ_PX5Z0BJ1HmTnGi0SJI" />
+    <link rel="icon" href="https://kaligulaarmblessed.github.io/favicon.ico">
+    <link rel="canonical" href="https://kaligulaarmblessed.github.io">
+    
+    
+</head>
+<body>
+<nav class="navbar navbar-inverse navbar-fixed-top">
+    <div class="navbar-inner">
+        <div class="container">
+            <button type="button" class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse"></button>
+            <a class="brand" href="https://kaligulaarmblessed.github.io">Kernels and Cats</a>
+            <div class="nav-collapse collapse">
+                <ul class="nav">
+                    
+                    
+                        
+                            <li>
+                                <a href="/about/">
+                                    
+                                    <span>About</span>
+                                </a>
+                            </li>
+                        
+                    
+                        
+                            <li>
+                                <a href="/post/">
+                                    
+                                    <span>All posts</span>
+                                </a>
+                            </li>
+                        
+                    
+                        
+                            <li>
+                                <a href="/challenges/">
+                                    
+                                    <span>CTF Challenges</span>
+                                </a>
+                            </li>
+                        
+                    
+                        
+                            <li>
+                                <a href="/random-facts/">
+                                    
+                                    <span>Random Fun Facts</span>
+                                </a>
+                            </li>
+                        
+                    
+                </ul>
+            </div>
+        </div>
+    </div>
+</nav><div id="content" class="container">
+
+<div class="row-fluid navmargin">
+    <div class="page-header">
+        <h1>Cross Cache for Lazy People -- The Padding Spray Method - Thu, Mar 14, 2024</h1>
+    </div>
+    <p class="lead"></p>
+    <h4 id="tldr">TLDR</h4>
+<p>There is a proper way to cross cache (<a href="https://ruia-ruia.github.io/2022/08/05/CVE-2022-29582-io-uring/#crossing-the-cache-boundary">documented in wonderful detail by ruia-ruia</a>) which involves strategically allocating and freeing objects, but some pwners (like me) are lazy. This post is about the &ldquo;spray and pray&rdquo; method of cross cache used by some pwners that still magically works, even if you don&rsquo;t want to do math :D</p>
+<h4 id="a-brief-overview-of-kernel-slab-caches">A Brief Overview of Kernel Slab Caches</h4>
+<p>Originally all kernel objects were allocated in normal kmalloc caches, but with <a href="https://lore.kernel.org/lkml/20210505200610.13943-3-longman@redhat.com/">this</a> kernel patch, objects allocated with GFP_KERNEL_ACCOUNT would go into a kmalloc-cg cache instead of a normal one.</p>
+<p>This complicates exploitation for kernel pwners, as if the target victim object is allocated with GFP_KERNEL, it would end up in a non-cg kmalloc cache, and <strong>technically</strong> only objects that are allocated in the same cache can be used to reclaim the freed space (assuming that we have a UAF situation). This would heavily restrict the structs that we can use in kernel exploitation, as many nice things like struct msg_msg or struct pipe_buffer will end up in kmalloc-cg, but vulnerable objects tend to be in a normal kmalloc cache for some reason :(</p>
+<p>As such, some stonk pwner invented the cross cache attack so that we would be able to continue using our beloved structs to reclaim and forge parts of victim objects to our liking :D</p>
+<p>The objective of the cross cache attack is to make the kernel reallocate the slab with our victim object from its original cache to another cache where our target object will be allocated.</p>
+<p>In order for the kernel to allocate a new slab to a particular cache, the following conditions must be fulfilled:</p>
+<ol>
+<li>CPU cache freelist is empty</li>
+<li>Page freelist is empty</li>
+<li>CPU partial list is empty</li>
+<li>Node freelist is empty</li>
+</ol>
+<p>In short, if we spray enough of our target object, we will be able to exhaust all the freelists, and force the kernel to allocate a new slab to the target object&rsquo;s cache.</p>
+<p>Now, how do we allocate the slab with our victim object to our desired target object&rsquo;s cache? We would first have to make the kernel free that particular slab before it can be reallocated. To free a slab, the following conditions must be fulfilled (refer to ruia-ruia&rsquo;s writeup for a nice diagram):</p>
+<ol>
+<li>The CPU partial list is full &ndash; this will trigger a call to unfreeze_partials()</li>
+<li>The slab has absolutely zero allocated objects on it &ndash; this is SUPER IMPORTANT, and in my experience this is the usual reason for a cross cache to fail</li>
+</ol>
+<p>Only if the slab is completely freed will a call be made to free_slab(), which will then give us the ability to allocate the freed slab to the cache that we want.</p>
+<h4 id="the-lazy-way-to-cross-cache">The Lazy Way To Cross Cache</h4>
+<p>There is a proper targeted way to cross cache as described in ruia-ruia&rsquo;s writeup, but there is also a very lazy method. Let&rsquo;s assume that our victim object is allocated in kmalloc-256, and we want to cross cache to an object such as msg_msg which is allocated in kmalloc-cg-256.</p>
+<p>The gist of the method is as such:</p>
+<ol>
+<li>Spray a large amount of an object allocated in the same cache as the victim object as the &ldquo;padding spray&rdquo;</li>
+<li>Allocate the victim object</li>
+<li>Free the victim object via the vulnerability</li>
+<li>Reclaim the victim object by spraying more of the object allocated in the same cache</li>
+<li>Free the padding spray and the second spray</li>
+<li>Cross cache by spraying the target object</li>
+</ol>
+<p>In this case, let&rsquo;s use timerfd_ctx as our object allocated in the same cache as the victim object, and msg_msg as our cross cache target object. This means that we are trying to reallocate a slab originally allocated to the kmalloc-256 slab cache to the kmalloc-cg-256 slab cache.</p>
+<h4 id="step-1-spray-object-allocated-in-the-same-cache-as-the-victim-object----the-padding-spray">Step 1: Spray object allocated in the same cache as the victim object &ndash; The &ldquo;Padding Spray&rdquo;</h4>
+<p>This spray will be done even before the victim object has been allocated. By spraying lots and lots of the same cache object, we are trying to exhaust the freelists for that particular cache (kmalloc-256), and trying to get the kernel to allocate a new slab to kmalloc-256. This will give us a clean slate to work with as when the new slab is allocated and partially filled with our padding spray, the only objects on the slab would either be the sprayed timerfd_ctx objects or objects that are yet to be allocated.</p>
+<p><img src="/images/cross-cache-for-lazy-people/newslab.jpg" alt="New slab with timerfds"></p>
+<p>Note that the objects allocated may not be continguous in memory nor in the order that they were allocated &ndash; this is due to CONFIG_SLAB_FREELIST_RANDOM.</p>
+<h4 id="step-2-allocate-the-victim-object">Step 2: Allocate the victim object</h4>
+<p>The victim object is now allocated, and the slab now only consists of the timerfd_ctx objects, the victim object, and free objects.</p>
+<p><img src="/images/cross-cache-for-lazy-people/allocate_victim.jpg" alt="Allocate victim"></p>
+<h4 id="step-3-free-the-victim-object">Step 3: Free the victim object</h4>
+<p>We now free the victim object via the vulnerability, giving us a UAF. The slab now only consists of timerfd_ctx objects and free objects.</p>
+<p><img src="/images/cross-cache-for-lazy-people/free_victim.jpg" alt="Free victim"></p>
+<h4 id="step-4-reclaim-the-victim-object">Step 4: Reclaim the victim object</h4>
+<p>We will then spray even more of the object allocated in the same cache as the victim object to reclaim the freed space from the victim object. The entire slab is now filled with timerfd_ctx objects.</p>
+<p><img src="/images/cross-cache-for-lazy-people/reclaim_victim.jpg" alt="Reclaim victim"></p>
+<h4 id="step-5-free-the-padding-and-second-spray">Step 5: Free the padding and second spray</h4>
+<p>We will now free every single object on the slab by freeing the initial padding spray, as well as the second spray used to reclaim the victim object. The entire slab is now completely free.</p>
+<p><img src="/images/cross-cache-for-lazy-people/free_all.jpg" alt="Free all sprays"></p>
+<h4 id="step-6-cross-cache-with-target-object">Step 6: Cross cache with target object</h4>
+<p>Finally, we can spray a massive amount of our target object (msg_msg in this case) allocated in our target cache (kmalloc-cg-256). This will use up all the freelists in our target cache, forcing the kernel to allocate a new slab. However, remember that the slab with our victim object has no allocated objects on it. That slab will hence be reallocated from its original kmalloc-256 cache to the target kmalloc-cg-256 cache, resulting in a successful cross cache attack.</p>
+<p><img src="/images/cross-cache-for-lazy-people/cross_cache.jpg" alt="Cross cache"></p>
+<p>This method is a lot less targeted than the proper method to cross cache, but if you mess around with the number of objects in the padding spray, second spray and target object spray, there will be a sweet spot where this will work.</p>
+<p>Hope this was helpful, and thanks for reading! :D</p>
+
+    <h4><a href="https://kaligulaarmblessed.github.io">Back to Home</a></h4>
+</div>
+
+
+        </div><footer class="container">
+    <hr class="soften">
+    <p>
+&copy; 
+
+    Kaligula Armblessed
+
+<span id="thisyear">2024</span>
+
+
+        | Built on <a href="//gohugo.io" target="_blank">Hugo</a>
+
+</p>
+    <p class="text-center">
+        
+        <a href="https://twitter.com/KaligulaSec">Twitter</a> 
+        
+        <a href="https://github.com/KaligulaArmblessed">GitHub</a> 
+        
+    </p>
+</footer>
+
+</body><link rel="stylesheet" href="/css/bootstrap.css">
+<link rel="stylesheet" href="/css/bootstrap-responsive.css">
+<link rel="stylesheet" href="/css/style.css">
+
+<script src="/js/jquery.js"></script>
+<script src="/js/bootstrap-386.js"></script>
+<script src="/js/bootstrap-transition.js"></script>
+<script src="/js/bootstrap-alert.js"></script>
+<script src="/js/bootstrap-modal.js"></script>
+<script src="/js/bootstrap-dropdown.js"></script>
+<script src="/js/bootstrap-scrollspy.js"></script>
+<script src="/js/bootstrap-tab.js"></script>
+<script src="/js/bootstrap-tooltip.js"></script>
+<script src="/js/bootstrap-popover.js"></script>
+<script src="/js/bootstrap-button.js"></script>
+<script src="/js/bootstrap-collapse.js"></script>
+<script src="/js/bootstrap-carousel.js"></script>
+<script src="/js/bootstrap-typeahead.js"></script>
+<script src="/js/bootstrap-affix.js"></script>
+<script>
+    _386 = { 
+        fastLoad: false ,
+        onePass: true , 
+        speedFactor: 1 
+    };
+
+    
+    function ThisYear() {
+        document.getElementById('thisyear').innerHTML = new Date().getFullYear();
+    };
+</script></html>

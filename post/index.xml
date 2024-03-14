@@ -6,8 +6,15 @@
     <description>Recent content in Posts on Kernels and Cats</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en</language>
-    <lastBuildDate>Sun, 03 Mar 2024 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Thu, 14 Mar 2024 00:00:00 +0000</lastBuildDate>
     <atom:link href="https://kaligulaarmblessed.github.io/post/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Cross Cache for Lazy People -- The Padding Spray Method</title>
+      <link>https://kaligulaarmblessed.github.io/post/cross-cache-for-lazy-people/</link>
+      <pubDate>Thu, 14 Mar 2024 00:00:00 +0000</pubDate>
+      <guid>https://kaligulaarmblessed.github.io/post/cross-cache-for-lazy-people/</guid>
+      <description>TLDR There is a proper way to cross cache (documented in wonderful detail by ruia-ruia) which involves strategically allocating and freeing objects, but some pwners (like me) are lazy. This post is about the &amp;ldquo;spray and pray&amp;rdquo; method of cross cache used by some pwners that still magically works, even if you don&amp;rsquo;t want to do math :D&#xA;A Brief Overview of Kernel Slab Caches Originally all kernel objects were allocated in normal kmalloc caches, but with this kernel patch, objects allocated with GFP_KERNEL_ACCOUNT would go into a kmalloc-cg cache instead of a normal one.</description>
+    </item>
     <item>
       <title>Palindromatic -- Dirtypipe [Bi0sCTF 2024]</title>
       <link>https://kaligulaarmblessed.github.io/post/palindromatic-biosctf2024/</link>
