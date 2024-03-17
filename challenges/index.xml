@@ -2,66 +2,66 @@
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
     <title>Challenges on Kernels and Cats</title>
-    <link>http://localhost:1313/challenges/</link>
+    <link>https://kaligulaarmblessed.github.io/challenges/</link>
     <description>Recent content in Challenges on Kernels and Cats</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en</language>
     <lastBuildDate>Mon, 11 Mar 2024 00:00:00 +0000</lastBuildDate>
-    <atom:link href="http://localhost:1313/challenges/index.xml" rel="self" type="application/rss+xml" />
+    <atom:link href="https://kaligulaarmblessed.github.io/challenges/index.xml" rel="self" type="application/rss+xml" />
     <item>
       <title>LNC 4.0: Cheminventory</title>
-      <link>http://localhost:1313/challenges/lnc4-cheminventory/</link>
+      <link>https://kaligulaarmblessed.github.io/challenges/lnc4-cheminventory/</link>
       <pubDate>Mon, 11 Mar 2024 00:00:00 +0000</pubDate>
-      <guid>http://localhost:1313/challenges/lnc4-cheminventory/</guid>
-      <description>Storing explosive chemicals in the kernel is a wonderful idea! Surely nothing can go wrong&amp;hellip;right?&#xA;Challenge files: https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Cheminventory&#xA;Writeup: Coming soon! :D&#xA;Setting Up A Kernel Debugging Station Usually when you get a kernel challenge, the following files will be provided:&#xA;bzImage: A compressed version of the kernel cheminventory.ko: The vulnerable kernel module config: The .config file used when the kernel was compiled &amp;ndash; important in figuring out which protections are present initramfs.</description>
+      <guid>https://kaligulaarmblessed.github.io/challenges/lnc4-cheminventory/</guid>
+      <description>Storing explosive chemicals in the kernel is a wonderful idea! Surely nothing can go wrong&amp;hellip;right?&#xA;Challenge files: https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Cheminventory&#xA;Writeup: https://kaligulaarmblessed.github.io/post/cheminventory/&#xA;Setting Up A Kernel Debugging Station Usually when you get a kernel challenge, the following files will be provided:&#xA;bzImage: A compressed version of the kernel cheminventory.ko: The vulnerable kernel module config: The .config file used when the kernel was compiled &amp;ndash; important in figuring out which protections are present initramfs.</description>
     </item>
     <item>
       <title>LNC 4.0: Welcome2Pwn</title>
-      <link>http://localhost:1313/challenges/lnc4-welcome2pwn/</link>
+      <link>https://kaligulaarmblessed.github.io/challenges/lnc4-welcome2pwn/</link>
       <pubDate>Mon, 11 Mar 2024 00:00:00 +0000</pubDate>
-      <guid>http://localhost:1313/challenges/lnc4-welcome2pwn/</guid>
+      <guid>https://kaligulaarmblessed.github.io/challenges/lnc4-welcome2pwn/</guid>
       <description>What better way to learn pwn than to go on a trip to the beach? (Because there are shells!)&#xA;Challenge files: https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Welcome2Pwn&#xA;Welcome2Pwn Welcome to the land of pwn! Come follow me to the beach; however, make sure to ignore Sally standing sadly at the side selling shells. Who needs to buy shells when we can pop our own? :D&#xA;But first&amp;hellip; What is pwn? The fancy name for pwn is binary exploitation.</description>
     </item>
     <item>
       <title>STANDCON 2023: Meowcrosoft Word</title>
-      <link>http://localhost:1313/challenges/standcon2023-meowcrosoft-word/</link>
+      <link>https://kaligulaarmblessed.github.io/challenges/standcon2023-meowcrosoft-word/</link>
       <pubDate>Fri, 08 Dec 2023 00:00:00 +0000</pubDate>
-      <guid>http://localhost:1313/challenges/standcon2023-meowcrosoft-word/</guid>
+      <guid>https://kaligulaarmblessed.github.io/challenges/standcon2023-meowcrosoft-word/</guid>
       <description>I&amp;rsquo;ve got a new installation of Meowcrosoft Word V1.0 TM! But as part of the #linuxmasterrace, I want to prove that it is vulnerable! Can you help me root this box?&#xA;Challenge files: https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Meowcrosoft_Word&#xA;Writeup: https://kaligulaarmblessed.github.io/post/meowcrosoft-word/</description>
     </item>
     <item>
       <title>idekCTF 2022*: Gone Fishing</title>
-      <link>http://localhost:1313/challenges/idekctf2022-gone-fishing/</link>
+      <link>https://kaligulaarmblessed.github.io/challenges/idekctf2022-gone-fishing/</link>
       <pubDate>Fri, 13 Jan 2023 00:00:00 +0000</pubDate>
-      <guid>http://localhost:1313/challenges/idekctf2022-gone-fishing/</guid>
+      <guid>https://kaligulaarmblessed.github.io/challenges/idekctf2022-gone-fishing/</guid>
       <description>Fishing is a great hobby; if you look around very very carefully you are bound to get hooked!&#xA;This is a boot2root challenge with a rev twist. Participants were not given source; just run the Docker container!&#xA;Challenge files: https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Gone_Fishing</description>
     </item>
     <item>
       <title>idekCTF 2022*: Sus Meow</title>
-      <link>http://localhost:1313/challenges/idekctf2022-sus-meow/</link>
+      <link>https://kaligulaarmblessed.github.io/challenges/idekctf2022-sus-meow/</link>
       <pubDate>Fri, 13 Jan 2023 00:00:00 +0000</pubDate>
-      <guid>http://localhost:1313/challenges/idekctf2022-sus-meow/</guid>
+      <guid>https://kaligulaarmblessed.github.io/challenges/idekctf2022-sus-meow/</guid>
       <description>I see a bunch of cats talking to each other, but what are they really saying?&#xA;Collab challenge with the wonderful Mochi Nishimiya.&#xA;Challenge files: https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Sus_Meow</description>
     </item>
     <item>
       <title>STANDCON 2022: New Math</title>
-      <link>http://localhost:1313/challenges/standcon2022-newmath/</link>
+      <link>https://kaligulaarmblessed.github.io/challenges/standcon2022-newmath/</link>
       <pubDate>Sat, 18 Jun 2022 00:00:00 +0000</pubDate>
-      <guid>http://localhost:1313/challenges/standcon2022-newmath/</guid>
+      <guid>https://kaligulaarmblessed.github.io/challenges/standcon2022-newmath/</guid>
       <description>New Math! New Hoo Hoo Math!&#xA;https://www.youtube.com/watch?v=UIKGV2cTgqA&#xA;Challenge files: https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/New_Math</description>
     </item>
     <item>
       <title>idekCTF 2021: Are you lstening to me??</title>
-      <link>http://localhost:1313/challenges/idekctf2021-are-you-lstening-to-me/</link>
+      <link>https://kaligulaarmblessed.github.io/challenges/idekctf2021-are-you-lstening-to-me/</link>
       <pubDate>Sat, 11 Dec 2021 00:00:00 +0000</pubDate>
-      <guid>http://localhost:1313/challenges/idekctf2021-are-you-lstening-to-me/</guid>
+      <guid>https://kaligulaarmblessed.github.io/challenges/idekctf2021-are-you-lstening-to-me/</guid>
       <description>Yo lsten! That&amp;rsquo;s the sound of a flag fluttering somewhere&amp;hellip;&#xA;docker pull kaligulasec/idekctf2021:are_you_lstening_to_me</description>
     </item>
     <item>
       <title>idekCTF 2021: Retrosynthesis</title>
-      <link>http://localhost:1313/challenges/idekctf2021-retrosynthesis/</link>
+      <link>https://kaligulaarmblessed.github.io/challenges/idekctf2021-retrosynthesis/</link>
       <pubDate>Sat, 11 Dec 2021 00:00:00 +0000</pubDate>
-      <guid>http://localhost:1313/challenges/idekctf2021-retrosynthesis/</guid>
+      <guid>https://kaligulaarmblessed.github.io/challenges/idekctf2021-retrosynthesis/</guid>
       <description>You can do reverse engineering, but can you do retrosynthesis?&#xA;Challenge files: https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Retrosynthesis&#xA;Writeup: https://github.com/KaligulaArmblessed/CTF-Writeups/blob/main/idekCTF%202021/Retrosynthesis.md</description>
     </item>
   </channel>

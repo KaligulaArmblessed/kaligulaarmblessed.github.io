@@ -2,24 +2,24 @@
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
     <title>Research on Kernels and Cats</title>
-    <link>http://localhost:1313/tags/research/</link>
+    <link>https://kaligulaarmblessed.github.io/tags/research/</link>
     <description>Recent content in Research on Kernels and Cats</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en</language>
     <lastBuildDate>Wed, 27 Sep 2023 00:00:00 +0000</lastBuildDate>
-    <atom:link href="http://localhost:1313/tags/research/index.xml" rel="self" type="application/rss+xml" />
+    <atom:link href="https://kaligulaarmblessed.github.io/tags/research/index.xml" rel="self" type="application/rss+xml" />
     <item>
       <title>nftables Adventures: An Introduction to Bug Hunting and the Dormant State Bug [Part 1]</title>
-      <link>http://localhost:1313/post/nftables-adventures-1/</link>
+      <link>https://kaligulaarmblessed.github.io/post/nftables-adventures-1/</link>
       <pubDate>Wed, 27 Sep 2023 00:00:00 +0000</pubDate>
-      <guid>http://localhost:1313/post/nftables-adventures-1/</guid>
+      <guid>https://kaligulaarmblessed.github.io/post/nftables-adventures-1/</guid>
       <description>TLDR I tried my hand at bug hunting within the nftables subsystem in the Linux kernel, and managed to find a bug where if the dormant state of a table was toggled in a certain way, the kernel would attempt to deactivate hooks that were never activated in the first place. The bug report can be found here: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/net/netfilter/nf_tables_api.c?id=c9bd26513b3a11b3adb3c2ed8a31a01a87173ff1. Unfortunately (or fortunately), the bug cannot be transformed into a UAF as the kernel performs certain checks that prevents us from reaching any interesting frees.</description>
     </item>
     <item>
       <title>prctl anon_vma_name: An Amusing Linux Kernel Heap Spray</title>
-      <link>http://localhost:1313/post/prctlheapspray/</link>
+      <link>https://kaligulaarmblessed.github.io/post/prctlheapspray/</link>
       <pubDate>Sat, 22 Jul 2023 00:00:00 +0000</pubDate>
-      <guid>http://localhost:1313/post/prctlheapspray/</guid>
+      <guid>https://kaligulaarmblessed.github.io/post/prctlheapspray/</guid>
       <description>TLDR prctl PR_SET_VMA (PR_SET_VMA_ANON_NAME) can be used as a (possibly new!) heap spray method targeting the kmalloc-8 to kmalloc-96 caches. The sprayed object, anon_vma_name, is dynamically sized, and can range from larger than 4 bytes to a maximum of 84 bytes. The object can be easily allocated and freed via the prctl syscall, and leaked information can be obtained via reading the proc/pid/maps file. The advantage of this method is that it does not require a cross-cache attack from cg/other caches (unlike other objects such as msg_msg) as anon_vma_name is allocated with the GFP_KERNEL flag.</description>
     </item>
   </channel>
