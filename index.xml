@@ -2,129 +2,136 @@
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
     <title>Kernels and Cats</title>
-    <link>https://kaligulaarmblessed.github.io/</link>
+    <link>http://localhost:1313/</link>
     <description>Recent content on Kernels and Cats</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en</language>
-    <lastBuildDate>Thu, 14 Mar 2024 00:00:00 +0000</lastBuildDate>
-    <atom:link href="https://kaligulaarmblessed.github.io/index.xml" rel="self" type="application/rss+xml" />
+    <lastBuildDate>Sun, 17 Mar 2024 00:00:00 +0000</lastBuildDate>
+    <atom:link href="http://localhost:1313/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Cheminventory [Lag and Crash 4.0]</title>
+      <link>http://localhost:1313/post/cheminventory/</link>
+      <pubDate>Sun, 17 Mar 2024 00:00:00 +0000</pubDate>
+      <guid>http://localhost:1313/post/cheminventory/</guid>
+      <description>TLDR Cheminventory is a kernel pwn challenge dealing with a UAF on an object that is part of a linked list. The UAF could be triggered by allocating more memory than kmalloc is able to service, which would then cause kmalloc to fail, and for the struct chemical object to be freed while it is still part of the linked list. The tricky part of this challenge lies in the exploitation as kernel list protections will perform checks when unlinking objects, hence in order to attain a better primitive such as the ability to free an object, a fake linked list must be forged using controllable objects.</description>
+    </item>
     <item>
       <title>Cross Cache for Lazy People -- The Padding Spray Method</title>
-      <link>https://kaligulaarmblessed.github.io/post/cross-cache-for-lazy-people/</link>
+      <link>http://localhost:1313/post/cross-cache-for-lazy-people/</link>
       <pubDate>Thu, 14 Mar 2024 00:00:00 +0000</pubDate>
-      <guid>https://kaligulaarmblessed.github.io/post/cross-cache-for-lazy-people/</guid>
+      <guid>http://localhost:1313/post/cross-cache-for-lazy-people/</guid>
       <description>TLDR There is a proper way to cross cache (documented in wonderful detail by ruia-ruia) which involves strategically allocating and freeing objects, but some pwners (like me) are lazy. This post is about the &amp;ldquo;spray and pray&amp;rdquo; method of cross cache used by some pwners that still magically works, even if you don&amp;rsquo;t want to do math :D&#xA;A Brief Overview of Kernel Slab Caches Originally all kernel objects were allocated in normal kmalloc caches, but with this kernel patch, objects allocated with GFP_KERNEL_ACCOUNT would go into a kmalloc-cg cache instead of a normal one.</description>
     </item>
     <item>
       <title>LNC 4.0: Cheminventory</title>
-      <link>https://kaligulaarmblessed.github.io/challenges/lnc4-cheminventory/</link>
+      <link>http://localhost:1313/challenges/lnc4-cheminventory/</link>
       <pubDate>Mon, 11 Mar 2024 00:00:00 +0000</pubDate>
-      <guid>https://kaligulaarmblessed.github.io/challenges/lnc4-cheminventory/</guid>
-      <description>Storing explosive chemicals in the kernel is a wonderful idea! Surely nothing can go wrong&amp;hellip;right?&#xA;Challenge files: https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Cheminventory&#xA;Writeup: Coming soon! :D&#xA;Setting Up A Kernel Debugging Station Usually when you get a kernel challenge, the following files will be provided:&#xA;bzImage: A compressed version of the kernel cheminventory.ko: The vulnerable kernel module config: The .config file used when the kernel was compiled &amp;ndash; important in figuring out which protections are present initramfs.</description>
+      <guid>http://localhost:1313/challenges/lnc4-cheminventory/</guid>
+      <description>Storing explosive chemicals in the kernel is a wonderful idea! Surely nothing can go wrong&amp;hellip;right?&#xA;Challenge files: https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Cheminventory&#xA;Writeup: https://kaligulaarmblessed.github.io/post/cheminventory/&#xA;Setting Up A Kernel Debugging Station Usually when you get a kernel challenge, the following files will be provided:&#xA;bzImage: A compressed version of the kernel cheminventory.ko: The vulnerable kernel module config: The .config file used when the kernel was compiled &amp;ndash; important in figuring out which protections are present initramfs.</description>
     </item>
     <item>
       <title>LNC 4.0: Welcome2Pwn</title>
-      <link>https://kaligulaarmblessed.github.io/challenges/lnc4-welcome2pwn/</link>
+      <link>http://localhost:1313/challenges/lnc4-welcome2pwn/</link>
       <pubDate>Mon, 11 Mar 2024 00:00:00 +0000</pubDate>
-      <guid>https://kaligulaarmblessed.github.io/challenges/lnc4-welcome2pwn/</guid>
+      <guid>http://localhost:1313/challenges/lnc4-welcome2pwn/</guid>
       <description>What better way to learn pwn than to go on a trip to the beach? (Because there are shells!)&#xA;Challenge files: https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Welcome2Pwn&#xA;Welcome2Pwn Welcome to the land of pwn! Come follow me to the beach; however, make sure to ignore Sally standing sadly at the side selling shells. Who needs to buy shells when we can pop our own? :D&#xA;But first&amp;hellip; What is pwn? The fancy name for pwn is binary exploitation.</description>
     </item>
     <item>
       <title>Palindromatic -- Dirtypipe [Bi0sCTF 2024]</title>
-      <link>https://kaligulaarmblessed.github.io/post/palindromatic-biosctf2024/</link>
+      <link>http://localhost:1313/post/palindromatic-biosctf2024/</link>
       <pubDate>Sun, 03 Mar 2024 00:00:00 +0000</pubDate>
-      <guid>https://kaligulaarmblessed.github.io/post/palindromatic-biosctf2024/</guid>
+      <guid>http://localhost:1313/post/palindromatic-biosctf2024/</guid>
       <description>TLDR Palindromatic is a kernel pwn challenge in Bi0sCTF 2024 involving a null byte overflow vulnerability, cross cache, followed by DirtyPipe. The common kernel protections SMAP, SMEP, KPTI, KASLR are all enabled, with the addition of CONFIG_RANDOM_KMALLOC_CACHES which makes heap spraying more finnicky. Although I did not manage to solve this challenge during the CTF, I thought that this was a really cool challenge and since I wanted to learn how to do a DirtyPipe attack, I made this writeup :D</description>
     </item>
     <item>
       <title>A Deep Dive into Faronics Deep Freeze Enterprise [Legacy Windows Software]</title>
-      <link>https://kaligulaarmblessed.github.io/post/faronics-deep-freeze/</link>
+      <link>http://localhost:1313/post/faronics-deep-freeze/</link>
       <pubDate>Fri, 22 Dec 2023 00:00:00 +0000</pubDate>
-      <guid>https://kaligulaarmblessed.github.io/post/faronics-deep-freeze/</guid>
+      <guid>http://localhost:1313/post/faronics-deep-freeze/</guid>
       <description>TLDR Faronics Deep Freeze Enterprise version 8.38.220.5256 is vulnerable to a stack buffer overflow vulnerability. It uses 2 XOR encoding schemes, as well as an additional third checksum, to ensure that the packets sent to it are valid. As DEP is enabled, the stack buffer overflow can be exploited by building a ROP chain with a dummy VirtualAlloc skeleton, patching the arguments in, and performing a stack pivot to call VirtualAlloc and finally return to our shellcode.</description>
     </item>
     <item>
       <title>Meowcrosoft Word [STANDCON 2023]</title>
-      <link>https://kaligulaarmblessed.github.io/post/meowcrosoft-word/</link>
+      <link>http://localhost:1313/post/meowcrosoft-word/</link>
       <pubDate>Mon, 11 Dec 2023 00:00:00 +0000</pubDate>
-      <guid>https://kaligulaarmblessed.github.io/post/meowcrosoft-word/</guid>
+      <guid>http://localhost:1313/post/meowcrosoft-word/</guid>
       <description>TLDR Meowcrosoft Word is a kernel pwn challenge where only one allocate, one write, and one free is supposed to be possible. However, by exploiting a race condition and blocking/unblocking threads with FUSE (userfaultfd is disabled), privilege escalation from user to root is possible. timerfd_ctx is used to leak the kernel base, msg_msg is used to leak the kernel heap, and pipe buf is used to control RIP and start off a ROP chain to call prepare_kernel_cred() and commit_creds() to get root.</description>
     </item>
     <item>
       <title>STANDCON 2023: Meowcrosoft Word</title>
-      <link>https://kaligulaarmblessed.github.io/challenges/standcon2023-meowcrosoft-word/</link>
+      <link>http://localhost:1313/challenges/standcon2023-meowcrosoft-word/</link>
       <pubDate>Fri, 08 Dec 2023 00:00:00 +0000</pubDate>
-      <guid>https://kaligulaarmblessed.github.io/challenges/standcon2023-meowcrosoft-word/</guid>
+      <guid>http://localhost:1313/challenges/standcon2023-meowcrosoft-word/</guid>
       <description>I&amp;rsquo;ve got a new installation of Meowcrosoft Word V1.0 TM! But as part of the #linuxmasterrace, I want to prove that it is vulnerable! Can you help me root this box?&#xA;Challenge files: https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Meowcrosoft_Word&#xA;Writeup: https://kaligulaarmblessed.github.io/post/meowcrosoft-word/</description>
     </item>
     <item>
       <title>nftables Adventures: CVE-2023-31248 -- Oh How The Turn Tables! [Part 2]</title>
-      <link>https://kaligulaarmblessed.github.io/post/nftables-adventures-2/</link>
+      <link>http://localhost:1313/post/nftables-adventures-2/</link>
       <pubDate>Thu, 28 Sep 2023 00:00:00 +0000</pubDate>
-      <guid>https://kaligulaarmblessed.github.io/post/nftables-adventures-2/</guid>
+      <guid>http://localhost:1313/post/nftables-adventures-2/</guid>
       <description>TLDR CVE-2023-31248 is an n-day bug affecting nftables reported by Mingi Cho. The bug report and patch can be found here: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=515ad530795c118f012539ed76d02bacfd426d89. Linux kernel versions before 6.2.0-26 generic are vulnerable to this bug. My exploit has been tested on Ubuntu 23.04 (Lunar Lobster), with kernel version 6.2.0-20 generic.&#xA;The official version of this writeup can be found at this link: https://starlabs.sg/blog/2023/09-nftables-adventures-bug-hunting-and-n-day-exploitation/&#xA;nfTable of Contents Vulnerability Analysis Triggering the Bug Obtaining a Use-After-Free Obtaining a Kernel Text Leak Obtaining a Heap Leak Controlling RIP Patch Analysis Exploit Demo Acknowledgements References and Credits Vulnerability Analysis nft_chain_lookup_byid does not check whether a chain is active (by checking the genmask) when looking up a chain, as seen in the code below:</description>
     </item>
     <item>
       <title>nftables Adventures: An Introduction to Bug Hunting and the Dormant State Bug [Part 1]</title>
-      <link>https://kaligulaarmblessed.github.io/post/nftables-adventures-1/</link>
+      <link>http://localhost:1313/post/nftables-adventures-1/</link>
       <pubDate>Wed, 27 Sep 2023 00:00:00 +0000</pubDate>
-      <guid>https://kaligulaarmblessed.github.io/post/nftables-adventures-1/</guid>
+      <guid>http://localhost:1313/post/nftables-adventures-1/</guid>
       <description>TLDR I tried my hand at bug hunting within the nftables subsystem in the Linux kernel, and managed to find a bug where if the dormant state of a table was toggled in a certain way, the kernel would attempt to deactivate hooks that were never activated in the first place. The bug report can be found here: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/net/netfilter/nf_tables_api.c?id=c9bd26513b3a11b3adb3c2ed8a31a01a87173ff1. Unfortunately (or fortunately), the bug cannot be transformed into a UAF as the kernel performs certain checks that prevents us from reaching any interesting frees.</description>
     </item>
     <item>
       <title>prctl anon_vma_name: An Amusing Linux Kernel Heap Spray</title>
-      <link>https://kaligulaarmblessed.github.io/post/prctlheapspray/</link>
+      <link>http://localhost:1313/post/prctlheapspray/</link>
       <pubDate>Sat, 22 Jul 2023 00:00:00 +0000</pubDate>
-      <guid>https://kaligulaarmblessed.github.io/post/prctlheapspray/</guid>
+      <guid>http://localhost:1313/post/prctlheapspray/</guid>
       <description>TLDR prctl PR_SET_VMA (PR_SET_VMA_ANON_NAME) can be used as a (possibly new!) heap spray method targeting the kmalloc-8 to kmalloc-96 caches. The sprayed object, anon_vma_name, is dynamically sized, and can range from larger than 4 bytes to a maximum of 84 bytes. The object can be easily allocated and freed via the prctl syscall, and leaked information can be obtained via reading the proc/pid/maps file. The advantage of this method is that it does not require a cross-cache attack from cg/other caches (unlike other objects such as msg_msg) as anon_vma_name is allocated with the GFP_KERNEL flag.</description>
     </item>
     <item>
       <title>idekCTF 2022*: Gone Fishing</title>
-      <link>https://kaligulaarmblessed.github.io/challenges/idekctf2022-gone-fishing/</link>
+      <link>http://localhost:1313/challenges/idekctf2022-gone-fishing/</link>
       <pubDate>Fri, 13 Jan 2023 00:00:00 +0000</pubDate>
-      <guid>https://kaligulaarmblessed.github.io/challenges/idekctf2022-gone-fishing/</guid>
+      <guid>http://localhost:1313/challenges/idekctf2022-gone-fishing/</guid>
       <description>Fishing is a great hobby; if you look around very very carefully you are bound to get hooked!&#xA;This is a boot2root challenge with a rev twist. Participants were not given source; just run the Docker container!&#xA;Challenge files: https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Gone_Fishing</description>
     </item>
     <item>
       <title>idekCTF 2022*: Sus Meow</title>
-      <link>https://kaligulaarmblessed.github.io/challenges/idekctf2022-sus-meow/</link>
+      <link>http://localhost:1313/challenges/idekctf2022-sus-meow/</link>
       <pubDate>Fri, 13 Jan 2023 00:00:00 +0000</pubDate>
-      <guid>https://kaligulaarmblessed.github.io/challenges/idekctf2022-sus-meow/</guid>
+      <guid>http://localhost:1313/challenges/idekctf2022-sus-meow/</guid>
       <description>I see a bunch of cats talking to each other, but what are they really saying?&#xA;Collab challenge with the wonderful Mochi Nishimiya.&#xA;Challenge files: https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Sus_Meow</description>
     </item>
     <item>
       <title>STANDCON 2022: New Math</title>
-      <link>https://kaligulaarmblessed.github.io/challenges/standcon2022-newmath/</link>
+      <link>http://localhost:1313/challenges/standcon2022-newmath/</link>
       <pubDate>Sat, 18 Jun 2022 00:00:00 +0000</pubDate>
-      <guid>https://kaligulaarmblessed.github.io/challenges/standcon2022-newmath/</guid>
+      <guid>http://localhost:1313/challenges/standcon2022-newmath/</guid>
       <description>New Math! New Hoo Hoo Math!&#xA;https://www.youtube.com/watch?v=UIKGV2cTgqA&#xA;Challenge files: https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/New_Math</description>
     </item>
     <item>
       <title>idekCTF 2021: Are you lstening to me??</title>
-      <link>https://kaligulaarmblessed.github.io/challenges/idekctf2021-are-you-lstening-to-me/</link>
+      <link>http://localhost:1313/challenges/idekctf2021-are-you-lstening-to-me/</link>
       <pubDate>Sat, 11 Dec 2021 00:00:00 +0000</pubDate>
-      <guid>https://kaligulaarmblessed.github.io/challenges/idekctf2021-are-you-lstening-to-me/</guid>
+      <guid>http://localhost:1313/challenges/idekctf2021-are-you-lstening-to-me/</guid>
       <description>Yo lsten! That&amp;rsquo;s the sound of a flag fluttering somewhere&amp;hellip;&#xA;docker pull kaligulasec/idekctf2021:are_you_lstening_to_me</description>
     </item>
     <item>
       <title>idekCTF 2021: Retrosynthesis</title>
-      <link>https://kaligulaarmblessed.github.io/challenges/idekctf2021-retrosynthesis/</link>
+      <link>http://localhost:1313/challenges/idekctf2021-retrosynthesis/</link>
       <pubDate>Sat, 11 Dec 2021 00:00:00 +0000</pubDate>
-      <guid>https://kaligulaarmblessed.github.io/challenges/idekctf2021-retrosynthesis/</guid>
+      <guid>http://localhost:1313/challenges/idekctf2021-retrosynthesis/</guid>
       <description>You can do reverse engineering, but can you do retrosynthesis?&#xA;Challenge files: https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Retrosynthesis&#xA;Writeup: https://github.com/KaligulaArmblessed/CTF-Writeups/blob/main/idekCTF%202021/Retrosynthesis.md</description>
     </item>
     <item>
       <title>About</title>
-      <link>https://kaligulaarmblessed.github.io/about/</link>
+      <link>http://localhost:1313/about/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
-      <guid>https://kaligulaarmblessed.github.io/about/</guid>
+      <guid>http://localhost:1313/about/</guid>
       <description>I really like computers, chemistry and cats. :3</description>
     </item>
     <item>
       <title>Random Fun Facts</title>
-      <link>https://kaligulaarmblessed.github.io/random-facts/</link>
+      <link>http://localhost:1313/random-facts/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
-      <guid>https://kaligulaarmblessed.github.io/random-facts/</guid>
+      <guid>http://localhost:1313/random-facts/</guid>
       <description>Just a collection of random fun facts :D&#xA;Gloopy Ethanol Pericyclic Boc Deprotection Ethanol becomes gloopy at low temperatures Did you know that ethanol has a freezing point of -114.1°C :O&#xA;If you cool ethanol down to a decently low temperature (say -50°C and lower), its viscosity will increase quite noticably, and it will turn from a nice flowy liquid to this strange thick gloopy substance. It does definitely make sense for the viscosity of a liquid to increase with decreasing temperature, but I guess we just don&amp;rsquo;t notice it that much with water as the freezing point of water is not very low.</description>
     </item>
   </channel>
