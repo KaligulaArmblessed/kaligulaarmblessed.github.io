@@ -6,8 +6,15 @@
     <description>Recent content in Posts on Kernels and Cats</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en</language>
-    <lastBuildDate>Sun, 17 Mar 2024 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Thu, 11 Apr 2024 00:00:00 +0000</lastBuildDate>
     <atom:link href="https://kaligulaarmblessed.github.io/post/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Hardware Challenges [ACSC 2024]</title>
+      <link>https://kaligulaarmblessed.github.io/post/acsc2024-hardware/</link>
+      <pubDate>Thu, 11 Apr 2024 00:00:00 +0000</pubDate>
+      <guid>https://kaligulaarmblessed.github.io/post/acsc2024-hardware/</guid>
+      <description>TLDR I&amp;rsquo;ve wanted to learn hardware for a while, so I tried out some hardware challenges at ACSC 2024. Here are the writeups for the 4 hardware challenges I&amp;rsquo;ve managed to solve during the CTF (as well as 1 stray web challenge that I solved because I couldn&amp;rsquo;t get the last hardware chall :&amp;quot;&amp;lt;)!&#xA;Table of Contents An4lyz3_1t Vault picopico PWR_Tr4ce Login! An4lyz3_1t Our surveillance team has managed to tap into a secret serial communication and capture a digital signal using a Saleae logic analyzer.</description>
+    </item>
     <item>
       <title>Cheminventory [Lag and Crash 4.0]</title>
       <link>https://kaligulaarmblessed.github.io/post/cheminventory/</link>

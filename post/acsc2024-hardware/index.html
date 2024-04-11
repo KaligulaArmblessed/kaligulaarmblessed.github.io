@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+    <title>Kernels and Cats</title>
+    <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+    <meta content="utf-8" http-equiv="encoding">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="theme-color" content="#000084" />
+    <meta name="google-site-verification" content="733C7I2uDZnatcput9zZupeQ_PX5Z0BJ1HmTnGi0SJI" />
+    <link rel="icon" href="https://kaligulaarmblessed.github.io//favicon.ico">
+    <link rel="canonical" href="https://kaligulaarmblessed.github.io/">
+    
+    
+</head>
+<body>
+<nav class="navbar navbar-inverse navbar-fixed-top">
+    <div class="navbar-inner">
+        <div class="container">
+            <button type="button" class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse"></button>
+            <a class="brand" href="https://kaligulaarmblessed.github.io/">Kernels and Cats</a>
+            <div class="nav-collapse collapse">
+                <ul class="nav">
+                    
+                    
+                        
+                            <li>
+                                <a href="/about/">
+                                    
+                                    <span>About</span>
+                                </a>
+                            </li>
+                        
+                    
+                        
+                            <li>
+                                <a href="/post/">
+                                    
+                                    <span>All posts</span>
+                                </a>
+                            </li>
+                        
+                    
+                        
+                            <li>
+                                <a href="/challenges/">
+                                    
+                                    <span>CTF Challenges</span>
+                                </a>
+                            </li>
+                        
+                    
+                        
+                            <li>
+                                <a href="/random-facts/">
+                                    
+                                    <span>Random Fun Facts</span>
+                                </a>
+                            </li>
+                        
+                    
+                </ul>
+            </div>
+        </div>
+    </div>
+</nav><div id="content" class="container">
+
+<div class="row-fluid navmargin">
+    <div class="page-header">
+        <h1>Hardware Challenges [ACSC 2024] - Thu, Apr 11, 2024</h1>
+    </div>
+    <p class="lead"></p>
+    <h4 id="tldr">TLDR</h4>
+<p>I&rsquo;ve wanted to learn hardware for a while, so I tried out some hardware challenges at ACSC 2024. Here are the writeups for the 4 hardware challenges I&rsquo;ve managed to solve during the CTF (as well as 1 stray web challenge that I solved because I couldn&rsquo;t get the last hardware chall :&quot;&lt;)!</p>
+<h4 id="table-of-contents">Table of Contents</h4>
+<ol>
+<li><a href="#an4lyz3_1t">An4lyz3_1t</a></li>
+<li><a href="#vault">Vault</a></li>
+<li><a href="#picopico">picopico</a></li>
+<li><a href="#pwr_tr4ce">PWR_Tr4ce</a></li>
+<li><a href="#login">Login!</a></li>
+</ol>
+<h4 id="an4lyz3_1t">An4lyz3_1t</h4>
+<pre tabindex="0"><code>Our surveillance team has managed to tap into a secret serial communication and capture a digital signal using a Saleae logic analyzer. Your objective is to decode the signal and uncover the hidden message.
+
+Authored by Chainfire73
+</code></pre><p>A &ldquo;chall.sal&rdquo; file was provided, which is the filetype for the Saleae Logic Analyzer.</p>
+<p>We will open the file and create a new &ldquo;Async Serial&rdquo; analyzer:</p>
+<p><img src="/images/acsc2024-hardware/analyze-async-serial.jpg" alt="Async Serial"></p>
+<p>As you can see, the bit rate has been 57600 Bits/s. In this case that works very nicely, but in some cases, you will have to measure the bit rate, which you can do with the &ldquo;Baud rate estimate&rdquo; plugin that Saleae has.</p>
+<p>Once that is done, return back to the main screen and go to the Analyzers tab. In the data terminal, you will be able to see the flag!</p>
+<p><img src="/images/acsc2024-hardware/analyze-flag.jpg" alt="Analyze it flag"></p>
+<h4 id="vault">Vault</h4>
+<pre tabindex="0"><code>Can you perform side-channel attack to this vault? The PIN is a 10-digit number.
+
+Authored by v3ct0r and Chainfire73
+</code></pre><p>A binary <code>vault</code> was provided, as well as a Dockerfile to start a container to test the exploit locally. When you connect to the remote netcat instance, you will be given a user shell with access to python.</p>
+<p>Let&rsquo;s take a look at the decompilation of the vault binary:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">main</span>(<span style="color:#66d9ef">void</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">ssize_t</span> sVar1;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">int</span> i;
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">printart</span>();
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;Enter your PIN: &#34;</span>);
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">fflush</span>((FILE <span style="color:#f92672">*</span>)stdout);
+</span></span><span style="display:flex;"><span>  sVar1 <span style="color:#f92672">=</span> <span style="color:#a6e22e">read</span>(<span style="color:#ae81ff">0</span>,input<span style="color:#ae81ff">.1</span>,<span style="color:#ae81ff">10</span>);
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">if</span> ((<span style="color:#66d9ef">int</span>)sVar1 <span style="color:#f92672">==</span> <span style="color:#ae81ff">10</span>) {
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">delay</span>();
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">10</span>; i <span style="color:#f92672">=</span> i <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span>) {
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">if</span> ((<span style="color:#66d9ef">int</span>)(<span style="color:#66d9ef">char</span>)input<span style="color:#ae81ff">.1</span>[i] <span style="color:#f92672">!=</span> (i <span style="color:#f92672">+</span> <span style="color:#ae81ff">1U</span> <span style="color:#f92672">^</span> (<span style="color:#66d9ef">int</span>)(<span style="color:#66d9ef">char</span>)pins[(<span style="color:#66d9ef">long</span>)i <span style="color:#f92672">*</span> <span style="color:#ae81ff">0xaf</span> <span style="color:#f92672">+</span> <span style="color:#ae81ff">0x45</span>])) {
+</span></span><span style="display:flex;"><span>        flag<span style="color:#ae81ff">.0</span> <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">puts</span>(<span style="color:#e6db74">&#34;Access Denied</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74"> It didn</span><span style="color:#ae81ff">\&#39;</span><span style="color:#e6db74">t take me any time to verify that it</span><span style="color:#ae81ff">\&#39;</span><span style="color:#e6db74">s not the pin&#34;</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span>;
+</span></span><span style="display:flex;"><span>      }
+</span></span><span style="display:flex;"><span>      <span style="color:#a6e22e">delay</span>();
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (flag<span style="color:#ae81ff">.0</span> <span style="color:#f92672">!=</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>      <span style="color:#a6e22e">printflag</span>(input<span style="color:#ae81ff">.1</span>);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">else</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">puts</span>(<span style="color:#e6db74">&#34;Access Denied</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74"> It didn</span><span style="color:#ae81ff">\&#39;</span><span style="color:#e6db74">t take me any time to verify that it</span><span style="color:#ae81ff">\&#39;</span><span style="color:#e6db74">s not the pin&#34;</span>);
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">return</span>;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The binary first checks that the PIN entered is 10 characters long. After which, the binary starts doing a character-by-character password check. Here is the logic of the password check:</p>
+<ol>
+<li>Check if the character is correct</li>
+<li>If the character is not correct, instantly fail and return</li>
+<li>If the character is correct, delay(), then return to instruction 1</li>
+</ol>
+<p>In short, we will be able to perform a timing-based side channel attack and bruteforce the PIN digit by digit. This is because if the character is correct, the program will take longer to run as it calls delay and starts another iteration of the loop, but if the character is wrong, the program will just return. We can do that with a simple python script (I had to use subprocess because pwntools was not installed on the remote box :&lt;):</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#f92672">import</span> subprocess
+</span></span><span style="display:flex;"><span><span style="color:#f92672">import</span> time
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">## ACSC{b377er_d3L4y3d_7h4n_N3v3r_b42fd3d840948f3e} -- the flag!</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>password <span style="color:#f92672">=</span> [<span style="color:#e6db74">&#34;0&#34;</span>, <span style="color:#e6db74">&#34;0&#34;</span>, <span style="color:#e6db74">&#34;0&#34;</span>, <span style="color:#e6db74">&#34;0&#34;</span>, <span style="color:#e6db74">&#34;0&#34;</span>, <span style="color:#e6db74">&#34;0&#34;</span>, <span style="color:#e6db74">&#34;0&#34;</span>, <span style="color:#e6db74">&#34;0&#34;</span>, <span style="color:#e6db74">&#34;0&#34;</span>, <span style="color:#e6db74">&#34;0&#34;</span>]
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">## Initialize stuff</span>
+</span></span><span style="display:flex;"><span>diff_arr <span style="color:#f92672">=</span> []
+</span></span><span style="display:flex;"><span>pay_arr <span style="color:#f92672">=</span> []
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">for</span> k <span style="color:#f92672">in</span> range(<span style="color:#ae81ff">10</span>): 
+</span></span><span style="display:flex;"><span>    diff_arr <span style="color:#f92672">=</span> []
+</span></span><span style="display:flex;"><span>    pay_arr <span style="color:#f92672">=</span> []
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> range(<span style="color:#ae81ff">10</span>): 
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">## Prepare payload</span>
+</span></span><span style="display:flex;"><span>        password[k] <span style="color:#f92672">=</span> str(i)
+</span></span><span style="display:flex;"><span>        payload <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;&#34;</span><span style="color:#f92672">.</span>join(password)
+</span></span><span style="display:flex;"><span>        payload <span style="color:#f92672">=</span> payload<span style="color:#f92672">.</span>encode(<span style="color:#e6db74">&#34;utf-8&#34;</span>)
+</span></span><span style="display:flex;"><span>        pay_arr<span style="color:#f92672">.</span>append(payload)
+</span></span><span style="display:flex;"><span>        print(payload)
+</span></span><span style="display:flex;"><span>        
+</span></span><span style="display:flex;"><span>        proc <span style="color:#f92672">=</span> subprocess<span style="color:#f92672">.</span>Popen([<span style="color:#e6db74">&#34;/home/user/chall&#34;</span>], stdin<span style="color:#f92672">=</span>subprocess<span style="color:#f92672">.</span>PIPE, stdout<span style="color:#f92672">=</span>subprocess<span style="color:#f92672">.</span>PIPE)
+</span></span><span style="display:flex;"><span>        start <span style="color:#f92672">=</span> time<span style="color:#f92672">.</span>time()
+</span></span><span style="display:flex;"><span>        cat, err <span style="color:#f92672">=</span> proc<span style="color:#f92672">.</span>communicate(payload)
+</span></span><span style="display:flex;"><span>        diff <span style="color:#f92672">=</span> time<span style="color:#f92672">.</span>time() <span style="color:#f92672">-</span> start
+</span></span><span style="display:flex;"><span>        diff_arr<span style="color:#f92672">.</span>append(diff)
+</span></span><span style="display:flex;"><span>        print(diff)
+</span></span><span style="display:flex;"><span>        
+</span></span><span style="display:flex;"><span>        print(<span style="color:#e6db74">&#34;---&#34;</span>)
+</span></span><span style="display:flex;"><span>        
+</span></span><span style="display:flex;"><span>    print(<span style="color:#e6db74">&#34;RESULTS: &#34;</span>)
+</span></span><span style="display:flex;"><span>    print(max(diff_arr))
+</span></span><span style="display:flex;"><span>    print(pay_arr[diff_arr<span style="color:#f92672">.</span>index(max(diff_arr))])
+</span></span><span style="display:flex;"><span>    password[k] <span style="color:#f92672">=</span> str(diff_arr<span style="color:#f92672">.</span>index(max(diff_arr)))
+</span></span></code></pre></div><p>Once the script is run, you will have the correct PIN, just enter that and the flag will pop out!</p>
+<h4 id="picopico">picopico</h4>
+<pre tabindex="0"><code>Security personnel in our company have spotted a suspicious USB flash drive. They found a Raspberry Pi Pico board inside the case, but no flash drive board. Here&#39;s the firmware dump of the Raspberry Pi Pico board. Could you figure out what this &#39;USB flash drive&#39; is for?
+
+Authored by op
+</code></pre><p>This challenge was fun because I found out about a really cool website: <a href="https://binvis.io/#/">https://binvis.io/#/</a> (it is very pretty, and has colors! I love colors)</p>
+<p>Anyways, back to the challenge. We were provided with a <code>firmware.bin</code> file. Being a noob, I decided to do the first thing everyone does with dealing with unknown stuff: run strings.</p>
+<p>While running strings, I noticed that there was some sort of python code that looked like it was used for encoding key presses:</p>
+<p><img src="/images/acsc2024-hardware/picopico-keypresses.jpg" alt="picopico keypresses"></p>
+<p>And there was also this really suspicious bit at the end:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#f92672">import</span> storage
+</span></span><span style="display:flex;"><span>storage<span style="color:#f92672">.</span>disable_usb_drive()
+</span></span><span style="display:flex;"><span><span style="color:#f92672">import</span> time
+</span></span><span style="display:flex;"><span>L<span style="color:#f92672">=</span>len
+</span></span><span style="display:flex;"><span>o<span style="color:#f92672">=</span>bytes
+</span></span><span style="display:flex;"><span>l<span style="color:#f92672">=</span>zip
+</span></span><span style="display:flex;"><span><span style="color:#f92672">import</span> microcontroller
+</span></span><span style="display:flex;"><span><span style="color:#f92672">import</span> usb_hid
+</span></span><span style="display:flex;"><span><span style="color:#f92672">from</span> adafruit_hid.keyboard <span style="color:#f92672">import</span> Keyboard
+</span></span><span style="display:flex;"><span><span style="color:#f92672">from</span> adafruit_hid.keyboard_layout_us <span style="color:#f92672">import</span> KeyboardLayoutUS
+</span></span><span style="display:flex;"><span><span style="color:#f92672">from</span> adafruit_hid.keycode <span style="color:#f92672">import</span> Keycode
+</span></span><span style="display:flex;"><span>w<span style="color:#f92672">=</span><span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\x10\x53\x7f\x2b</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>a<span style="color:#f92672">=</span><span style="color:#ae81ff">0x04</span>
+</span></span><span style="display:flex;"><span>K<span style="color:#f92672">=</span><span style="color:#ae81ff">43</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">if</span> microcontroller<span style="color:#f92672">.</span>nvm[<span style="color:#ae81ff">0</span>:L(w)]<span style="color:#f92672">!=</span>w:
+</span></span><span style="display:flex;"><span> microcontroller<span style="color:#f92672">.</span>nvm[<span style="color:#ae81ff">0</span>:L(w)]<span style="color:#f92672">=</span>w
+</span></span><span style="display:flex;"><span> O<span style="color:#f92672">=</span>microcontroller<span style="color:#f92672">.</span>nvm[a:a<span style="color:#f92672">+</span>K]
+</span></span><span style="display:flex;"><span> h<span style="color:#f92672">=</span>microcontroller<span style="color:#f92672">.</span>nvm[a<span style="color:#f92672">+</span>K:a<span style="color:#f92672">+</span>K<span style="color:#f92672">+</span>K]
+</span></span><span style="display:flex;"><span> F<span style="color:#f92672">=</span>o((kb<span style="color:#f92672">^</span>fb <span style="color:#66d9ef">for</span> kb,fb <span style="color:#f92672">in</span> l(O,h)))<span style="color:#f92672">.</span>decode(<span style="color:#e6db74">&#34;ascii&#34;</span>)
+</span></span><span style="display:flex;"><span> S<span style="color:#f92672">=</span>Keyboard(usb_hid<span style="color:#f92672">.</span>devices)
+</span></span><span style="display:flex;"><span> C<span style="color:#f92672">=</span>KeyboardLayoutUS(S)
+</span></span><span style="display:flex;"><span> time<span style="color:#f92672">.</span>sleep(<span style="color:#ae81ff">0.1</span>)
+</span></span><span style="display:flex;"><span> S<span style="color:#f92672">.</span>press(Keycode<span style="color:#f92672">.</span>WINDOWS,Keycode<span style="color:#f92672">.</span>R)
+</span></span><span style="display:flex;"><span> time<span style="color:#f92672">.</span>sleep(<span style="color:#ae81ff">0.1</span>)
+</span></span><span style="display:flex;"><span> S<span style="color:#f92672">.</span>release_all()
+</span></span><span style="display:flex;"><span> time<span style="color:#f92672">.</span>sleep(<span style="color:#ae81ff">1</span>)
+</span></span><span style="display:flex;"><span> C<span style="color:#f92672">.</span>write(<span style="color:#e6db74">&#34;cmd&#34;</span>,delay<span style="color:#f92672">=</span><span style="color:#ae81ff">0.1</span>)
+</span></span><span style="display:flex;"><span> time<span style="color:#f92672">.</span>sleep(<span style="color:#ae81ff">0.1</span>)
+</span></span><span style="display:flex;"><span> S<span style="color:#f92672">.</span>press(Keycode<span style="color:#f92672">.</span>ENTER)
+</span></span><span style="display:flex;"><span> time<span style="color:#f92672">.</span>sleep(<span style="color:#ae81ff">0.1</span>)
+</span></span><span style="display:flex;"><span> S<span style="color:#f92672">.</span>release_all()
+</span></span><span style="display:flex;"><span> time<span style="color:#f92672">.</span>sleep(<span style="color:#ae81ff">1</span>)
+</span></span><span style="display:flex;"><span> C<span style="color:#f92672">.</span>write(F,delay<span style="color:#f92672">=</span><span style="color:#ae81ff">0.1</span>)
+</span></span><span style="display:flex;"><span> time<span style="color:#f92672">.</span>sleep(<span style="color:#ae81ff">0.1</span>)
+</span></span><span style="display:flex;"><span> S<span style="color:#f92672">.</span>press(Keycode<span style="color:#f92672">.</span>ENTER)
+</span></span><span style="display:flex;"><span> time<span style="color:#f92672">.</span>sleep(<span style="color:#ae81ff">0.1</span>)
+</span></span><span style="display:flex;"><span> S<span style="color:#f92672">.</span>release_all()
+</span></span><span style="display:flex;"><span>time<span style="color:#f92672">.</span>sleep(<span style="color:#ae81ff">0xFFFFFFFF</span>)
+</span></span></code></pre></div><p>So what this seemed like it did was that it took a bunch of bytes from some region of memory. It then does the following:</p>
+<ol>
+<li>Check if the first 4 bytes are &ldquo;\x10\x53\x7f\x2b&rdquo; &ndash; some sort of magic number I suppose</li>
+<li>If the check passes, perform XOR operations starting from the 5th byte together with the 5+43th byte and work all the way down until you get the flag</li>
+</ol>
+<p>Now the challenge would be to find the target bytes in the firmware dump; this is where binvis.io comes to play!</p>
+<p>So what binvis.io does is that it takes a binary and colors in regions of data depending on whether it is filled with null bytes, ascii characters, low/high bytes, or 0xff. Different binaries look different, and the website itself shows you the difference between ELF, PE and PDF files:</p>
+<p><img src="/images/acsc2024-hardware/picopico-binvis-is-cool.jpg" alt="binvis being cool"></p>
+<p>If we take a look at the firmware.bin file, it looks like this:</p>
+<p><img src="/images/acsc2024-hardware/picopico-firmware.png" alt="firmware"></p>
+<p>There is this section that is particularly interesting:</p>
+<p><img src="/images/acsc2024-hardware/picopico-interesting.jpg" alt="firmware interesting"></p>
+<p>That number looks familiar! That is actually our target for the XOR, and it contains the flag!</p>
+<p>We can simply dump the memory from that region and perform the XOR to get the flag:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span>info <span style="color:#f92672">=</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\x10\x53\x7f\x2b\x41\xa0\x71\x51\x9f\xca\xfd\x84\x35\x0a\xd2\xb0\x1e\xa8\xa9\xb7\x10\x1f\x55\x7a\x8c\x98\xb2\x69\xef\x92\xc5\x15\xd0\x4b\xff\x87\x17\x63\xe4\x62\xc6\xa5\xb2\xbc\x8e\xef\xd8\x24\xc3\x19\x3e\xbf\x8b\xbe\xd7\x76\x71\xe1\x84\x27\x98\x9d\x87\x73\x2e\x63\x19\xbf\xae\xd4\x0b\x8d\xf3\xfd\x76\xe4\x73\xcb\xe5\x25\x5b\xdd\x07\xf6\xc1\xd3\xd9\xb8\x89\xa5\x00\x00\x00\x00\x00\x00</span><span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>flag <span style="color:#f92672">=</span> []
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> range(<span style="color:#ae81ff">43</span>): 
+</span></span><span style="display:flex;"><span>    flag<span style="color:#f92672">.</span>append(chr(info[<span style="color:#ae81ff">4</span><span style="color:#f92672">+</span>i] <span style="color:#f92672">^</span> info[<span style="color:#ae81ff">4</span><span style="color:#f92672">+</span>i<span style="color:#f92672">+</span><span style="color:#ae81ff">43</span>]))
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>print(<span style="color:#e6db74">&#34;&#34;</span><span style="color:#f92672">.</span>join(flag))
+</span></span></code></pre></div><p>The script will return <code>echo ACSC{349040c16c36fbba8c484b289e0dae6f}</code>!</p>
+<p>Sidenote: There are two other ways to potentially find the target memory region.</p>
+<ol>
+<li>Use a python script to comb the entire memory for the magic number, and dump that region of memory</li>
+<li>XOR the entire firmware dump, and run strings a second time to find the flag</li>
+</ol>
+<p>(But I think the pretty colors makes the binvis method worth XD)</p>
+<h4 id="pwr_tr4ce">PWR_Tr4ce</h4>
+<pre tabindex="0"><code>You&#39;ve been given power traces and text inputs captured from a microcontroller running AES encryption. Your goal is to extract the encryption key.
+
+EXPERIMENT SETUP
+scope = chipwhisperer lite
+target = stm32f3
+AES key length = 16 bytes 
+
+Authored by Chainfire73
+</code></pre><p>This challenge is about power analysis, which is a type of side-channel attack that looks at the power consumption of hardware to gain information about the operations that the machine is performing. Some types of math require more power than others, and by analyzing power traces, we are able to determine what cryptographic algorithms are being used, and how we can potentially crack them.</p>
+<p>We are given 2 files: <code>textins.npy</code> and <code>traces.npy</code>. Textins is the array for the plain text, and traces is the power traces. Having never done a power analysis before, I went to google for tutorials, and came across this wonderful walkthrough for power analysis by coastalwhite: <a href="https://coastalwhite.github.io/intro-power-analysis/intro.html">https://coastalwhite.github.io/intro-power-analysis/intro.html</a></p>
+<p>In his walkthrough, he goes through step by step how to crack an AES key, which is what we need here! This is all covered superbly in the &ldquo;Breaking AES&rdquo; section of his writeup, and the script he provides works for solving this challenge:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#75715e">#!/bin/python3</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">import</span> numpy <span style="color:#66d9ef">as</span> np
+</span></span><span style="display:flex;"><span><span style="color:#f92672">from</span> tqdm <span style="color:#f92672">import</span> trange
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Modeling the power consumption</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">########################################</span>
+</span></span><span style="display:flex;"><span>HammingWeightFn <span style="color:#f92672">=</span> <span style="color:#66d9ef">lambda</span> x: bin(x)<span style="color:#f92672">.</span>count(<span style="color:#e6db74">&#39;1&#39;</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Precompute Hamming Weight</span>
+</span></span><span style="display:flex;"><span>HammingWeight <span style="color:#f92672">=</span> [ HammingWeightFn(n) <span style="color:#66d9ef">for</span> n <span style="color:#f92672">in</span> range (<span style="color:#ae81ff">0x00</span>, <span style="color:#ae81ff">0xff</span> <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span>) ] 
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Rijndael Substitution box</span>
+</span></span><span style="display:flex;"><span>SBox <span style="color:#f92672">=</span> [
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e"># 0    1    2    3    4    5    6    7    8    9    a    b    c    d    e    f</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#ae81ff">0x63</span>,<span style="color:#ae81ff">0x7c</span>,<span style="color:#ae81ff">0x77</span>,<span style="color:#ae81ff">0x7b</span>,<span style="color:#ae81ff">0xf2</span>,<span style="color:#ae81ff">0x6b</span>,<span style="color:#ae81ff">0x6f</span>,<span style="color:#ae81ff">0xc5</span>,<span style="color:#ae81ff">0x30</span>,<span style="color:#ae81ff">0x01</span>,<span style="color:#ae81ff">0x67</span>,<span style="color:#ae81ff">0x2b</span>,<span style="color:#ae81ff">0xfe</span>,<span style="color:#ae81ff">0xd7</span>,<span style="color:#ae81ff">0xab</span>,<span style="color:#ae81ff">0x76</span>, <span style="color:#75715e"># 0</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#ae81ff">0xca</span>,<span style="color:#ae81ff">0x82</span>,<span style="color:#ae81ff">0xc9</span>,<span style="color:#ae81ff">0x7d</span>,<span style="color:#ae81ff">0xfa</span>,<span style="color:#ae81ff">0x59</span>,<span style="color:#ae81ff">0x47</span>,<span style="color:#ae81ff">0xf0</span>,<span style="color:#ae81ff">0xad</span>,<span style="color:#ae81ff">0xd4</span>,<span style="color:#ae81ff">0xa2</span>,<span style="color:#ae81ff">0xaf</span>,<span style="color:#ae81ff">0x9c</span>,<span style="color:#ae81ff">0xa4</span>,<span style="color:#ae81ff">0x72</span>,<span style="color:#ae81ff">0xc0</span>, <span style="color:#75715e"># 1</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#ae81ff">0xb7</span>,<span style="color:#ae81ff">0xfd</span>,<span style="color:#ae81ff">0x93</span>,<span style="color:#ae81ff">0x26</span>,<span style="color:#ae81ff">0x36</span>,<span style="color:#ae81ff">0x3f</span>,<span style="color:#ae81ff">0xf7</span>,<span style="color:#ae81ff">0xcc</span>,<span style="color:#ae81ff">0x34</span>,<span style="color:#ae81ff">0xa5</span>,<span style="color:#ae81ff">0xe5</span>,<span style="color:#ae81ff">0xf1</span>,<span style="color:#ae81ff">0x71</span>,<span style="color:#ae81ff">0xd8</span>,<span style="color:#ae81ff">0x31</span>,<span style="color:#ae81ff">0x15</span>, <span style="color:#75715e"># 2</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#ae81ff">0x04</span>,<span style="color:#ae81ff">0xc7</span>,<span style="color:#ae81ff">0x23</span>,<span style="color:#ae81ff">0xc3</span>,<span style="color:#ae81ff">0x18</span>,<span style="color:#ae81ff">0x96</span>,<span style="color:#ae81ff">0x05</span>,<span style="color:#ae81ff">0x9a</span>,<span style="color:#ae81ff">0x07</span>,<span style="color:#ae81ff">0x12</span>,<span style="color:#ae81ff">0x80</span>,<span style="color:#ae81ff">0xe2</span>,<span style="color:#ae81ff">0xeb</span>,<span style="color:#ae81ff">0x27</span>,<span style="color:#ae81ff">0xb2</span>,<span style="color:#ae81ff">0x75</span>, <span style="color:#75715e"># 3</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#ae81ff">0x09</span>,<span style="color:#ae81ff">0x83</span>,<span style="color:#ae81ff">0x2c</span>,<span style="color:#ae81ff">0x1a</span>,<span style="color:#ae81ff">0x1b</span>,<span style="color:#ae81ff">0x6e</span>,<span style="color:#ae81ff">0x5a</span>,<span style="color:#ae81ff">0xa0</span>,<span style="color:#ae81ff">0x52</span>,<span style="color:#ae81ff">0x3b</span>,<span style="color:#ae81ff">0xd6</span>,<span style="color:#ae81ff">0xb3</span>,<span style="color:#ae81ff">0x29</span>,<span style="color:#ae81ff">0xe3</span>,<span style="color:#ae81ff">0x2f</span>,<span style="color:#ae81ff">0x84</span>, <span style="color:#75715e"># 4</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#ae81ff">0x53</span>,<span style="color:#ae81ff">0xd1</span>,<span style="color:#ae81ff">0x00</span>,<span style="color:#ae81ff">0xed</span>,<span style="color:#ae81ff">0x20</span>,<span style="color:#ae81ff">0xfc</span>,<span style="color:#ae81ff">0xb1</span>,<span style="color:#ae81ff">0x5b</span>,<span style="color:#ae81ff">0x6a</span>,<span style="color:#ae81ff">0xcb</span>,<span style="color:#ae81ff">0xbe</span>,<span style="color:#ae81ff">0x39</span>,<span style="color:#ae81ff">0x4a</span>,<span style="color:#ae81ff">0x4c</span>,<span style="color:#ae81ff">0x58</span>,<span style="color:#ae81ff">0xcf</span>, <span style="color:#75715e"># 5</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#ae81ff">0xd0</span>,<span style="color:#ae81ff">0xef</span>,<span style="color:#ae81ff">0xaa</span>,<span style="color:#ae81ff">0xfb</span>,<span style="color:#ae81ff">0x43</span>,<span style="color:#ae81ff">0x4d</span>,<span style="color:#ae81ff">0x33</span>,<span style="color:#ae81ff">0x85</span>,<span style="color:#ae81ff">0x45</span>,<span style="color:#ae81ff">0xf9</span>,<span style="color:#ae81ff">0x02</span>,<span style="color:#ae81ff">0x7f</span>,<span style="color:#ae81ff">0x50</span>,<span style="color:#ae81ff">0x3c</span>,<span style="color:#ae81ff">0x9f</span>,<span style="color:#ae81ff">0xa8</span>, <span style="color:#75715e"># 6</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#ae81ff">0x51</span>,<span style="color:#ae81ff">0xa3</span>,<span style="color:#ae81ff">0x40</span>,<span style="color:#ae81ff">0x8f</span>,<span style="color:#ae81ff">0x92</span>,<span style="color:#ae81ff">0x9d</span>,<span style="color:#ae81ff">0x38</span>,<span style="color:#ae81ff">0xf5</span>,<span style="color:#ae81ff">0xbc</span>,<span style="color:#ae81ff">0xb6</span>,<span style="color:#ae81ff">0xda</span>,<span style="color:#ae81ff">0x21</span>,<span style="color:#ae81ff">0x10</span>,<span style="color:#ae81ff">0xff</span>,<span style="color:#ae81ff">0xf3</span>,<span style="color:#ae81ff">0xd2</span>, <span style="color:#75715e"># 7</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#ae81ff">0xcd</span>,<span style="color:#ae81ff">0x0c</span>,<span style="color:#ae81ff">0x13</span>,<span style="color:#ae81ff">0xec</span>,<span style="color:#ae81ff">0x5f</span>,<span style="color:#ae81ff">0x97</span>,<span style="color:#ae81ff">0x44</span>,<span style="color:#ae81ff">0x17</span>,<span style="color:#ae81ff">0xc4</span>,<span style="color:#ae81ff">0xa7</span>,<span style="color:#ae81ff">0x7e</span>,<span style="color:#ae81ff">0x3d</span>,<span style="color:#ae81ff">0x64</span>,<span style="color:#ae81ff">0x5d</span>,<span style="color:#ae81ff">0x19</span>,<span style="color:#ae81ff">0x73</span>, <span style="color:#75715e"># 8</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#ae81ff">0x60</span>,<span style="color:#ae81ff">0x81</span>,<span style="color:#ae81ff">0x4f</span>,<span style="color:#ae81ff">0xdc</span>,<span style="color:#ae81ff">0x22</span>,<span style="color:#ae81ff">0x2a</span>,<span style="color:#ae81ff">0x90</span>,<span style="color:#ae81ff">0x88</span>,<span style="color:#ae81ff">0x46</span>,<span style="color:#ae81ff">0xee</span>,<span style="color:#ae81ff">0xb8</span>,<span style="color:#ae81ff">0x14</span>,<span style="color:#ae81ff">0xde</span>,<span style="color:#ae81ff">0x5e</span>,<span style="color:#ae81ff">0x0b</span>,<span style="color:#ae81ff">0xdb</span>, <span style="color:#75715e"># 9</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#ae81ff">0xe0</span>,<span style="color:#ae81ff">0x32</span>,<span style="color:#ae81ff">0x3a</span>,<span style="color:#ae81ff">0x0a</span>,<span style="color:#ae81ff">0x49</span>,<span style="color:#ae81ff">0x06</span>,<span style="color:#ae81ff">0x24</span>,<span style="color:#ae81ff">0x5c</span>,<span style="color:#ae81ff">0xc2</span>,<span style="color:#ae81ff">0xd3</span>,<span style="color:#ae81ff">0xac</span>,<span style="color:#ae81ff">0x62</span>,<span style="color:#ae81ff">0x91</span>,<span style="color:#ae81ff">0x95</span>,<span style="color:#ae81ff">0xe4</span>,<span style="color:#ae81ff">0x79</span>, <span style="color:#75715e"># a</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#ae81ff">0xe7</span>,<span style="color:#ae81ff">0xc8</span>,<span style="color:#ae81ff">0x37</span>,<span style="color:#ae81ff">0x6d</span>,<span style="color:#ae81ff">0x8d</span>,<span style="color:#ae81ff">0xd5</span>,<span style="color:#ae81ff">0x4e</span>,<span style="color:#ae81ff">0xa9</span>,<span style="color:#ae81ff">0x6c</span>,<span style="color:#ae81ff">0x56</span>,<span style="color:#ae81ff">0xf4</span>,<span style="color:#ae81ff">0xea</span>,<span style="color:#ae81ff">0x65</span>,<span style="color:#ae81ff">0x7a</span>,<span style="color:#ae81ff">0xae</span>,<span style="color:#ae81ff">0x08</span>, <span style="color:#75715e"># b</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#ae81ff">0xba</span>,<span style="color:#ae81ff">0x78</span>,<span style="color:#ae81ff">0x25</span>,<span style="color:#ae81ff">0x2e</span>,<span style="color:#ae81ff">0x1c</span>,<span style="color:#ae81ff">0xa6</span>,<span style="color:#ae81ff">0xb4</span>,<span style="color:#ae81ff">0xc6</span>,<span style="color:#ae81ff">0xe8</span>,<span style="color:#ae81ff">0xdd</span>,<span style="color:#ae81ff">0x74</span>,<span style="color:#ae81ff">0x1f</span>,<span style="color:#ae81ff">0x4b</span>,<span style="color:#ae81ff">0xbd</span>,<span style="color:#ae81ff">0x8b</span>,<span style="color:#ae81ff">0x8a</span>, <span style="color:#75715e"># c</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#ae81ff">0x70</span>,<span style="color:#ae81ff">0x3e</span>,<span style="color:#ae81ff">0xb5</span>,<span style="color:#ae81ff">0x66</span>,<span style="color:#ae81ff">0x48</span>,<span style="color:#ae81ff">0x03</span>,<span style="color:#ae81ff">0xf6</span>,<span style="color:#ae81ff">0x0e</span>,<span style="color:#ae81ff">0x61</span>,<span style="color:#ae81ff">0x35</span>,<span style="color:#ae81ff">0x57</span>,<span style="color:#ae81ff">0xb9</span>,<span style="color:#ae81ff">0x86</span>,<span style="color:#ae81ff">0xc1</span>,<span style="color:#ae81ff">0x1d</span>,<span style="color:#ae81ff">0x9e</span>, <span style="color:#75715e"># d</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#ae81ff">0xe1</span>,<span style="color:#ae81ff">0xf8</span>,<span style="color:#ae81ff">0x98</span>,<span style="color:#ae81ff">0x11</span>,<span style="color:#ae81ff">0x69</span>,<span style="color:#ae81ff">0xd9</span>,<span style="color:#ae81ff">0x8e</span>,<span style="color:#ae81ff">0x94</span>,<span style="color:#ae81ff">0x9b</span>,<span style="color:#ae81ff">0x1e</span>,<span style="color:#ae81ff">0x87</span>,<span style="color:#ae81ff">0xe9</span>,<span style="color:#ae81ff">0xce</span>,<span style="color:#ae81ff">0x55</span>,<span style="color:#ae81ff">0x28</span>,<span style="color:#ae81ff">0xdf</span>, <span style="color:#75715e"># e</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#ae81ff">0x8c</span>,<span style="color:#ae81ff">0xa1</span>,<span style="color:#ae81ff">0x89</span>,<span style="color:#ae81ff">0x0d</span>,<span style="color:#ae81ff">0xbf</span>,<span style="color:#ae81ff">0xe6</span>,<span style="color:#ae81ff">0x42</span>,<span style="color:#ae81ff">0x68</span>,<span style="color:#ae81ff">0x41</span>,<span style="color:#ae81ff">0x99</span>,<span style="color:#ae81ff">0x2d</span>,<span style="color:#ae81ff">0x0f</span>,<span style="color:#ae81ff">0xb0</span>,<span style="color:#ae81ff">0x54</span>,<span style="color:#ae81ff">0xbb</span>,<span style="color:#ae81ff">0x16</span>  <span style="color:#75715e"># f</span>
+</span></span><span style="display:flex;"><span>]
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">hypothetical_power_usage</span>(subkey, plain_text_char):
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e"># Use the Hamming Weight power usage model</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> HammingWeight[
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e"># Do a SBox look up of the XOR-ed value</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">#</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e"># Since the Hamming Weight of the SBox value will</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e"># persist for longer in memory this will make finding the</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e"># pattern easier. It is also still before the Row Shifting</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e"># so it doesn&#39;t cause trouble.</span>
+</span></span><span style="display:flex;"><span>        SBox [
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>            <span style="color:#75715e"># The initial round key XOR-ed with the plain text</span>
+</span></span><span style="display:flex;"><span>            subkey <span style="color:#f92672">^</span> plain_text_char
+</span></span><span style="display:flex;"><span>        ]
+</span></span><span style="display:flex;"><span>    ]
+</span></span><span style="display:flex;"><span><span style="color:#75715e">########################################</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Loading our trace data</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">########################################</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">import</span> numpy <span style="color:#66d9ef">as</span> np
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>traces <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>load(<span style="color:#e6db74">&#39;./traces.npy&#39;</span>)
+</span></span><span style="display:flex;"><span>textins <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>load(<span style="color:#e6db74">&#39;./textins.npy&#39;</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>num_traces <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>shape(traces)[<span style="color:#ae81ff">0</span>]
+</span></span><span style="display:flex;"><span>num_points <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>shape(traces)[<span style="color:#ae81ff">1</span>]
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">########################################</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Pearson correlation</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">########################################</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">covariance</span>(X, Y):
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> len(X) <span style="color:#f92672">!=</span> len(Y):
+</span></span><span style="display:flex;"><span>        print(<span style="color:#e6db74">&#34;Lengths are unequal, quiting...&#34;</span>)
+</span></span><span style="display:flex;"><span>        quit()
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    n <span style="color:#f92672">=</span> len(X)
+</span></span><span style="display:flex;"><span>    mean_x <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>mean(X, dtype<span style="color:#f92672">=</span>np<span style="color:#f92672">.</span>float64)
+</span></span><span style="display:flex;"><span>    mean_y <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>mean(Y, dtype<span style="color:#f92672">=</span>np<span style="color:#f92672">.</span>float64)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> np<span style="color:#f92672">.</span>sum((X <span style="color:#f92672">-</span> mean_x) <span style="color:#f92672">*</span> (Y <span style="color:#f92672">-</span> mean_y)) <span style="color:#f92672">/</span> n
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">standard_deviation</span>(X):
+</span></span><span style="display:flex;"><span>    n <span style="color:#f92672">=</span> len(X)
+</span></span><span style="display:flex;"><span>    mean_x <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>mean(X, dtype<span style="color:#f92672">=</span>np<span style="color:#f92672">.</span>float64)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> np<span style="color:#f92672">.</span>sqrt( np<span style="color:#f92672">.</span>sum( np<span style="color:#f92672">.</span>power( (X <span style="color:#f92672">-</span> mean_x), <span style="color:#ae81ff">2</span> ) ) <span style="color:#f92672">/</span> n )
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">pearson_correlation_coefficient</span>(X, Y):
+</span></span><span style="display:flex;"><span>    cov <span style="color:#f92672">=</span> covariance(X, Y)
+</span></span><span style="display:flex;"><span>    sd_x <span style="color:#f92672">=</span> standard_deviation(X)
+</span></span><span style="display:flex;"><span>    sd_y <span style="color:#f92672">=</span> standard_deviation(Y)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> cov <span style="color:#f92672">/</span> ( sd_x <span style="color:#f92672">*</span> sd_y ) 
+</span></span><span style="display:flex;"><span><span style="color:#75715e">########################################</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Define a function to calculate the Correlation Coefficients for a byte in a</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># subkey.</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">########################################</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">calculate_correlation_coefficients</span>(subkey, subkey_index):
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e"># Declare a numpy for the hypothetical power usage</span>
+</span></span><span style="display:flex;"><span>    hypothetical_power <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>zeros(num_traces)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> trace_index <span style="color:#f92672">in</span> range(<span style="color:#ae81ff">0</span>, num_traces):
+</span></span><span style="display:flex;"><span>        hypothetical_power[trace_index] <span style="color:#f92672">=</span> hypothetical_power_usage(
+</span></span><span style="display:flex;"><span>            subkey,
+</span></span><span style="display:flex;"><span>            textins[trace_index][subkey_index]
+</span></span><span style="display:flex;"><span>        )
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e"># We are going to the determine correlations between each trace point</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e"># and the hypothetical power usage. This will save all those coefficients</span>
+</span></span><span style="display:flex;"><span>    point_correlation <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>zeros(num_points)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e"># Loop through all points and determine their correlation coefficients</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> point_index <span style="color:#f92672">in</span> range(<span style="color:#ae81ff">0</span>, num_points):
+</span></span><span style="display:flex;"><span>        point_correlation[point_index] <span style="color:#f92672">=</span> pearson_correlation_coefficient(
+</span></span><span style="display:flex;"><span>            hypothetical_power,
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>            <span style="color:#75715e"># Look at the individual traces points for every trace</span>
+</span></span><span style="display:flex;"><span>            traces[:, point_index]
+</span></span><span style="display:flex;"><span>        )
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> point_correlation
+</span></span><span style="display:flex;"><span><span style="color:#75715e">########################################</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Looping through all possible bytes</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">########################################</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Save all correlation coefficients</span>
+</span></span><span style="display:flex;"><span>max_correlation_coefficients <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>zeros(<span style="color:#ae81ff">256</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Loop through values this subkey</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">for</span> subkey <span style="color:#f92672">in</span> trange(<span style="color:#ae81ff">0xff</span> <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span>, desc<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;Attack Subkey&#34;</span>):
+</span></span><span style="display:flex;"><span>    max_correlation_coefficients[subkey] <span style="color:#f92672">=</span> max(abs(
+</span></span><span style="display:flex;"><span>        calculate_correlation_coefficients(subkey, <span style="color:#ae81ff">0</span>)
+</span></span><span style="display:flex;"><span>    ))
+</span></span><span style="display:flex;"><span><span style="color:#75715e">########################################</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Printing the best guess</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">########################################</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Select the element with the highest correlation</span>
+</span></span><span style="display:flex;"><span>best_guess <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>argmax(max_correlation_coefficients)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Print both the hex value and the ASCII character</span>
+</span></span><span style="display:flex;"><span>print(<span style="color:#e6db74">&#34;Best guess: </span><span style="color:#e6db74">{:02x}</span><span style="color:#e6db74"> or &#39;</span><span style="color:#e6db74">{}</span><span style="color:#e6db74">&#39;&#34;</span><span style="color:#f92672">.</span>format(best_guess, chr(best_guess)))
+</span></span><span style="display:flex;"><span><span style="color:#75715e">########################################</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Looping through all subkeys</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">########################################</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># The eventual key guess</span>
+</span></span><span style="display:flex;"><span>best_guess <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>zeros(<span style="color:#ae81ff">16</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Loop through all possible subkeys</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">for</span> subkey_index <span style="color:#f92672">in</span> trange(<span style="color:#ae81ff">16</span>, desc<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;Subkey Index&#34;</span>):
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e"># Save all correlation coefficients</span>
+</span></span><span style="display:flex;"><span>    max_correlation_coefficients <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>zeros(<span style="color:#ae81ff">256</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e"># Loop through values this subkey</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> subkey <span style="color:#f92672">in</span> range(<span style="color:#ae81ff">0x00</span>, <span style="color:#ae81ff">0xff</span> <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span>):
+</span></span><span style="display:flex;"><span>        max_correlation_coefficients[subkey] <span style="color:#f92672">=</span> max(abs(
+</span></span><span style="display:flex;"><span>            calculate_correlation_coefficients(subkey, subkey_index)
+</span></span><span style="display:flex;"><span>        ))
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e"># Save the best guess</span>
+</span></span><span style="display:flex;"><span>    best_guess[subkey_index] <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>argmax(max_correlation_coefficients)
+</span></span><span style="display:flex;"><span><span style="color:#75715e">########################################</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Printing the best guess</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">########################################</span>
+</span></span><span style="display:flex;"><span>print(<span style="color:#e6db74">&#34;Best guess:&#34;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">for</span> b <span style="color:#f92672">in</span> best_guess: print(<span style="color:#e6db74">&#34;</span><span style="color:#e6db74">{:02x}</span><span style="color:#e6db74"> &#34;</span><span style="color:#f92672">.</span>format(int(b)), end<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;&#34;</span>)
+</span></span><span style="display:flex;"><span>print(<span style="color:#e6db74">&#34;&#34;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">for</span> b <span style="color:#f92672">in</span> best_guess: print(<span style="color:#e6db74">&#34;</span><span style="color:#e6db74">{}</span><span style="color:#e6db74">&#34;</span><span style="color:#f92672">.</span>format(chr(int(b))), end<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;&#34;</span>)
+</span></span><span style="display:flex;"><span>print(<span style="color:#e6db74">&#34;&#34;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#75715e">########################################</span>
+</span></span></code></pre></div><p>Running the script will give us the flag!</p>
+<p><img src="/images/acsc2024-hardware/pwr-flag.jpg" alt="Pwr flag"></p>
+<h4 id="login">Login!</h4>
+<p>I really wanted to solve the last hardware chall and max hardware, but sadly I did not know enough about RFID to solve it. It will definitely be one of the things to learn though!</p>
+<p>While getting frustrated at the RFID challenge I decided to take a look at this web challenge for fun (and also because I was scared of Frida for the other pwn chall that I wanted to try &ndash; it&rsquo;s also on my list of stuff to learn!):</p>
+<pre tabindex="0"><code>Here comes yet another boring login page ... http://login-web.chal.2024.ctf.acsc.asia:5000
+
+Authored by splitline
+</code></pre><p>The source of the webpage was given in <code>app.js</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-js" data-lang="js"><span style="display:flex;"><span><span style="color:#66d9ef">const</span> <span style="color:#a6e22e">express</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">require</span>(<span style="color:#e6db74">&#39;express&#39;</span>);
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">const</span> <span style="color:#a6e22e">crypto</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">require</span>(<span style="color:#e6db74">&#39;crypto&#39;</span>);
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">const</span> <span style="color:#a6e22e">FLAG</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">process</span>.<span style="color:#a6e22e">env</span>.<span style="color:#a6e22e">FLAG</span> <span style="color:#f92672">||</span> <span style="color:#e6db74">&#39;flag{this_is_a_fake_flag}&#39;</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">const</span> <span style="color:#a6e22e">app</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">express</span>();
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">app</span>.<span style="color:#a6e22e">use</span>(<span style="color:#a6e22e">express</span>.<span style="color:#a6e22e">urlencoded</span>({ <span style="color:#a6e22e">extended</span><span style="color:#f92672">:</span> <span style="color:#66d9ef">true</span> }));
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">const</span> <span style="color:#a6e22e">USER_DB</span> <span style="color:#f92672">=</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">user</span><span style="color:#f92672">:</span> {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">username</span><span style="color:#f92672">:</span> <span style="color:#e6db74">&#39;user&#39;</span>, 
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">password</span><span style="color:#f92672">:</span> <span style="color:#a6e22e">crypto</span>.<span style="color:#a6e22e">randomBytes</span>(<span style="color:#ae81ff">32</span>).<span style="color:#a6e22e">toString</span>(<span style="color:#e6db74">&#39;hex&#39;</span>)
+</span></span><span style="display:flex;"><span>    },
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">guest</span><span style="color:#f92672">:</span> {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">username</span><span style="color:#f92672">:</span> <span style="color:#e6db74">&#39;guest&#39;</span>,
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">password</span><span style="color:#f92672">:</span> <span style="color:#e6db74">&#39;guest&#39;</span>
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>};
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">app</span>.<span style="color:#a6e22e">get</span>(<span style="color:#e6db74">&#39;/&#39;</span>, (<span style="color:#a6e22e">req</span>, <span style="color:#a6e22e">res</span>) =&gt; {
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">res</span>.<span style="color:#a6e22e">send</span>(<span style="color:#e6db74">`
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    &lt;html&gt;&lt;head&gt;&lt;title&gt;Login&lt;/title&gt;&lt;link rel=&#34;stylesheet&#34; href=&#34;https://cdn.simplecss.org/simple.min.css&#34;&gt;&lt;/head&gt;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    &lt;body&gt;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    &lt;section&gt;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    &lt;h1&gt;Login&lt;/h1&gt;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    &lt;form action=&#34;/login&#34; method=&#34;post&#34;&gt;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    &lt;input type=&#34;text&#34; name=&#34;username&#34; placeholder=&#34;Username&#34; length=&#34;6&#34; required&gt;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    &lt;input type=&#34;password&#34; name=&#34;password&#34; placeholder=&#34;Password&#34; required&gt;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    &lt;button type=&#34;submit&#34;&gt;Login&lt;/button&gt;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    &lt;/form&gt;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    &lt;/section&gt;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    &lt;/body&gt;&lt;/html&gt;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    `</span>);
+</span></span><span style="display:flex;"><span>});
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">app</span>.<span style="color:#a6e22e">post</span>(<span style="color:#e6db74">&#39;/login&#39;</span>, (<span style="color:#a6e22e">req</span>, <span style="color:#a6e22e">res</span>) =&gt; {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> { <span style="color:#a6e22e">username</span>, <span style="color:#a6e22e">password</span> } <span style="color:#f92672">=</span> <span style="color:#a6e22e">req</span>.<span style="color:#a6e22e">body</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">username</span>.<span style="color:#a6e22e">length</span> <span style="color:#f92672">&gt;</span> <span style="color:#ae81ff">6</span>) <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">res</span>.<span style="color:#a6e22e">send</span>(<span style="color:#e6db74">&#39;Username is too long&#39;</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">user</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">USER_DB</span>[<span style="color:#a6e22e">username</span>];
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">user</span> <span style="color:#f92672">&amp;&amp;</span> <span style="color:#a6e22e">user</span>.<span style="color:#a6e22e">password</span> <span style="color:#f92672">==</span> <span style="color:#a6e22e">password</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">username</span> <span style="color:#f92672">===</span> <span style="color:#e6db74">&#39;guest&#39;</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">res</span>.<span style="color:#a6e22e">send</span>(<span style="color:#e6db74">&#39;Welcome, guest. You do not have permission to view the flag&#39;</span>);
+</span></span><span style="display:flex;"><span>        } <span style="color:#66d9ef">else</span> {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">res</span>.<span style="color:#a6e22e">send</span>(<span style="color:#e6db74">`Welcome, </span><span style="color:#e6db74">${</span><span style="color:#a6e22e">username</span><span style="color:#e6db74">}</span><span style="color:#e6db74">. Here is your flag: </span><span style="color:#e6db74">${</span><span style="color:#a6e22e">FLAG</span><span style="color:#e6db74">}</span><span style="color:#e6db74">`</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    } <span style="color:#66d9ef">else</span> {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">res</span>.<span style="color:#a6e22e">send</span>(<span style="color:#e6db74">&#39;Invalid username or password&#39;</span>);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>});
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">app</span>.<span style="color:#a6e22e">listen</span>(<span style="color:#ae81ff">5000</span>, () =&gt; {
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">console</span>.<span style="color:#a6e22e">log</span>(<span style="color:#e6db74">&#39;Server is running on port 5000&#39;</span>);
+</span></span><span style="display:flex;"><span>});
+</span></span></code></pre></div><p>The &ldquo;guest&rdquo; and &ldquo;user&rdquo; users exist. &ldquo;guest&rdquo;&rsquo;s password is &ldquo;guest&rdquo;, but &ldquo;user&rdquo;&rsquo;s password is some giant randomly generated hex string, which is not fun. Looking at the source code will tell us that guest <strong>seemingly</strong> does not have permission to view the flag.</p>
+<p>Here is the interesting part of the source code:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-js" data-lang="js"><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">user</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">USER_DB</span>[<span style="color:#a6e22e">username</span>];
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">user</span> <span style="color:#f92672">&amp;&amp;</span> <span style="color:#a6e22e">user</span>.<span style="color:#a6e22e">password</span> <span style="color:#f92672">==</span> <span style="color:#a6e22e">password</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">username</span> <span style="color:#f92672">===</span> <span style="color:#e6db74">&#39;guest&#39;</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">res</span>.<span style="color:#a6e22e">send</span>(<span style="color:#e6db74">&#39;Welcome, guest. You do not have permission to view the flag&#39;</span>);
+</span></span><span style="display:flex;"><span>        } <span style="color:#66d9ef">else</span> {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">res</span>.<span style="color:#a6e22e">send</span>(<span style="color:#e6db74">`Welcome, </span><span style="color:#e6db74">${</span><span style="color:#a6e22e">username</span><span style="color:#e6db74">}</span><span style="color:#e6db74">. Here is your flag: </span><span style="color:#e6db74">${</span><span style="color:#a6e22e">FLAG</span><span style="color:#e6db74">}</span><span style="color:#e6db74">`</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    } <span style="color:#66d9ef">else</span> {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">res</span>.<span style="color:#a6e22e">send</span>(<span style="color:#e6db74">&#39;Invalid username or password&#39;</span>);
+</span></span><span style="display:flex;"><span>    }
+</span></span></code></pre></div><p>It checks whether the user exists (i.e. user or guest), and then checks if the user&rsquo;s password is the same as the one in the object. It then performs a &ldquo;===&rdquo; operation with the string &ldquo;guest&rdquo;, and this is where the vulnerability lies.</p>
+<p>Basically, Javascript is weird, and there are two types of equality. &ldquo;==&rdquo; or loose equality will first convert both operands into the same type before performing a comparison, while &ldquo;===&rdquo; or strict equality will check that the types and values of both operands are the same before returning true. <code>if (username === 'guest')</code> hence means that username must have a value equal to &lsquo;guest&rsquo; AND be a string in order for this condition to be fulfilled.</p>
+<p>A simple bypass for this would be to simply have username not be a string! We can provide a username that is an array but is still equal to &lsquo;guest&rsquo;, which will fail the strict equality check and give us the flag.</p>
+<p>Using Burp, we can see the original request sent to the web server:</p>
+<p><img src="/images/acsc2024-hardware/login-burp1.jpg" alt="Login1"></p>
+<p>As expected this fails, as the username is a string.</p>
+<p>We can modify the web request to get the flag:</p>
+<p><img src="/images/acsc2024-hardware/login-burp2.jpg" alt="Login2"></p>
+<p>The payload used was <code>username[]=guest&amp;password=guest</code>, which would result in username being an object instead of a string.</p>
+<p>Thanks for reading this writeup and props to the ACSC team for a wonderful CTF! :D</p>
+
+    <h4><a href="https://kaligulaarmblessed.github.io/">Back to Home</a></h4>
+</div>
+
+
+        </div><footer class="container">
+    <hr class="soften">
+    <p>
+&copy; 
+
+    Kaligula Armblessed
+
+<span id="thisyear">2024</span>
+
+
+        | Built on <a href="//gohugo.io" target="_blank">Hugo</a>
+
+</p>
+    <p class="text-center">
+        
+        <a href="https://twitter.com/KaligulaSec">Twitter</a> 
+        
+        <a href="https://github.com/KaligulaArmblessed">GitHub</a> 
+        
+    </p>
+</footer>
+
+</body><link rel="stylesheet" href="/css/bootstrap.css">
+<link rel="stylesheet" href="/css/bootstrap-responsive.css">
+<link rel="stylesheet" href="/css/style.css">
+
+<script src="/js/jquery.js"></script>
+<script src="/js/bootstrap-386.js"></script>
+<script src="/js/bootstrap-transition.js"></script>
+<script src="/js/bootstrap-alert.js"></script>
+<script src="/js/bootstrap-modal.js"></script>
+<script src="/js/bootstrap-dropdown.js"></script>
+<script src="/js/bootstrap-scrollspy.js"></script>
+<script src="/js/bootstrap-tab.js"></script>
+<script src="/js/bootstrap-tooltip.js"></script>
+<script src="/js/bootstrap-popover.js"></script>
+<script src="/js/bootstrap-button.js"></script>
+<script src="/js/bootstrap-collapse.js"></script>
+<script src="/js/bootstrap-carousel.js"></script>
+<script src="/js/bootstrap-typeahead.js"></script>
+<script src="/js/bootstrap-affix.js"></script>
+<script>
+    _386 = { 
+        fastLoad: false ,
+        onePass: true , 
+        speedFactor: 1 
+    };
+
+    
+    function ThisYear() {
+        document.getElementById('thisyear').innerHTML = new Date().getFullYear();
+    };
+</script></html>

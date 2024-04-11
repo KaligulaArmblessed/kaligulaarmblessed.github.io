@@ -6,12 +6,19 @@
     <description>Recent content on Kernels and Cats</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en</language>
-    <lastBuildDate>Sun, 07 Apr 2024 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Thu, 11 Apr 2024 00:00:00 +0000</lastBuildDate>
     <atom:link href="https://kaligulaarmblessed.github.io/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Hardware Challenges [ACSC 2024]</title>
+      <link>https://kaligulaarmblessed.github.io/post/acsc2024-hardware/</link>
+      <pubDate>Thu, 11 Apr 2024 00:00:00 +0000</pubDate>
+      <guid>https://kaligulaarmblessed.github.io/post/acsc2024-hardware/</guid>
+      <description>TLDR I&amp;rsquo;ve wanted to learn hardware for a while, so I tried out some hardware challenges at ACSC 2024. Here are the writeups for the 4 hardware challenges I&amp;rsquo;ve managed to solve during the CTF (as well as 1 stray web challenge that I solved because I couldn&amp;rsquo;t get the last hardware chall :&amp;quot;&amp;lt;)!&#xA;Table of Contents An4lyz3_1t Vault picopico PWR_Tr4ce Login! An4lyz3_1t Our surveillance team has managed to tap into a secret serial communication and capture a digital signal using a Saleae logic analyzer.</description>
+    </item>
     <item>
       <title>M53 Sharing Session: Introduction to Kernel Exploitation</title>
       <link>https://kaligulaarmblessed.github.io/challenges/m53-introduction-to-kernel-pwn/</link>
-      <pubDate>Sun, 07 Apr 2024 00:00:00 +0000</pubDate>
+      <pubDate>Sat, 06 Apr 2024 00:00:00 +0000</pubDate>
       <guid>https://kaligulaarmblessed.github.io/challenges/m53-introduction-to-kernel-pwn/</guid>
       <description>Here are the slides from the Introduction to Kernel Exploitation session hosted by M53 and RE:HACK, hope you&amp;rsquo;ve enjoyed it!</description>
     </item>
@@ -139,7 +146,7 @@
       <link>https://kaligulaarmblessed.github.io/random-facts/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://kaligulaarmblessed.github.io/random-facts/</guid>
-      <description>Just a collection of random fun facts :D&#xA;Gloopy Ethanol Pericyclic Boc Deprotection Ethanol becomes gloopy at low temperatures Did you know that ethanol has a freezing point of -114.1°C :O&#xA;If you cool ethanol down to a decently low temperature (say -50°C and lower), its viscosity will increase quite noticably, and it will turn from a nice flowy liquid to this strange thick gloopy substance. It does definitely make sense for the viscosity of a liquid to increase with decreasing temperature, but I guess we just don&amp;rsquo;t notice it that much with water as the freezing point of water is not very low.</description>
+      <description>Just a collection of random fun facts :D&#xA;Gloopy Ethanol I tried explaining ROP chains to an AI Pericyclic Boc Deprotection Ethanol becomes gloopy at low temperatures Did you know that ethanol has a freezing point of -114.1°C :O&#xA;If you cool ethanol down to a decently low temperature (say -50°C and lower), its viscosity will increase quite noticably, and it will turn from a nice flowy liquid to this strange thick gloopy substance.</description>
     </item>
   </channel>
 </rss>

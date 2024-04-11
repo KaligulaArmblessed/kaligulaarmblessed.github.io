@@ -2,25 +2,28 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
   xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
-    <loc>https://kaligulaarmblessed.github.io/challenges/</loc>
-    <lastmod>2024-04-07T00:00:00+00:00</lastmod>
-  </url><url>
-    <loc>https://kaligulaarmblessed.github.io/</loc>
-    <lastmod>2024-04-07T00:00:00+00:00</lastmod>
-  </url><url>
-    <loc>https://kaligulaarmblessed.github.io/challenges/m53-introduction-to-kernel-pwn/</loc>
-    <lastmod>2024-04-07T00:00:00+00:00</lastmod>
-  </url><url>
     <loc>https://kaligulaarmblessed.github.io/categories/</loc>
-    <lastmod>2024-03-17T00:00:00+00:00</lastmod>
-  </url><url>
-    <loc>https://kaligulaarmblessed.github.io/post/cheminventory/</loc>
-    <lastmod>2024-03-17T00:00:00+00:00</lastmod>
+    <lastmod>2024-04-11T00:00:00+00:00</lastmod>
   </url><url>
     <loc>https://kaligulaarmblessed.github.io/categories/ctf/</loc>
-    <lastmod>2024-03-17T00:00:00+00:00</lastmod>
+    <lastmod>2024-04-11T00:00:00+00:00</lastmod>
+  </url><url>
+    <loc>https://kaligulaarmblessed.github.io/post/acsc2024-hardware/</loc>
+    <lastmod>2024-04-11T00:00:00+00:00</lastmod>
+  </url><url>
+    <loc>https://kaligulaarmblessed.github.io/</loc>
+    <lastmod>2024-04-11T00:00:00+00:00</lastmod>
   </url><url>
     <loc>https://kaligulaarmblessed.github.io/post/</loc>
+    <lastmod>2024-04-11T00:00:00+00:00</lastmod>
+  </url><url>
+    <loc>https://kaligulaarmblessed.github.io/challenges/</loc>
+    <lastmod>2024-04-06T00:00:00+00:00</lastmod>
+  </url><url>
+    <loc>https://kaligulaarmblessed.github.io/challenges/m53-introduction-to-kernel-pwn/</loc>
+    <lastmod>2024-04-06T00:00:00+00:00</lastmod>
+  </url><url>
+    <loc>https://kaligulaarmblessed.github.io/post/cheminventory/</loc>
     <lastmod>2024-03-17T00:00:00+00:00</lastmod>
   </url><url>
     <loc>https://kaligulaarmblessed.github.io/post/cross-cache-for-lazy-people/</loc>
