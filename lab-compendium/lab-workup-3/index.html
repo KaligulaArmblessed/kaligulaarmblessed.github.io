@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+    <title>Kernels and Cats</title>
+    <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+    <meta content="utf-8" http-equiv="encoding">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="theme-color" content="#000084" />
+    <meta name="google-site-verification" content="733C7I2uDZnatcput9zZupeQ_PX5Z0BJ1HmTnGi0SJI" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+	<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+	<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+	<link rel="manifest" href="/site.webmanifest">
+	<link rel="icon" href="https://kaligulaarmblessed.github.io//favicon.ico">
+    <link rel="canonical" href="https://kaligulaarmblessed.github.io/">
+    
+    
+</head>
+<body>
+<nav class="navbar navbar-inverse navbar-fixed-top">
+    <div class="navbar-inner">
+        <div class="container">
+            <button type="button" class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse"></button>
+            <a class="brand" href="https://kaligulaarmblessed.github.io/">Kernels and Cats</a>
+            <div class="nav-collapse collapse">
+                <ul class="nav">
+                    
+                    
+                        
+                            <li>
+                                <a href="/about/">
+                                    
+                                    <span>About</span>
+                                </a>
+                            </li>
+                        
+                    
+                        
+                            <li>
+                                <a href="/post/">
+                                    
+                                    <span>All posts</span>
+                                </a>
+                            </li>
+                        
+                    
+                        
+                            <li>
+                                <a href="/challenges/">
+                                    
+                                    <span>CTF Challenges</span>
+                                </a>
+                            </li>
+                        
+                    
+                        
+                            <li>
+                                <a href="/lab-compendium/">
+                                    
+                                    <span>Lab Compendium</span>
+                                </a>
+                            </li>
+                        
+                    
+                        
+                            <li>
+                                <a href="/random-facts/">
+                                    
+                                    <span>Random Fun Facts</span>
+                                </a>
+                            </li>
+                        
+                    
+                </ul>
+            </div>
+        </div>
+    </div>
+</nav><div id="content" class="container">
+
+<div class="row-fluid navmargin">
+    <div class="page-header">
+        <h1>Part 3: Workup and Purification - Mon, Jun 10, 2024</h1>
+    </div>
+    <p class="lead"></p>
+    <p>Once an experiment has finished running, a workup is performed to isolate the product from starting materials, catalysts, and potential side products. If the purity of the isolated material is still not ideal, further purification is then performed.</p>
+<h4 id="table-of-contents">Table of Contents</h4>
+<ol>
+<li><a href="#washing-and-extractions">Washing and Extractions</a>
+<ul>
+<li><a href="#transferring-into-separating-funnel">Transferring into separating funnel</a></li>
+<li><a href="#washing">Washing</a></li>
+<li><a href="#extraction">Extraction</a></li>
+<li><a href="#troubleshooting-dealing-with-emulsions">Troubleshooting: Dealing with emulsions</a></li>
+<li><a href="#troubleshooting-dealing-with-solids">Troubleshooting: Dealing with solids</a></li>
+</ul>
+</li>
+<li><a href="#drying-over-sodiummagnesium-sulfate">Drying over sodium/magnesium sulfate</a></li>
+<li><a href="#column-chromatography">Column Chromatography</a>
+<ul>
+<li><a href="#choosing-the-right-column-size-and-length">Choosing the right column size and length</a></li>
+<li><a href="#preparing-and-packing-column-dry-packing-method">Preparing and packing column (dry packing method)</a></li>
+<li><a href="#preparing-the-sample-wet-loading-method">Preparing the sample (wet loading method)</a></li>
+<li><a href="#loading-the-sample-wet-loading-method">Loading the sample (wet loading method)</a></li>
+<li><a href="#preparing-the-sample-dry-loading-method">Preparing the sample (dry loading method)</a></li>
+<li><a href="#loading-the-sample-dry-loading-method">Loading the sample (dry loading method)</a></li>
+<li><a href="#preparing-and-adding-the-eluent">Preparing and adding the eluent</a></li>
+<li><a href="#running-the-column">Running the column</a></li>
+<li><a href="#collecting-and-combining-fractions">Collecting and combining fractions</a></li>
+</ul>
+</li>
+<li><a href="#filtering">Filtering</a>
+<ul>
+<li><a href="#general-filtering-setup-and-notes">General filtering setup and notes</a></li>
+<li><a href="#filtering-through-cotton-wool-using-filter-funnel">Filtering through cotton wool using filter funnel</a></li>
+<li><a href="#filtering-through-filter-paper-using-filter-funnel">Filtering through filter paper using filter funnel</a></li>
+<li><a href="#filtering-through-celite-using-fritted-glass-funnel">Filtering through Celite using fritted glass funnel</a></li>
+<li><a href="#filtering-through-silica-gel-pad-using-fritted-glass-funnel-silica-plug">Filtering through silica gel pad using fritted glass funnel (Silica Plug)</a></li>
+</ul>
+</li>
+<li><a href="#transferring">Transferring</a></li>
+<li><a href="#drying">Drying</a>
+<ul>
+<li><a href="#normal-drying-of-product-rotavap--high-vacuum-pump">Normal drying of product (Rotavap + High Vacuum Pump)</a></li>
+<li><a href="#removal-of-solvent-using-liquid-nitrogen-and-solvent-trap">Removal of solvent using liquid nitrogen and solvent trap</a></li>
+</ul>
+</li>
+</ol>
+<h4 id="washing-and-extractions">Washing and Extractions</h4>
+<h6 id="transferring-into-separating-funnel">Transferring into separating funnel</h6>
+<ol>
+<li>Make sure that tap of the separating funnel is closed, and place a flask under the separating funnel to catch any liquid that falls out.</li>
+<li>If pouring from reaction/Schlenk tube: Add more of the solvent used to dilute the reaction mixture</li>
+<li>Hold a magnet outside the tube to make sure the stirbar does not fall out of the tube, or alternatively remove the stirbar from the reaction mixture using a magnetic stick. Hold the mouth of the tube to the mouth of the separating funnel and slowly pour. Make sure that the stream of liquid is constant and strong enough to go into the middle of the separating funnel hole (not too slow &ndash; this will cause leakage down the sides of the funnel; not too fast &ndash; the liquid will spill out).</li>
+<li>Without removing the tube from the mouth of the separating funnel, use a solvent spray bottle to wash the remaining liquid from the tube into the funnel. Then, wash the mouth of the tube, before carefully tipping the tube backwards.</li>
+<li>Wash the tube a few times with solvent/water as necessary:
+<ul>
+<li>Solvent: Usually about 3 times/until the color of the solvent fades</li>
+<li>Water: Usually used if there is a large amount of inorganic salt left inside the tube
+Sonicator: Use as necessary to dissolve as much product in as little solvent as possible.</li>
+</ul>
+</li>
+</ol>
+<h6 id="washing">Washing</h6>
+<p>Washing is usually done to remove a component from the mixture (e.g. washing with water is commonly used to remove inorganic salts, bases, or DMF/DMSO (urgh))</p>
+<ol>
+<li>Stopper the separating funnel. Carefully remove it from the hoop on the retort stand and invert it.</li>
+<li>Vent VERY CAREFULLY, with the tap pointing INTO the fume hood. Close the tap, shake a little, then vent again. Vent until the pressure stabilizes.</li>
+<li>Grab the tap with one hand (between second and third finger of left hand), and push the cap against the funnel with the other hand. Shake vigorously 10-20 times. Vent as required.</li>
+<li>Quickly turn the funnel upright again and remove the stopper. Hold the stopper against the mouth of the separating funnel and wash down any remaining liquid with solvent into the separating funnel.</li>
+<li>Collect the desired fraction (usually organic) and pour the aqueous fraction into another conical flask.</li>
+<li>Repeat as required.</li>
+</ol>
+<p>Note: If the organic solvent is denser than water (e.g. DCM), it has to be collected in a conical flask and then re-poured back into the separating funnel before performing another wash. Do not forget to rinse the conical flask after pouring the organic fraction back into the separating funnel and pour in the rinse solvent as well. Also, before disposing the unwanted fraction, check if there is a dot present on TLC (some product may still be inside the aqueous fraction) &ndash; in that case if the product is present, an extraction may be required.</p>
+<h6 id="extraction">Extraction</h6>
+<p>Extraction is usually done to remove the organic product from an aqueous phase, or to re-extract product inside the aqueous fraction after a wash. The procedure is essentially the same as washing. However, if used to re-extract product from the unwanted aqueous fraction, it is usually only performed once as some salt may end up being pulled back into the organic fraction if extraction is performed multiple times.</p>
+<h6 id="troubleshooting-dealing-with-emulsions">Troubleshooting: Dealing with emulsions</h6>
+<p>Sometimes, you may have a very stubborn mixture that wants to form an emulsion and just won&rsquo;t separate. Perform the following troubleshooting steps in order:</p>
+<ul>
+<li>Shake the separating funnel slightly</li>
+<li>Turn the separating funnel to encourage the 2 layers to separate</li>
+<li>Add a little bit of organic solvent and water to try to get the layers to separate</li>
+<li>Heat the separating funnel very gently with a heat gun (NOT RECOMMENDED; may cause product to decompose if unstable in solvent/heat/air)</li>
+<li>Wait for a while</li>
+</ul>
+<p>If it still does not separate:</p>
+<ul>
+<li>Collect the organic fraction in the organic fraction flask first, collect the emulsion in a separate flask, then collect the aqueous fraction in the aqueous fraction flask.</li>
+<li>Sometimes the emulsion would magically separate once inside the flask, then all is good :D No one knows why it does that, but honestly? I&rsquo;ll take it.</li>
+</ul>
+<p>If it STILL does not separate:</p>
+<ul>
+<li>Pour the emulsion into the separatory funnel once the main wash/extraction procedures are done</li>
+<li>Add more organic solvent/water/brine/sodium hydrogen carbonate as fit, shake, and see whether it separates again</li>
+<li>If it separates, celebrate 🎉</li>
+</ul>
+<p>If it STILL DOES NOT SEPARATE:</p>
+<ul>
+<li>Extract the product from the emulsion using organic solvent.</li>
+<li>If the product is colored: when the organic layer becomes nearly colorless, the remaining emulsion can be discarded</li>
+<li>If the product is not colored: monitor via TLC. When the TLC spot becomes negligible, discard the emulsion.</li>
+</ul>
+<p>IF IT STILL DOES NOT SEPARATE (you should not be at this step):</p>
+<ul>
+<li>Cry.</li>
+</ul>
+<h6 id="troubleshooting-dealing-with-solids">Troubleshooting: Dealing with solids</h6>
+<p>If you are very sure that the solid is unwanted catalyst/inorganic salt:</p>
+<ul>
+<li>Just allow it to go into the waste collection flask with the unwanted (usually aqueous) layer</li>
+</ul>
+<p>If you are unsure whether the solid is product/catalyst OR you are sure that it is product:</p>
+<ul>
+<li>Keep it in the separating funnel; do NOT let it go down. Chances are, that if it is product, the concentration is high enough for it to crash out and losing that solid would mean losing a lot of yield</li>
+<li>Dilute the mixture with more organic solvent and repeat the extraction/wash</li>
+</ul>
+<h4 id="drying-over-sodiummagnesium-sulfate">Drying over sodium/magnesium sulfate</h4>
+<p>Both anhydrous sodium sulfate and magnesium sulfate work the same way: they remove water from the organic phase by forming their respective hydrated salts. Generally, sodium sulfate forms larger clumps and is easier to filter off, but it dries the solution less rapidly compared to magnesium sulfate. Magnesium sulfate forms smaller clumps, but dries the solution way faster. Personally I prefer anhydrous magensium sulfate, but different chemists will swear by different drying agents!</p>
+<ol>
+<li>Before adding the drying agent, make sure that all solids have dissolved. If there is still residual solid:
+<ul>
+<li>If solid is product/looks like product: Add more solvent, then use the sonicator to try to get it to dissolve</li>
+<li>If solid is catalyst: Leave it, it will be filtered off anyways</li>
+<li>If the mixture looks like an emulsion/is cloudy: Add more solvent, then use the sonicator. If there is no visible solid chunks, it is okay</li>
+</ul>
+</li>
+<li>Add drying agent to the flask. Swirl the flask after each addition. Continue adding the drying agent until it stops forming clumps (when you swirl the flask, you should be able to see free grains of drying agent &ndash; this means that drying is complete)</li>
+<li>Filter to remove the drying agent</li>
+</ol>
+<h4 id="column-chromatography">Column Chromatography</h4>
+<p>Columns are an extremely powerful purification technique, however they are also extremely annoying (no chemist would wake up and be like &ldquo;oh! Today I want to run 10 columns!&rdquo;). This section describes performing manual column chromatography, though there are now machines that make this process significantly less painful.</p>
+<p>For a detailed description of how to do a column with nice pictures, check out <a href="https://chem.libretexts.org/Bookshelves/Organic_Chemistry/Organic_Chemistry_Lab_Techniques_(Nichols)/02%3A_Chromatography/2.04%3A_Column_Chromatography/2.4A%3A_Macroscale_Columns">this article on Chemistry Libretexts</a></p>
+<h6 id="choosing-the-right-column-size-and-length">Choosing the right column size and length</h6>
+<ul>
+<li>Amount of product: Approximate from the amount of liquid you have after dissolving most of the product in a very small amount of solvent.</li>
+<li>Length: Depends on polarity and amount of product, amount of impurities and ease of separation
+<ul>
+<li>Generally, products with high polarity and small amount of impurities can be purified with a short column</li>
+</ul>
+</li>
+</ul>
+<h6 id="preparing-and-packing-column-dry-packing-method">Preparing and packing column (dry packing method)</h6>
+<ul>
+<li>Cotton wool: Stuff the bottom of the column (near the tap) with a piece of cotton wool &ndash; tight enough to prevent the silica from going through, but not so tight that it is hard for the liquid (eluent) to pass through
+<ul>
+<li>You can use a long glass pipette to help pack the cotton wool</li>
+</ul>
+</li>
+<li>Silica gel: Pack silica gel to slightly higher than the desired height (dry packing method)
+<ul>
+<li>IMPORTANT: ALWAYS HANDLE SILICA GEL INSIDE A FUME HOOD!!! Silica gel is extremely harmful to your lungs and can cause silicosis (irreversible scarring). You can also wear a mask while handling silica gel for extra protection.</li>
+</ul>
+</li>
+<li>Clamping: Clamp the column with 2 parallel clamps and make sure that the column is straight when viewed from 2 different angles</li>
+<li>Packing eluent:
+<ul>
+<li>Large-scale/purity not very important: Technical grade hexane</li>
+<li>Small-scale/high purity: Distilled/Analytical hexane</li>
+</ul>
+</li>
+<li>Packing process:
+<ol>
+<li>Pour eluent into column (make sure tap is open)</li>
+<li>Connect column to nitrogen gas flow using adapter (or you could use the rubber squeezy thing that pushes air through the column if you like)</li>
+<li>Open and close the nitrogen tap quickly to allow some gas to enter the system to push the solvent down</li>
+<li>Ensure that all the silica gel has been packed, and that there is no air remaining in the column (you can use your phone flashlight to help confirm this)</li>
+</ol>
+</li>
+</ul>
+<p>Note: A quick way of packing the column is to use a relatively high gas pressure, followed by closing the column tap slightly to forcefully pack the silica gel</p>
+<p>Another note: There is also another method of packing a column by making a silica gel slurry in hexane, and then pouring the slurry down the column. This is known as the &ldquo;slurry method&rdquo;. Some chemists say that the slurry method is better than the dry packing method as the association of silica gel with solvent is exothermic and could cause the column to crack in some cases, but so far this has not happened to me.</p>
+<h6 id="preparing-the-sample-wet-loading-method">Preparing the sample (wet loading method)</h6>
+<ol>
+<li>Make sure that the sample is almost fully solid (no other solvents like toluene, DMSO etc.), and that the sample is in a small flask (25ml or 50ml)
+<ul>
+<li>If sample is in a very big flask, a lot of solvent will be needed to fully transfer the sample from the flask to the column</li>
+</ul>
+</li>
+<li>Add a very small amount of DCM/eluent, then use the sonicator to fully dissolve the sample. Use as little solvent as possible. At this point, the sample should be fully liquid, but very concentrated</li>
+</ol>
+<h6 id="loading-the-sample-wet-loading-method">Loading the sample (wet loading method)</h6>
+<ol>
+<li>Push the hexane out of the column until the top of the silica gel is almost exposed.</li>
+<li>Transfer the sample onto the silica gel with a pipette:
+<ul>
+<li>Use a thicker glass pipette (the thin long ones will break)</li>
+<li>Suck the sample into the pipette once, then expel (to saturate pipette with solvent vapors) &ndash; if you do not do this, the solvent may vaporize inside the pipette, pushing the liquid out of the pipette and causing you to lose your precious product</li>
+<li>Suck the sample into the pipette, then hold the pipette vertical to see if any liquid will drip out. If liquid drips out, expel the sample and suck it up again until the liquid level is stable.</li>
+<li>Bring the flask near to the mouth of the column, and carefully transfer the pipette from the flask into the column</li>
+<li>Lower the pipette into the column, and slowly add the sample onto the silica gel dropwise OR onto the glass walls directly above the silica gel level</li>
+<li>Bring the flask near to the mouth of the column, and bring the pipette back into the sample flask once sample is completely expelled from pipette</li>
+</ul>
+</li>
+<li>Transfer the remaining sample stuck in the flask into the column
+<ul>
+<li>Initial rinses: Use DCM or a organic solvent that the product is highly soluble in. Swirl solvent around flask. Pipette up and down in the flask to rinse any sample stuck on pipette into the liquid, then transfer the liquid into column. Do NOT use a lot of solvent.</li>
+<li>Final rinses: When almost all the sample is transferred, the column eluent can be used as the solvent for transferring the last bit of sample.</li>
+<li>Push the sample down in the column until the top of the silica gel is almost exposed. MAKE SURE THAT THE COLUMN TAP IS OPEN whenever gas pressure is used, or the column would overpressurize and EXPLODE 💥</li>
+</ul>
+</li>
+<li>With the help of a funnel, add some sand into the column to prevent the sample level from being affected when the eluent is poured into the column.</li>
+</ol>
+<h6 id="preparing-the-sample-dry-loading-method">Preparing the sample (dry loading method)</h6>
+<ol>
+<li>Dissolve the solid sample in an organic solvent that it is soluble in.</li>
+<li>Once the solid sample has been fully dissolved, measure out the required amount of silica and add the silica to the flask. Give the flask a good swirl.</li>
+<li>Use the rotary evaporator to remove the solvent from the flask.
+<ul>
+<li>Add a piece of cotton wool to the solvent trap to prevent silica powder from flying into the rotavap</li>
+<li>Keep an eye on the rotavap, and do not drop the pressure too quickly. Dry loads have a tendency to go from silica powder in liquid -&gt; clumpy silica -&gt; free flowing nice silica. The period between clumpy and free flowing is particularly capricious &ndash; if you drop the pressure too quickly, silica can fly and shoot into the rotavap if you are not careful.</li>
+<li>If the silica is not nice and free flowing after the solvent has been removed, you have added too little silica. Redissolve the sample, add more silica, and repeat.</li>
+</ul>
+</li>
+</ol>
+<h6 id="loading-the-sample-dry-loading-method">Loading the sample (dry loading method)</h6>
+<p>This is pretty simple. Simply scrape all the dry load powder into the packed column with a bent spatula. The sound of your spatula scraping against the glass may sound pretty horrible, but ah well. Once that is done, add sand, and you can start columning!</p>
+<h6 id="preparing-and-adding-the-eluent">Preparing and adding the eluent</h6>
+<ul>
+<li>Preparing the eluent:
+<ul>
+<li>Main eluent used should give the product spot a Rf of 0.3 on TLC, however, you can start off with a slightly less polar eluent</li>
+<li>Eluent polarity should be altered according to which fraction is coming out of the column, which can be determined by TLC (and sometimes visually if the products are colored)</li>
+<li>Mix the solvents together in a conical flask and swirl thoroughly before pouring the eluent into the column</li>
+</ul>
+</li>
+<li>Common eluents:
+<ul>
+<li>Hexane/EA or Hex/EA/DCM</li>
+<li>DCM/MeOH</li>
+<li>Water/MeCN (for reverse phase columns, though usually you would use a column machine to do this or not it would be exceptionally painful and sad)</li>
+</ul>
+</li>
+<li>Adding DCM to help with solubility:
+<ul>
+<li>DCM is added to increase the solubility of the products in the solvent</li>
+<li>Generally, for things that do not dissolve well in Hex/EA, you can add 5-10 cm3 DCM for every 100 cm3 of hexane</li>
+<li>For things that are very insoluble in Hex/EA, DCM can be added as part of the Hex/EA/DCM ratio</li>
+</ul>
+</li>
+</ul>
+<h6 id="running-the-column">Running the column</h6>
+<ol>
+<li>Run the column by connecting the column to the nitrogen gas source via the adapter. Open and close the tap very quickly to allow a bit of nitrogen gas into the system (nitrogen gas pressure is very high).</li>
+<li>Order of collection: Decide on a collection/numbering system for the column tubes, but be consistent. Some people number in a Z pattern (I do this), others prefer a &ldquo;snake&rdquo; pattern.</li>
+<li>The first few tubes are usually pure eluent. If there is no spot on TLC, you can pour the eluent away and wash the tube with a little bit of acetone before reusing it.</li>
+<li>Use a gas pressure that is not too high but not too low (ideally, there should be a thin, consistent stream of liquid or a fast drip)</li>
+<li>Increase the polarity of the eluent as necessary.</li>
+</ol>
+<p>A note about changing tubes:
+Normally, you would bring tube near to the column tap, and quickly switch the tubes over to prevent any loss or spillage of the product. However, if product is coming out of the column at very high concentrations: Release the gas pressure, change the tube, reconnect the adapter then apply the gas pressure again.</p>
+<h6 id="collecting-and-combining-fractions">Collecting and combining fractions</h6>
+<ol>
+<li>Test the tubes by TLC as necessary to determine which parts contain the pure product, and which parts contain the product and some other impurities (cross fractions)</li>
+<li>Use a large, clean flask and a funnel</li>
+<li>Pour the liquid in the tubes into the funnel at a moderately fast pace</li>
+<li>Hold the tubes in the pouring position, rinse all the contents of the tube into the funnel, then rinse the outside of the tubes with solvent</li>
+<li>Repeat the rinsing procedure 3 times</li>
+<li>After collecting all the desired tubes, rinse the filter funnel with solvent</li>
+<li>Use the rotavap to remove solvent, then transfer the product to a smaller flask as necessary</li>
+</ol>
+<p>Note: If you are lucky and the Chemistry gods have blessed you on a particularly wonderful day, sometimes you may have a tube containing a very high concentration of ultra pure product. In that case, you may see some solid product crystallize in that tube &ndash; this is very beautiful! 🤩 (And you should celebrate, and collect that tube on its own, and take a beautiful pure NMR)</p>
+<h4 id="filtering">Filtering</h4>
+<h6 id="general-filtering-setup-and-notes">General filtering setup and notes</h6>
+<ul>
+<li>Flask should be clamped to retort stand</li>
+<li>Filter funnel should be put into a ring on the retort stand</li>
+<li>Pouring should be done at a moderate rate: not so fast that the liquid spills out of the funnel, but not so slow that the liquid drips down the sides of the conical flask</li>
+<li>After pouring out most of the liquid, the remaining liquid inside the flask should be washed out with solvent, then the mouth of the flask should be washed before the flask is set back upright</li>
+<li>Flask should be washed 2-3 times/as appropriate</li>
+</ul>
+<h6 id="filtering-through-cotton-wool-using-filter-funnel">Filtering through cotton wool using filter funnel</h6>
+<ul>
+<li>This is my go to to get rid of solid drying agent quickly</li>
+<li>Cotton wool needs to be stuffed tight. Use a thick pipette to do this.</li>
+<li>Filter the liquid first. Once all the liquid has passed through the cotton wool, slowly tap on the conical flask to allow the drying agent to fall into the filter funnel.</li>
+<li>After every round of rinsing, tap the filter funnel against the ring to push most of the solvent out of the cotton wool filter/drying agent before adding more solvent</li>
+<li>To determine if most of the product is out of the filter:
+<ul>
+<li>Colored products: Check the color of the drying agent (should be almost colorless) or the liquid coming out of the filter funnel (should be colorless)</li>
+<li>Colorless products: Do TLC</li>
+</ul>
+</li>
+<li>Rinse the stem of the funnel</li>
+</ul>
+<p>Note: Do not use this method if a metallic catalyst is used. Use a Celite filter instead.</p>
+<h6 id="filtering-through-filter-paper-using-filter-funnel">Filtering through filter paper using filter funnel</h6>
+<ul>
+<li>Always use a fluted filter paper &ndash; the more folds, the faster the filtration</li>
+<li>Procedure is the same as filtering with cotton wool</li>
+<li>When pouring in the drying agent, put the entire mouth of the conical flask into the filter paper before tapping the flask to let the drying agent fall into the funnel (this is to prevent the drying agent from falling outside the filter paper and potentially ending up into the flask with your product)</li>
+</ul>
+<p>Note: When using DCM as solvent, filtering via filter paper must be done very quickly, because water tends to freeze around the paper and onto the solid drying agent when the DCM evaporates, which may result in water in your product (and an ugly water peak in your NMR!)</p>
+<h6 id="filtering-through-celite-using-fritted-glass-funnel">Filtering through Celite using fritted glass funnel</h6>
+<ol>
+<li>Clean the fritted glass funnel
+<ul>
+<li>This step is necessary for anything involving fritted glass funnels because they tend to be very dirty</li>
+<li>Use the vacuum to pull acetone, then technical DCM through the frit a few times. The filter is clean when the solvent pulled through is colorless and does not give a spot on TLC.</li>
+</ul>
+</li>
+<li>Preparing and packing the Celite filter
+<ul>
+<li>Cut two pieces of filter paper and put them inside the funnel</li>
+<li>Put some Celite into the funnel
+<ul>
+<li>Note: Scoop more Celite than the desired level. Celite tends to “shrink” a lot once packed</li>
+</ul>
+</li>
+<li>Clamp the flask onto the retort stand, then attach the funnel. Switch on the vacuum and ensure that the vacuum flow is very gentle.</li>
+<li>Add hexane to the Celite pad using a spray bottle until the level is above the Celite level. Use a spatula to flatten the Celite/remove air bubbles and knock the funnel gently to make it level.</li>
+<li>Connect the vacuum line and pull the hexane through. Repeat the packing process if there are any cracks in the Celite filter.</li>
+</ul>
+</li>
+<li>Filtering
+<ul>
+<li>Pour in product at a moderate rate into Celite filter with the vacuum line attached to pull the liquid down into the collecting flask</li>
+<li>Rinse flask and pour in rinses as usual</li>
+</ul>
+</li>
+</ol>
+<h6 id="filtering-through-silica-gel-pad-using-fritted-glass-funnel-silica-plug">Filtering through silica gel pad using fritted glass funnel (Silica Plug)</h6>
+<ol>
+<li>Clean the fritted glass funnel</li>
+<li>Cut two pieces of filter paper and put them inside the funnel, then scoop some silica gel into the funnel</li>
+<li>Pack the silica gel funnel using hexane
+<ul>
+<li>Procedure is similar to packing Celite</li>
+<li>At last, gently tap the funnel to make sure that the silica gel level is flat</li>
+</ul>
+</li>
+<li>Load sample onto silica plug
+<ul>
+<li>Using a pipette or with controlled pouring, add the sample onto the silica gel pad. Try not to disrupt the even surface of the silica gel pad</li>
+</ul>
+</li>
+<li>Use the vacuum to pull the liquid through</li>
+<li>Use a pipette/controlled pouring to add the prepared eluent of a certain polarity onto the silica gel pad, then use the vacuum to pull the liquid through.</li>
+<li>Repeat until the product has been successfully pulled from the silica gel pad into the flask</li>
+</ol>
+<h4 id="transferring">Transferring</h4>
+<ul>
+<li>The two flasks should be held very close to each other, ideally with the mouth of both flasks touching when transferring (so that even if the liquid does drip out, it drips into the recipient flask)</li>
+<li>Use a pipette to transfer the liquid from one flask to the other
+<ul>
+<li>The glass stem of the pipette should be held between 3rd and 4th fingers, with the first and second finger controlling the bulb</li>
+</ul>
+</li>
+<li>When rinsing a flask with solvent to transfer any remaining product stuck to the walls, swirl the flask vigorously before transferring
+<ul>
+<li>The sonicator can also be used</li>
+</ul>
+</li>
+</ul>
+<h4 id="drying">Drying</h4>
+<h6 id="normal-drying-of-product-rotavap--high-vacuum-pump">Normal drying of product (Rotavap + High Vacuum Pump)</h6>
+<ol>
+<li>Dry with rotavap (refer to Part 4 for details on using a rotavap)
+<ul>
+<li>Dry until most of the solvent is removed</li>
+<li>Empty the solvent trap, then dry again at a low pressure (50 mPa) until product is almost completely dry (about 10 minutes)</li>
+</ul>
+</li>
+<li>Dry under high vacuum (ideally overnight)
+<ul>
+<li>The knob on the vacuum adapter should be turned very slowly to allow the pressure to decrease slowly (if pressure decreases too quickly, the product may fly into the adapter or the connecting tube)</li>
+<li>Cotton wool may be placed in the vacuum adapter to catch any solid product that flies into the tube</li>
+</ul>
+</li>
+<li>Drying vials
+<ul>
+<li>A rubber stopper with an inserted needle should be used to cap the vial. The stopper can then be connected to the vacuum adapter, which can then be connected to the rotavap/vacuum line.</li>
+</ul>
+</li>
+<li>After drying, the flask/vial should be refilled with nitrogen/argon for protection.</li>
+</ol>
+<h6 id="removal-of-solvent-using-liquid-nitrogen-and-solvent-trap">Removal of solvent using liquid nitrogen and solvent trap</h6>
+<ol>
+<li>Preparation of liquid nitrogen solvent trap
+<ul>
+<li>Filling dewar with liquid nitrogen:
+<ul>
+<li>Hold the dewar flask close to the liquid nitrogen storage dewar tap</li>
+<li>Open the tap slowly to let the nitrogen gas come out of the storage dewar and cool down the dewar flask, then open the tap slightly more to allow the liquid nitrogen to come out</li>
+<li>ALWAYS WEAR CRYOGENIC GLOVES WHEN HANDLING LIQUID NITROGEN</li>
+<li>DO NOT touch the metal tap thing on the liquid nitrogen storage dewar. You will get frostbite because it is very very cold.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Solvent trap set-up:
+<ul>
+<li>Prepare a clamp and retort stand/clamp rack of the fume hood</li>
+<li>Slowly lower the solvent trap flask into the liquid nitrogen to slowly cool it down, before lowering it all the way down</li>
+<li>After the solvent trap is lowered all the way down, clamp it to the stand and cover the opening of the dewar to prevent the liquid nitrogen from evaporating off too quickly</li>
+</ul>
+</li>
+<li>Preparation of flask to be evaporated:
+<ul>
+<li>Add a stirbar. This is VERY VERY IMPORTANT.</li>
+<li>Clamp the flask onto a stir plate and use moderate stirring.</li>
+<li>Make sure that the adapter tap is CLOSED. Attach the adapter to the flask.</li>
+</ul>
+</li>
+<li>Evaporation:
+<ul>
+<li>Turn on the vacuum (again, make sure that the adapter tap is CLOSED). Check that the stirring is on again.</li>
+<li>Flask: Open the tap of the adapter to connect the vacuum to the flask VERY VERY SLOWLY.</li>
+<li>At this point, if you do not immediately see bubbling, it is okay. It takes some time for the bubbling to begin.</li>
+<li>As long as there is some sort of bubbling, STOP OPENING THE TAP. This is an acceptable amount of vacuum. (If you open any more, the entire mixture will shoot up into the adapter and into the tube, making everyone sad)</li>
+<li>Schlenk tube: Open the cap of the Schlenk tube to the first stop. Then, very very slowly, turn the cap of the Schlenk tube to start opening the tube.</li>
+<li>Heating: The flask will start to get cold while the solvent is evaporating; if it gets very very cold it is acceptable to use a heat gun to gently heat up the mixture. When heating, place your hand next to the flask to feel the temperature and make sure that it is not too high. Remember to wipe away any condensation that forms outside the flask.</li>
+<li>Slowly wait for the solvent inside the flask to evaporate &ndash; this method is significantly slower than rotary evaporator; be patient.</li>
+<li>Check the solvent trap at regular intervals to make sure that it is not full and that solvent does not get sucked into the vacuum. If the solvent trap has to be emptied, make sure that it is warmed back to room temperature slowly; warming it back too quickly can cause the glass to crack.</li>
+</ul>
+</li>
+</ol>
+
+    <h4><a href="https://kaligulaarmblessed.github.io/">Back to Home</a></h4>
+</div>
+
+
+        </div><footer class="container">
+    <hr class="soften">
+    <p>
+&copy; 
+
+    Kaligula Armblessed
+
+<span id="thisyear">2024</span>
+
+
+        | Built on <a href="//gohugo.io" target="_blank">Hugo</a>
+
+</p>
+    <p class="text-center">
+        
+        <a href="https://twitter.com/KaligulaSec">Twitter</a> 
+        
+        <a href="https://github.com/KaligulaArmblessed">GitHub</a> 
+        
+    </p>
+</footer>
+
+</body><link rel="stylesheet" href="/css/bootstrap.css">
+<link rel="stylesheet" href="/css/bootstrap-responsive.css">
+<link rel="stylesheet" href="/css/style.css">
+
+<script src="/js/jquery.js"></script>
+<script src="/js/bootstrap-386.js"></script>
+<script src="/js/bootstrap-transition.js"></script>
+<script src="/js/bootstrap-alert.js"></script>
+<script src="/js/bootstrap-modal.js"></script>
+<script src="/js/bootstrap-dropdown.js"></script>
+<script src="/js/bootstrap-scrollspy.js"></script>
+<script src="/js/bootstrap-tab.js"></script>
+<script src="/js/bootstrap-tooltip.js"></script>
+<script src="/js/bootstrap-popover.js"></script>
+<script src="/js/bootstrap-button.js"></script>
+<script src="/js/bootstrap-collapse.js"></script>
+<script src="/js/bootstrap-carousel.js"></script>
+<script src="/js/bootstrap-typeahead.js"></script>
+<script src="/js/bootstrap-affix.js"></script>
+<script>
+    _386 = { 
+        fastLoad: false ,
+        onePass: true , 
+        speedFactor: 1 
+    };
+
+    
+    function ThisYear() {
+        document.getElementById('thisyear').innerHTML = new Date().getFullYear();
+    };
+</script></html>

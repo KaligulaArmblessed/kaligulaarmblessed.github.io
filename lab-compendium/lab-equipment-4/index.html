@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+    <title>Kernels and Cats</title>
+    <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+    <meta content="utf-8" http-equiv="encoding">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="theme-color" content="#000084" />
+    <meta name="google-site-verification" content="733C7I2uDZnatcput9zZupeQ_PX5Z0BJ1HmTnGi0SJI" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+	<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+	<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+	<link rel="manifest" href="/site.webmanifest">
+	<link rel="icon" href="https://kaligulaarmblessed.github.io//favicon.ico">
+    <link rel="canonical" href="https://kaligulaarmblessed.github.io/">
+    
+    
+</head>
+<body>
+<nav class="navbar navbar-inverse navbar-fixed-top">
+    <div class="navbar-inner">
+        <div class="container">
+            <button type="button" class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse"></button>
+            <a class="brand" href="https://kaligulaarmblessed.github.io/">Kernels and Cats</a>
+            <div class="nav-collapse collapse">
+                <ul class="nav">
+                    
+                    
+                        
+                            <li>
+                                <a href="/about/">
+                                    
+                                    <span>About</span>
+                                </a>
+                            </li>
+                        
+                    
+                        
+                            <li>
+                                <a href="/post/">
+                                    
+                                    <span>All posts</span>
+                                </a>
+                            </li>
+                        
+                    
+                        
+                            <li>
+                                <a href="/challenges/">
+                                    
+                                    <span>CTF Challenges</span>
+                                </a>
+                            </li>
+                        
+                    
+                        
+                            <li>
+                                <a href="/lab-compendium/">
+                                    
+                                    <span>Lab Compendium</span>
+                                </a>
+                            </li>
+                        
+                    
+                        
+                            <li>
+                                <a href="/random-facts/">
+                                    
+                                    <span>Random Fun Facts</span>
+                                </a>
+                            </li>
+                        
+                    
+                </ul>
+            </div>
+        </div>
+    </div>
+</nav><div id="content" class="container">
+
+<div class="row-fluid navmargin">
+    <div class="page-header">
+        <h1>Part 4: Analysis and Instrument Operation - Mon, Jun 10, 2024</h1>
+    </div>
+    <p class="lead"></p>
+    <p>This is a compilation of various analysis techniques, as well as some miscellaneous notes on various equipment.</p>
+<h4 id="table-of-contents">Table of Contents</h4>
+<ol>
+<li><a href="#thin-layer-chromatography-tlc">Thin Layer Chromatography (TLC)</a>
+<ul>
+<li><a href="#performing-tlc">Performing TLC</a></li>
+<li><a href="#analyzing-a-tlc-plate">Analyzing a TLC plate</a></li>
+<li><a href="#troubleshooting-a-tlc">Troubleshooting a TLC</a></li>
+</ul>
+</li>
+<li><a href="#nuclear-magnetic-resonance-nmr">Nuclear Magnetic Resonance (NMR)</a>
+<ul>
+<li><a href="#preparation-of-sample-from-solid-lazy-method">Preparation of sample from solid (lazy method)</a></li>
+<li><a href="#preparation-of-sample-from-solid-proper-method">Preparation of sample from solid (proper method)</a></li>
+<li><a href="#preparation-of-crude-nmr-sample">Preparation of crude NMR sample</a></li>
+</ul>
+</li>
+<li><a href="#matrix-assisted-laser-desorptionionization-maldi">Matrix-assisted laser desorption/ionization (MALDI)</a></li>
+<li><a href="#rotary-evaporator-rotavap">Rotary Evaporator (Rotavap)</a></li>
+</ol>
+<h4 id="thin-layer-chromatography-tlc">Thin Layer Chromatography (TLC)</h4>
+<h6 id="performing-tlc">Performing TLC</h6>
+<ol>
+<li>Preparing the TLC chamber:
+<ul>
+<li>Measure out the required solvents in a measuring cylinder and mix them inside the TLC glass chamber</li>
+<li>Add a piece of filter paper into the TLC chamber to help the solvent vapor saturate the chamber</li>
+<li>Close the cap of the TLC chamber (to allow the solvent vapor to saturate the chamber)</li>
+</ul>
+</li>
+<li>Preparing the TLC plate:
+<ul>
+<li>Choose a TLC plate that is relatively rectangular in shape and free of scratches/marks/etc</li>
+<li>Draw a pencil line at the bottom and mark a few spots for the sample dots to be placed</li>
+</ul>
+</li>
+<li>Dotting the sample onto the TLC plate:
+<ul>
+<li>Simple sample retrieval:
+<ul>
+<li>Quickly dip capillary tube in and out of liquid sample</li>
+<li>Dot sample onto TLC plate. Blow away excess solvent before dotting again.</li>
+<li>Check dot with UV light to make sure enough sample is added.</li>
+</ul>
+</li>
+<li>Preparing and taking sample from solid product:
+<ul>
+<li>Add minimal organic solvent to a vial containing some of the product.</li>
+<li>Quickly dip capillary tube in and out of solvent</li>
+<li>Spot sample onto the TLC plate using the usual procedure. Check to make sure dot is concentrated enough using the UV light</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Taking sample from ongoing reaction:
+<ul>
+<li>Stop the stirring in the reaction and open the cap of the reaction flask.</li>
+<li>Quickly dip the capillary tube into the flask so that it touches the bottom, then remove the capillary tube.</li>
+<li>Spot the sample onto a TLC plate</li>
+<li>Replace the stopper on the reaction flask and turn the stirring back on</li>
+</ul>
+</li>
+<li>Preparing and taking sample from solid starting material:
+<ul>
+<li>Using a small, clean spatula, scoop some of the solid starting material into a vial.</li>
+<li>Add a little bit of organic solvent and dissolve the solid</li>
+<li>Use a capillary tube to take some sample out of the vial and spot it onto the TLC plate</li>
+</ul>
+</li>
+<li>Running the TLC plate
+<ul>
+<li>Check that all samples are spotted and have the appropriate concentration using the UV light</li>
+<li>Using forceps, grab the top of the TLC plate and carefully lower it into the TLC chamber, making sure that it doesn’t fall</li>
+<li>Put the cap back onto the TLC chamber</li>
+<li>When the solvent level nearly reaches the top of the plate/wherever you want the solvent front to be, unscrew the cap and remove the TLC plate with forceps</li>
+<li>Wait for the solvent to evaporate (you can wave the plate around to make this quicker)</li>
+<li>Check the plate under the UV light</li>
+</ul>
+</li>
+</ol>
+<h6 id="analyzing-a-tlc-plate">Analyzing a TLC plate</h6>
+<ol>
+<li>Note position of the spots
+<ul>
+<li>Increase the polarity of the TLC eluent and run the same plate again if:
+<ul>
+<li>There is something on the baseline which composition you are not very sure about (e.g. is the baseline spot one or multiple spots?)</li>
+<li>Most of the spots have a very low Rf value</li>
+<li>You want to see what happens if you run the spots at a higher polarity to approximate what would happen if the column was also run at a higher polarity</li>
+<li>One of the spots looks like it could be made up of two spots</li>
+</ul>
+</li>
+<li>Run the same plate at the same polarity again if:
+<ul>
+<li>You want to see what happens in a column if this polarity is kept</li>
+<li>You want to see whether separation improves at the same polarity if more solvent is used</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Note the color of the spots
+<ul>
+<li>Some spots may fluoresce under UV light (pretty!)</li>
+</ul>
+</li>
+<li>Note the concentration of the spots (also depends on the concentration of the initial spot)
+<ul>
+<li>In some reactions with good conversion, the TLC spot for the product tends to be very concentrated and large</li>
+</ul>
+</li>
+<li>Note the shape of the spot
+<ul>
+<li>Amines tend to drag, leaving a streaky spot</li>
+<li>This is also true when a column is performed &ndash; amines tend to be streaky and annoying</li>
+</ul>
+</li>
+<li>Note any unknown spots
+<ul>
+<li>Some things do not show up on TLC: E.g. B2pin2
+<ul>
+<li>Use a Mo reagent to force this spot to show up</li>
+</ul>
+</li>
+<li>Other common reagents used to reveal spots:
+<ul>
+<li>2,4-DNPH</li>
+<li>KMnO4</li>
+<li>Iodine in silica</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>A note about polarity of eluent:
+<ul>
+<li>For column chromatography, the ideal eluent is one that gives Rf 0.3 for the product spot</li>
+<li>To determine polarity of eluent for column, always start with a lower polarity and slowly increase until you find the perfect polarity
+<ul>
+<li>Low polarity: About 200:1 Hex:EA to 50:1 Hex:EA</li>
+<li>Mid polarity: About 50:1 Hex:EA to 10:1 Hex:EA</li>
+<li>High polarity: About 5:1 Hex:EA to 1:5 Hex:EA</li>
+<li>Very high polarity: Use DCM:MeOH</li>
+</ul>
+</li>
+<li>DCM should be added in the TLC eluent if it is to be added as a part of the eluent ratio for the column</li>
+</ul>
+</li>
+</ol>
+<h6 id="troubleshooting-a-tlc">Troubleshooting a TLC</h6>
+<p>What happens if:
+My TLC plate falls inside the TLC chamber?</p>
+<ul>
+<li>Quickly grap the forceps and fish it out. Blow off all the solvent. Make sure it is completely dry before putting it back into the chamber again.</li>
+</ul>
+<p>My TLC plate falls onto the floor?</p>
+<ul>
+<li>Check for any impurities/dirt that got onto it using the UV light. If none, you are good to go</li>
+</ul>
+<p>My TLC plate breaks?</p>
+<ul>
+<li>RIP. Make another one.</li>
+</ul>
+<p>The dots on my TLC plate became a smudgy mess on the solvent front line?</p>
+<ul>
+<li>Your eluent solvent is too polar, or your spot is too concentrated, OR you swapped the hexane and acetone spray bottles (true story). But most likely one of the former.</li>
+</ul>
+<p>I can’t find my capillary tube but I think I dropped it on the fumehood table/floor/self?</p>
+<ul>
+<li>Try to find it.</li>
+<li>If you cannot find it, hope that it doesn’t return to poke/stab you (choose one).</li>
+<li>Try to find it.</li>
+<li>If found, congratulations, it goes into the little bottle for capillary tube waste (or whatever system your lab has). If not, try to find it. If you really really cannot find it, RIP. (I have heard way too many capillary tube nightmare stories &ndash; some guy was cleaning his fumehood when a stray capillary tube stabbed his finger and hit the bone, and he had to go to the hospital. Ouch.)</li>
+</ul>
+<h4 id="nuclear-magnetic-resonance-nmr">Nuclear Magnetic Resonance (NMR)</h4>
+<h6 id="preparation-of-sample-from-solid-lazy-method">Preparation of sample from solid (lazy method)</h6>
+<ol>
+<li>Adding solid sample into NMR tube:
+<ul>
+<li>Using a small, clean spatula, scoop a small amount of solid into the NMR tube, OR</li>
+<li>Directly use the NMR tube to scoop a small amount of solid from the flask</li>
+<li>The amount should be enough to cover almost the entire bottom rounded hemisphere of the NMR tube</li>
+</ul>
+</li>
+<li>Add deuterated solvent into the NMR tube using a clean glass pipette</li>
+<li>Cap the NMR tube with a clean NMR cap by pressing downwards gently. Label the cap.</li>
+<li>Shake the NMR tube (sideways jolt using wrist) or use the sonicator to completely dissolve the solid until the solution is completely homogenous.</li>
+</ol>
+<h6 id="preparation-of-sample-from-solid-proper-method">Preparation of sample from solid (proper method)</h6>
+<ol>
+<li>Transfer some of the solid sample into a small vial.</li>
+<li>Dissolve the solid in deuterated solvent.</li>
+<li>Make a simple filter by stuffing a small amount of cotton wool down a glass pipette. Place the filter pipette into the NMR tube.</li>
+<li>Use another glass pipette to transfer the solution from the vial into the filter pipette, which will then drain into the NMR tube.</li>
+<li>Cap off and label the NMR tube.</li>
+</ol>
+<h6 id="preparation-of-crude-nmr-sample">Preparation of crude NMR sample</h6>
+<ol>
+<li>Turn off the stirring and remove the stopper from the reaction flask.</li>
+<li>Using a clean glass pipette, suck up some of the reaction mixture and transfer it into a glass vial</li>
+<li>Perform a mini workup if desired. Add water/brine to the vial and give it a good shake to do a mini extraction, before pipetting off the desired organic layer into another vial.</li>
+<li>Cap the glass vial with a rubber stopper with needle attached. Use the rotavap to remove the solvent.</li>
+<li>Using another clean glass pipette, add minimal deuterated solvent into the glass vial. Turn the vial to spread the solvent all over the inside of the vial to dissolve as much sample as possible. Use the sonicator as necessary.</li>
+<li>Transfer the deuterated solvent with dissolved sample into an NMR tube. Rinse the vial again with another round of deuterated solvent and transfer the solvent with the remaining sample into the NMR tube.</li>
+<li>Top off the volume in the NMR tube with clean deuterated solvent as required, before capping and labelling the tube.</li>
+</ol>
+<h4 id="matrix-assisted-laser-desorptionionization-maldi">Matrix-assisted laser desorption/ionization (MALDI)</h4>
+<ol>
+<li>Preparation of sample:
+<ul>
+<li>Using a glass dropper, take one drop of THF solvent and add it to a vial containing the solid matrix</li>
+<li>Using a capillary tube, take some of the matrix dissolved in THF and spot it onto a clean spot on the MALDI plate until the entire spot is filled up.</li>
+<li>Using a capillary tube, take some concentrated sample and dot it onto the spot with the matrix.</li>
+</ul>
+</li>
+<li>Running MALDI:
+<ul>
+<li>Screw the plate into the plate loader, and load it into the plate loading compartment.</li>
+<li>Using the computer, send the plate into the machine. Wait for all the readouts to turn green.</li>
+<li>Use the computer interface to direct the machine to the spot where you have loaded the sample.</li>
+<li>Turn on the high voltage switch for the laser and click around the spot, going for areas where the product has crystallized over the matrix. Turn off the high voltage switch once done.</li>
+<li>Eject the plate from the machine and remove the plate from the plate loading compartment.</li>
+</ul>
+</li>
+</ol>
+<h4 id="rotary-evaporator-rotavap">Rotary Evaporator (Rotavap)</h4>
+<p>This is probably the most used piece of shared equipment (apart from automated columns) in a synthetic lab, and demand for it will be very high. Wait patiently for your turn to use it and DO NOT steal a rotavap from any of your poor labmates even though it may seem extremely tempting. When using a rotavap, do keep an eye on it so that you can free it up for the next person once you are done.</p>
+<ol>
+<li>Wash the bump trap and the adapter for the rotavap, and empty the solvent trap. Make sure that all parts of the rotavap are connected well and are clean before use.</li>
+<li>Make sure that the tap at the side of the condenser is closed.</li>
+<li>Turn on the hot water bath.</li>
+<li>Attach the flask to the adapter, and hold the flask by the neck.</li>
+<li>Turn on the vacuum. Allow the vacuum to go for a short while, before switching on the rotation.</li>
+<li>Lower the flask into the hot water bath.</li>
+<li>Hold the flask until the pressure falls to about 400-500 mPa (somehow seems to depend on the machine as well), after which it is safe for the flask to be left on the rotavap alone.</li>
+<li>Lower the pressure until the desired pressure is reached.</li>
+<li>Pressure can be controlled by pressing the hold button, or by setting the pressure &ndash; depends on the machine</li>
+</ol>
+<p>Other notes:</p>
+<ul>
+<li>Do not rotavap with a stir bar &ndash; you will get vigorous bubbling as the stir bar will act as a nucleation site for bubbles to form.</li>
+<li>If there is vigorous bubbling in the flask, do NOT lower the pressure anymore, or the liquid will ‘burst’ into the bump trap</li>
+<li>If any product ‘bursts’ into the bump trap, you can stop the evaporation process and wash the liquid back into the flask with solvent.</li>
+<li>Some people trust the plastic Keck clips to hold their flask to the adapter. You can use one, but I wouldn&rsquo;t trust them too much and would make sure that the flask has zero chance of falling into the hot water bath before leaving the rotavap alone &ndash; I&rsquo;ve been betrayed by a crappy Keck clip before!</li>
+<li>When evaporation is done, lift the flask from the hot water bath. Stop the rotation, then hold the flask by its neck. Switch off the vacuum, and open the tap to air on the condenser. Remove the flask from the rotavap, and empty the solvent in the solvent collecting flask.</li>
+</ul>
+
+    <h4><a href="https://kaligulaarmblessed.github.io/">Back to Home</a></h4>
+</div>
+
+
+        </div><footer class="container">
+    <hr class="soften">
+    <p>
+&copy; 
+
+    Kaligula Armblessed
+
+<span id="thisyear">2024</span>
+
+
+        | Built on <a href="//gohugo.io" target="_blank">Hugo</a>
+
+</p>
+    <p class="text-center">
+        
+        <a href="https://twitter.com/KaligulaSec">Twitter</a> 
+        
+        <a href="https://github.com/KaligulaArmblessed">GitHub</a> 
+        
+    </p>
+</footer>
+
+</body><link rel="stylesheet" href="/css/bootstrap.css">
+<link rel="stylesheet" href="/css/bootstrap-responsive.css">
+<link rel="stylesheet" href="/css/style.css">
+
+<script src="/js/jquery.js"></script>
+<script src="/js/bootstrap-386.js"></script>
+<script src="/js/bootstrap-transition.js"></script>
+<script src="/js/bootstrap-alert.js"></script>
+<script src="/js/bootstrap-modal.js"></script>
+<script src="/js/bootstrap-dropdown.js"></script>
+<script src="/js/bootstrap-scrollspy.js"></script>
+<script src="/js/bootstrap-tab.js"></script>
+<script src="/js/bootstrap-tooltip.js"></script>
+<script src="/js/bootstrap-popover.js"></script>
+<script src="/js/bootstrap-button.js"></script>
+<script src="/js/bootstrap-collapse.js"></script>
+<script src="/js/bootstrap-carousel.js"></script>
+<script src="/js/bootstrap-typeahead.js"></script>
+<script src="/js/bootstrap-affix.js"></script>
+<script>
+    _386 = { 
+        fastLoad: false ,
+        onePass: true , 
+        speedFactor: 1 
+    };
+
+    
+    function ThisYear() {
+        document.getElementById('thisyear').innerHTML = new Date().getFullYear();
+    };
+</script></html>

@@ -6,8 +6,36 @@
     <description>Recent content on Kernels and Cats</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en</language>
-    <lastBuildDate>Thu, 11 Apr 2024 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Mon, 10 Jun 2024 00:00:00 +0000</lastBuildDate>
     <atom:link href="https://kaligulaarmblessed.github.io/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Part 1: Introduction and Safety</title>
+      <link>https://kaligulaarmblessed.github.io/lab-compendium/lab-introduction-and-safety-1/</link>
+      <pubDate>Mon, 10 Jun 2024 00:00:00 +0000</pubDate>
+      <guid>https://kaligulaarmblessed.github.io/lab-compendium/lab-introduction-and-safety-1/</guid>
+      <description>What is the Lab Compendium? The Lab Compendium is a set of organic synthesis tips that I have compiled after working in various synthetic groups over the years. Originally these were kept in a crappy Google Document, but I figured that it may be helpful for other people just starting out in organic synthesis, so I&amp;rsquo;ve decided to put it onto my blog. Currently there is a lack of pictures &amp;ndash; I will hopefully slowly add them in when I am not lazy.</description>
+    </item>
+    <item>
+      <title>Part 2: Performing Reactions</title>
+      <link>https://kaligulaarmblessed.github.io/lab-compendium/lab-performing-reactions-2/</link>
+      <pubDate>Mon, 10 Jun 2024 00:00:00 +0000</pubDate>
+      <guid>https://kaligulaarmblessed.github.io/lab-compendium/lab-performing-reactions-2/</guid>
+      <description>This section deals with some of the nitty gritty details of performing reactions in the lab.&#xA;Table of Contents General Degassing Techniques Flushing Reaction Vessel with Nitrogen Degassing empty tube/tube with solids (no solvent) Degassing a solvent via sparging with nitrogen Freeze Pump Thaw Weighing Weighing solids onto weighing paper Weighing solids into flask Weighing liquids into flask Weighing product samples Starting the Reaction Adding reagents under air Adding reactants/solvent under strict conditions (via syringe) Stirbars and stirring Setting up condenser, balloon and water flow for reflux Heating Stopping Reactions Glovebox Usage General Degassing Techniques Many organic reactions tend to be sensitive to air or water, so it is good practice to degas the flask and reaction mixture before running the reaction.</description>
+    </item>
+    <item>
+      <title>Part 3: Workup and Purification</title>
+      <link>https://kaligulaarmblessed.github.io/lab-compendium/lab-workup-3/</link>
+      <pubDate>Mon, 10 Jun 2024 00:00:00 +0000</pubDate>
+      <guid>https://kaligulaarmblessed.github.io/lab-compendium/lab-workup-3/</guid>
+      <description>Once an experiment has finished running, a workup is performed to isolate the product from starting materials, catalysts, and potential side products. If the purity of the isolated material is still not ideal, further purification is then performed.&#xA;Table of Contents Washing and Extractions Transferring into separating funnel Washing Extraction Troubleshooting: Dealing with emulsions Troubleshooting: Dealing with solids Drying over sodium/magnesium sulfate Column Chromatography Choosing the right column size and length Preparing and packing column (dry packing method) Preparing the sample (wet loading method) Loading the sample (wet loading method) Preparing the sample (dry loading method) Loading the sample (dry loading method) Preparing and adding the eluent Running the column Collecting and combining fractions Filtering General filtering setup and notes Filtering through cotton wool using filter funnel Filtering through filter paper using filter funnel Filtering through Celite using fritted glass funnel Filtering through silica gel pad using fritted glass funnel (Silica Plug) Transferring Drying Normal drying of product (Rotavap + High Vacuum Pump) Removal of solvent using liquid nitrogen and solvent trap Washing and Extractions Transferring into separating funnel Make sure that tap of the separating funnel is closed, and place a flask under the separating funnel to catch any liquid that falls out.</description>
+    </item>
+    <item>
+      <title>Part 4: Analysis and Instrument Operation</title>
+      <link>https://kaligulaarmblessed.github.io/lab-compendium/lab-equipment-4/</link>
+      <pubDate>Mon, 10 Jun 2024 00:00:00 +0000</pubDate>
+      <guid>https://kaligulaarmblessed.github.io/lab-compendium/lab-equipment-4/</guid>
+      <description>This is a compilation of various analysis techniques, as well as some miscellaneous notes on various equipment.&#xA;Table of Contents Thin Layer Chromatography (TLC) Performing TLC Analyzing a TLC plate Troubleshooting a TLC Nuclear Magnetic Resonance (NMR) Preparation of sample from solid (lazy method) Preparation of sample from solid (proper method) Preparation of crude NMR sample Matrix-assisted laser desorption/ionization (MALDI) Rotary Evaporator (Rotavap) Thin Layer Chromatography (TLC) Performing TLC Preparing the TLC chamber: Measure out the required solvents in a measuring cylinder and mix them inside the TLC glass chamber Add a piece of filter paper into the TLC chamber to help the solvent vapor saturate the chamber Close the cap of the TLC chamber (to allow the solvent vapor to saturate the chamber) Preparing the TLC plate: Choose a TLC plate that is relatively rectangular in shape and free of scratches/marks/etc Draw a pencil line at the bottom and mark a few spots for the sample dots to be placed Dotting the sample onto the TLC plate: Simple sample retrieval: Quickly dip capillary tube in and out of liquid sample Dot sample onto TLC plate.</description>
+    </item>
     <item>
       <title>Hardware Challenges [ACSC 2024]</title>
       <link>https://kaligulaarmblessed.github.io/post/acsc2024-hardware/</link>
@@ -139,7 +167,7 @@
       <link>https://kaligulaarmblessed.github.io/about/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://kaligulaarmblessed.github.io/about/</guid>
-      <description>I really like computers, chemistry and cats. :3</description>
+      <description>I really like computers, chemistry and cats. :3&#xA;Favicon drawn by the wonderful Cryptsaria.</description>
     </item>
     <item>
       <title>Random Fun Facts</title>
