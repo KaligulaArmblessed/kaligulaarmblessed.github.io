@@ -6,8 +6,22 @@
     <description>Recent content on Kernels and Cats</description>
     <generator>Hugo</generator>
     <language>en</language>
-    <lastBuildDate>Mon, 10 Jun 2024 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Sat, 17 Aug 2024 00:00:00 +0000</lastBuildDate>
     <atom:link href="https://kaligulaarmblessed.github.io/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Dead Pwners Society -- Kernel Oops, Refcount Overflow and USMA [idekCTF 2024]</title>
+      <link>https://kaligulaarmblessed.github.io/post/dead-pwners-society/</link>
+      <pubDate>Sat, 17 Aug 2024 00:00:00 +0000</pubDate>
+      <guid>https://kaligulaarmblessed.github.io/post/dead-pwners-society/</guid>
+      <description>TLDR Dead Pwners Society is a collab kernel pwn challenge written by Shunt and I for idekCTF 2024. By triggering many kernel oops caused by a null pointer dereference in a vulnerable ioctl function, it is possible to cause a one byte refcount to overflow. By controlling the refcount value, the attacker is able to trigger a UAF on the victim object, which can then be turned into a double free primitive.</description>
+    </item>
+    <item>
+      <title>idekCTF 2024: Dead Pwners Society</title>
+      <link>https://kaligulaarmblessed.github.io/challenges/idekctf2024-dead-pwners-society/</link>
+      <pubDate>Sat, 17 Aug 2024 00:00:00 +0000</pubDate>
+      <guid>https://kaligulaarmblessed.github.io/challenges/idekctf2024-dead-pwners-society/</guid>
+      <description>What secrets will you find in this library? User creds are reader:reader&#xA;The flag is in /dev/sdb&#xA;Hint: The note for a book is missing, could it be a problem?&#xA;Collab challenge with Shunt.&#xA;Challenge files: https://github.com/idekctf/idekctf-2024/tree/main/pwn/dead-pwners-society&#xA;Writeup: https://kaligulaarmblessed.github.io/post/dead-pwners-society/</description>
+    </item>
     <item>
       <title>Part 1: Introduction and Safety</title>
       <link>https://kaligulaarmblessed.github.io/lab-compendium/lab-introduction-and-safety-1/</link>
