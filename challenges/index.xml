@@ -13,77 +13,77 @@
       <link>https://kaligulaarmblessed.github.io/challenges/idekctf2024-dead-pwners-society/</link>
       <pubDate>Sat, 17 Aug 2024 00:00:00 +0000</pubDate>
       <guid>https://kaligulaarmblessed.github.io/challenges/idekctf2024-dead-pwners-society/</guid>
-      <description>What secrets will you find in this library? User creds are reader:reader&#xA;The flag is in /dev/sdb&#xA;Hint: The note for a book is missing, could it be a problem?&#xA;Collab challenge with Shunt.&#xA;Challenge files: https://github.com/idekctf/idekctf-2024/tree/main/pwn/dead-pwners-society&#xA;Writeup: https://kaligulaarmblessed.github.io/post/dead-pwners-society/</description>
+      <description>&lt;p&gt;What secrets will you find in this library? User creds are reader:reader&lt;/p&gt;&#xA;&lt;p&gt;The flag is in /dev/sdb&lt;/p&gt;&#xA;&lt;p&gt;Hint: The note for a book is missing, could it be a problem?&lt;/p&gt;&#xA;&lt;p&gt;Collab challenge with &lt;a href=&#34;https://github.com/terawhiz&#34;&gt;Shunt&lt;/a&gt;.&lt;/p&gt;&#xA;&lt;p&gt;Challenge files: &lt;a href=&#34;https://github.com/idekctf/idekctf-2024/tree/main/pwn/dead-pwners-society&#34;&gt;https://github.com/idekctf/idekctf-2024/tree/main/pwn/dead-pwners-society&lt;/a&gt;&lt;/p&gt;&#xA;&lt;p&gt;Writeup: &lt;a href=&#34;https://kaligulaarmblessed.github.io/post/dead-pwners-society/&#34;&gt;https://kaligulaarmblessed.github.io/post/dead-pwners-society/&lt;/a&gt;&lt;/p&gt;</description>
     </item>
     <item>
       <title>M53 Sharing Session: Introduction to Kernel Exploitation</title>
       <link>https://kaligulaarmblessed.github.io/challenges/m53-introduction-to-kernel-pwn/</link>
       <pubDate>Sat, 06 Apr 2024 00:00:00 +0000</pubDate>
       <guid>https://kaligulaarmblessed.github.io/challenges/m53-introduction-to-kernel-pwn/</guid>
-      <description>Here are the slides from the Introduction to Kernel Exploitation session hosted by M53 and RE:HACK, hope you&amp;rsquo;ve enjoyed it!</description>
+      <description>&lt;p&gt;Here are the slides from the Introduction to Kernel Exploitation session hosted by M53 and RE:HACK, hope you&amp;rsquo;ve enjoyed it!&lt;/p&gt;&#xA;&lt;iframe src=&#34;https://docs.google.com/presentation/d/e/2PACX-1vRHa-Zli8yfdp9HAhC9lOiAfMZqlycZq9yOjeb6Th2tLC8XhQ5YspIyTzvebrrUN2hdSFPfIdTgvp3h/embed?start=false&amp;loop=false&amp;delayms=3000&#34; frameborder=&#34;0&#34; width=&#34;960&#34; height=&#34;569&#34; allowfullscreen=&#34;true&#34; mozallowfullscreen=&#34;true&#34; webkitallowfullscreen=&#34;true&#34;&gt;&lt;/iframe&gt;</description>
     </item>
     <item>
       <title>LNC 4.0: Cheminventory</title>
       <link>https://kaligulaarmblessed.github.io/challenges/lnc4-cheminventory/</link>
       <pubDate>Mon, 11 Mar 2024 00:00:00 +0000</pubDate>
       <guid>https://kaligulaarmblessed.github.io/challenges/lnc4-cheminventory/</guid>
-      <description>Storing explosive chemicals in the kernel is a wonderful idea! Surely nothing can go wrong&amp;hellip;right?&#xA;Challenge files: https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Cheminventory&#xA;Writeup: https://kaligulaarmblessed.github.io/post/cheminventory/&#xA;Setting Up A Kernel Debugging Station Usually when you get a kernel challenge, the following files will be provided:&#xA;bzImage: A compressed version of the kernel cheminventory.ko: The vulnerable kernel module config: The .config file used when the kernel was compiled &amp;ndash; important in figuring out which protections are present initramfs.</description>
+      <description>&lt;p&gt;Storing explosive chemicals in the kernel is a wonderful idea! Surely nothing can go wrong&amp;hellip;right?&lt;/p&gt;&#xA;&lt;p&gt;Challenge files: &lt;a href=&#34;https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Cheminventory&#34;&gt;https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Cheminventory&lt;/a&gt;&lt;/p&gt;&#xA;&lt;p&gt;Writeup: &lt;a href=&#34;https://kaligulaarmblessed.github.io/post/cheminventory/&#34;&gt;https://kaligulaarmblessed.github.io/post/cheminventory/&lt;/a&gt;&lt;/p&gt;&#xA;&lt;h4 id=&#34;setting-up-a-kernel-debugging-station&#34;&gt;Setting Up A Kernel Debugging Station&lt;/h4&gt;&#xA;&lt;p&gt;Usually when you get a kernel challenge, the following files will be provided:&lt;/p&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;bzImage: A compressed version of the kernel&lt;/li&gt;&#xA;&lt;li&gt;cheminventory.ko: The vulnerable kernel module&lt;/li&gt;&#xA;&lt;li&gt;config: The .config file used when the kernel was compiled &amp;ndash; important in figuring out which protections are present&lt;/li&gt;&#xA;&lt;li&gt;initramfs.cpio.gs: A compressed filesystem&lt;/li&gt;&#xA;&lt;li&gt;run.sh: A shell script that starts qemu to run the kernel challenge &amp;ndash; also important in figuring out which protections are present&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;p&gt;The objective of a kernel challenge is usually &lt;strong&gt;to obtain privilege escalation from the provided normal user to the root user&lt;/strong&gt;.&lt;/p&gt;</description>
     </item>
     <item>
       <title>LNC 4.0: Welcome2Pwn</title>
       <link>https://kaligulaarmblessed.github.io/challenges/lnc4-welcome2pwn/</link>
       <pubDate>Mon, 11 Mar 2024 00:00:00 +0000</pubDate>
       <guid>https://kaligulaarmblessed.github.io/challenges/lnc4-welcome2pwn/</guid>
-      <description>What better way to learn pwn than to go on a trip to the beach? (Because there are shells!)&#xA;Challenge files: https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Welcome2Pwn&#xA;Welcome2Pwn Welcome to the land of pwn! Come follow me to the beach; however, make sure to ignore Sally standing sadly at the side selling shells. Who needs to buy shells when we can pop our own? :D&#xA;But first&amp;hellip; What is pwn? The fancy name for pwn is binary exploitation.</description>
+      <description>&lt;p&gt;What better way to learn pwn than to go on a trip to the beach? (Because there are shells!)&lt;/p&gt;&#xA;&lt;p&gt;Challenge files: &lt;a href=&#34;https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Welcome2Pwn&#34;&gt;https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Welcome2Pwn&lt;/a&gt;&lt;/p&gt;&#xA;&lt;h4 id=&#34;welcome2pwn&#34;&gt;Welcome2Pwn&lt;/h4&gt;&#xA;&lt;p&gt;Welcome to the land of pwn! Come follow me to the beach; however, make sure to ignore Sally standing sadly at the side selling shells. Who needs to buy shells when we can pop our own? :D&lt;/p&gt;&#xA;&lt;h4 id=&#34;but-first-what-is-pwn&#34;&gt;But first&amp;hellip; What is pwn?&lt;/h4&gt;&#xA;&lt;p&gt;The fancy name for pwn is binary exploitation. Pwn is the art of crafting a custom exploit to hack a vulnerable program (often called a binary), be it one that is running on a remote server, or the operating system kernel itself! This will be an (almost) step-by-step guide to pwning your very first binary.&lt;/p&gt;</description>
     </item>
     <item>
       <title>STANDCON 2023: Meowcrosoft Word</title>
       <link>https://kaligulaarmblessed.github.io/challenges/standcon2023-meowcrosoft-word/</link>
       <pubDate>Fri, 08 Dec 2023 00:00:00 +0000</pubDate>
       <guid>https://kaligulaarmblessed.github.io/challenges/standcon2023-meowcrosoft-word/</guid>
-      <description>I&amp;rsquo;ve got a new installation of Meowcrosoft Word V1.0 TM! But as part of the #linuxmasterrace, I want to prove that it is vulnerable! Can you help me root this box?&#xA;Challenge files: https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Meowcrosoft_Word&#xA;Writeup: https://kaligulaarmblessed.github.io/post/meowcrosoft-word/</description>
+      <description>&lt;p&gt;I&amp;rsquo;ve got a new installation of Meowcrosoft Word V1.0 TM! But as part of the #linuxmasterrace, I want to prove that it is vulnerable! Can you help me root this box?&lt;/p&gt;&#xA;&lt;p&gt;Challenge files: &lt;a href=&#34;https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Meowcrosoft_Word&#34;&gt;https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Meowcrosoft_Word&lt;/a&gt;&lt;/p&gt;&#xA;&lt;p&gt;Writeup: &lt;a href=&#34;https://kaligulaarmblessed.github.io/post/meowcrosoft-word/&#34;&gt;https://kaligulaarmblessed.github.io/post/meowcrosoft-word/&lt;/a&gt;&lt;/p&gt;</description>
     </item>
     <item>
       <title>idekCTF 2022*: Gone Fishing</title>
       <link>https://kaligulaarmblessed.github.io/challenges/idekctf2022-gone-fishing/</link>
       <pubDate>Fri, 13 Jan 2023 00:00:00 +0000</pubDate>
       <guid>https://kaligulaarmblessed.github.io/challenges/idekctf2022-gone-fishing/</guid>
-      <description>Fishing is a great hobby; if you look around very very carefully you are bound to get hooked!&#xA;This is a boot2root challenge with a rev twist. Participants were not given source; just run the Docker container!&#xA;Challenge files: https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Gone_Fishing</description>
+      <description>&lt;p&gt;Fishing is a great hobby; if you look around very very carefully you are bound to get hooked!&lt;/p&gt;&#xA;&lt;p&gt;This is a boot2root challenge with a rev twist. Participants were not given source; just run the Docker container!&lt;/p&gt;&#xA;&lt;p&gt;Challenge files: &lt;a href=&#34;https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Gone_Fishing&#34;&gt;https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Gone_Fishing&lt;/a&gt;&lt;/p&gt;</description>
     </item>
     <item>
       <title>idekCTF 2022*: Sus Meow</title>
       <link>https://kaligulaarmblessed.github.io/challenges/idekctf2022-sus-meow/</link>
       <pubDate>Fri, 13 Jan 2023 00:00:00 +0000</pubDate>
       <guid>https://kaligulaarmblessed.github.io/challenges/idekctf2022-sus-meow/</guid>
-      <description>I see a bunch of cats talking to each other, but what are they really saying?&#xA;Collab challenge with the wonderful Mochi Nishimiya.&#xA;Challenge files: https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Sus_Meow</description>
+      <description>&lt;p&gt;I see a bunch of cats talking to each other, but what are they really saying?&lt;/p&gt;&#xA;&lt;p&gt;Collab challenge with the wonderful Mochi Nishimiya.&lt;/p&gt;&#xA;&lt;p&gt;Challenge files: &lt;a href=&#34;https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Sus_Meow&#34;&gt;https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Sus_Meow&lt;/a&gt;&lt;/p&gt;</description>
     </item>
     <item>
       <title>STANDCON 2022: New Math</title>
       <link>https://kaligulaarmblessed.github.io/challenges/standcon2022-newmath/</link>
       <pubDate>Sat, 18 Jun 2022 00:00:00 +0000</pubDate>
       <guid>https://kaligulaarmblessed.github.io/challenges/standcon2022-newmath/</guid>
-      <description>New Math! New Hoo Hoo Math!&#xA;https://www.youtube.com/watch?v=UIKGV2cTgqA&#xA;Challenge files: https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/New_Math</description>
+      <description>&lt;p&gt;New Math! New Hoo Hoo Math!&lt;/p&gt;&#xA;&lt;p&gt;&lt;a href=&#34;https://www.youtube.com/watch?v=UIKGV2cTgqA&#34;&gt;https://www.youtube.com/watch?v=UIKGV2cTgqA&lt;/a&gt;&lt;/p&gt;&#xA;&lt;p&gt;Challenge files: &lt;a href=&#34;https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/New_Math&#34;&gt;https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/New_Math&lt;/a&gt;&lt;/p&gt;</description>
     </item>
     <item>
       <title>CYS Sharing Session: Introduction to ROP</title>
       <link>https://kaligulaarmblessed.github.io/challenges/cys-introduction-to-rop/</link>
       <pubDate>Sun, 13 Mar 2022 00:00:00 +0000</pubDate>
       <guid>https://kaligulaarmblessed.github.io/challenges/cys-introduction-to-rop/</guid>
-      <description></description>
+      <description>&lt;iframe src=&#34;https://docs.google.com/presentation/d/1yJ9marK79AcpgFV9ZkLphP2btJ98yIK2cKfbW8YyWPc/embed?start=false&amp;loop=false&amp;delayms=3000&#34; frameborder=&#34;0&#34; width=&#34;960&#34; height=&#34;569&#34; allowfullscreen=&#34;true&#34; mozallowfullscreen=&#34;true&#34; webkitallowfullscreen=&#34;true&#34;&gt;&lt;/iframe&gt;</description>
     </item>
     <item>
       <title>idekCTF 2021: Are you lstening to me??</title>
       <link>https://kaligulaarmblessed.github.io/challenges/idekctf2021-are-you-lstening-to-me/</link>
       <pubDate>Sat, 11 Dec 2021 00:00:00 +0000</pubDate>
       <guid>https://kaligulaarmblessed.github.io/challenges/idekctf2021-are-you-lstening-to-me/</guid>
-      <description>Yo lsten! That&amp;rsquo;s the sound of a flag fluttering somewhere&amp;hellip;&#xA;docker pull kaligulasec/idekctf2021:are_you_lstening_to_me</description>
+      <description>&lt;p&gt;Yo lsten! That&amp;rsquo;s the sound of a flag fluttering somewhere&amp;hellip;&lt;/p&gt;&#xA;&lt;p&gt;&lt;code&gt;docker pull kaligulasec/idekctf2021:are_you_lstening_to_me&lt;/code&gt;&lt;/p&gt;</description>
     </item>
     <item>
       <title>idekCTF 2021: Retrosynthesis</title>
       <link>https://kaligulaarmblessed.github.io/challenges/idekctf2021-retrosynthesis/</link>
       <pubDate>Sat, 11 Dec 2021 00:00:00 +0000</pubDate>
       <guid>https://kaligulaarmblessed.github.io/challenges/idekctf2021-retrosynthesis/</guid>
-      <description>You can do reverse engineering, but can you do retrosynthesis?&#xA;Challenge files: https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Retrosynthesis&#xA;Writeup: https://github.com/KaligulaArmblessed/CTF-Writeups/blob/main/idekCTF%202021/Retrosynthesis.md</description>
+      <description>&lt;p&gt;You can do reverse engineering, but can you do retrosynthesis?&lt;/p&gt;&#xA;&lt;p&gt;Challenge files: &lt;a href=&#34;https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Retrosynthesis&#34;&gt;https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Retrosynthesis&lt;/a&gt;&lt;/p&gt;&#xA;&lt;p&gt;Writeup: &lt;a href=&#34;https://github.com/KaligulaArmblessed/CTF-Writeups/blob/main/idekCTF%202021/Retrosynthesis.md&#34;&gt;https://github.com/KaligulaArmblessed/CTF-Writeups/blob/main/idekCTF%202021/Retrosynthesis.md&lt;/a&gt;&lt;/p&gt;</description>
     </item>
   </channel>
 </rss>
