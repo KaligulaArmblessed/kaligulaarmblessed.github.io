@@ -6,8 +6,15 @@
     <description>Recent content on Kernels and Cats</description>
     <generator>Hugo</generator>
     <language>en</language>
-    <lastBuildDate>Tue, 24 Dec 2024 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Thu, 13 Feb 2025 00:00:00 +0000</lastBuildDate>
     <atom:link href="https://kaligulaarmblessed.github.io/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>VR Training</title>
+      <link>https://kaligulaarmblessed.github.io/challenges/vr-training/</link>
+      <pubDate>Thu, 13 Feb 2025 00:00:00 +0000</pubDate>
+      <guid>https://kaligulaarmblessed.github.io/challenges/vr-training/</guid>
+      <description>&lt;p&gt;VR Training (Vulnerability Research, but also a play on Virtual Reality &amp;ndash; can you guess where this is from?) is a highly gamified binary exploitation crash course, which was written as a passion project of mine (it even has a funny storyline, just like its inspiration 😆). It follows the story of a group of new recruits as they uncover the secrets of cybersecurity megacorporation ROP LLC. &amp;ndash; does ROP LLC. simply provide cybersecurity for the modern world, or is there more than meets the eye?&lt;/p&gt;</description>
+    </item>
     <item>
       <title>All I Want for Christmas is a CVE-2024-30085 Exploit</title>
       <link>https://kaligulaarmblessed.github.io/post/exploiting-cldflt/</link>
@@ -209,7 +216,7 @@
       <link>https://kaligulaarmblessed.github.io/random-facts/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://kaligulaarmblessed.github.io/random-facts/</guid>
-      <description>&lt;p&gt;Just a collection of random fun facts :D&lt;/p&gt;&#xA;&lt;ol&gt;&#xA;&lt;li&gt;&lt;a href=&#34;#ethanol-becomes-gloopy-at-low-temperatures&#34;&gt;Gloopy ethanol&lt;/a&gt;&lt;/li&gt;&#xA;&lt;li&gt;&lt;a href=&#34;#supercooled-water-and-strawberries&#34;&gt;Supercooled water and strawberries&lt;/a&gt;&lt;/li&gt;&#xA;&lt;li&gt;&lt;a href=&#34;#i-tried-explaining-rop-chains-to-an-ai&#34;&gt;I tried explaining ROP chains to an AI&lt;/a&gt;&lt;/li&gt;&#xA;&lt;li&gt;&lt;a href=&#34;#boc-protecting-groups-falling-off-at-high-temperatures-may-be-due-to-a-pericyclic-reaction&#34;&gt;Pericyclic Boc Deprotection&lt;/a&gt;&lt;/li&gt;&#xA;&lt;li&gt;&lt;a href=&#34;#vinitus-ciudad-condal-and-cervecer%C3%ADa-catalana-are-basically-the-same-restaurant&#34;&gt;I went to the same restaurant 3 times without knowing&lt;/a&gt;&lt;/li&gt;&#xA;&lt;/ol&gt;&#xA;&lt;h4 id=&#34;ethanol-becomes-gloopy-at-low-temperatures&#34;&gt;Ethanol becomes gloopy at low temperatures&lt;/h4&gt;&#xA;&lt;p&gt;Did you know that ethanol has a freezing point of -114.1°C :O&lt;/p&gt;&#xA;&lt;p&gt;If you cool ethanol down to a decently low temperature (say -50°C and lower), its viscosity will increase quite noticably, and it will turn from a nice flowy liquid to this strange thick gloopy substance. It does definitely make sense for the viscosity of a liquid to increase with decreasing temperature, but I guess we just don&amp;rsquo;t notice it that much with water as the freezing point of water is not very low.&lt;/p&gt;</description>
+      <description>&lt;p&gt;Just a collection of random fun facts :D&lt;/p&gt;&#xA;&lt;ol&gt;&#xA;&lt;li&gt;&lt;a href=&#34;#ethanol-becomes-gloopy-at-low-temperatures&#34;&gt;Gloopy ethanol&lt;/a&gt;&lt;/li&gt;&#xA;&lt;li&gt;&lt;a href=&#34;#supercooled-water-and-strawberries&#34;&gt;Supercooled water and strawberries&lt;/a&gt;&lt;/li&gt;&#xA;&lt;li&gt;&lt;a href=&#34;#i-tried-explaining-rop-chains-to-an-ai&#34;&gt;I tried explaining ROP chains to an AI&lt;/a&gt;&lt;/li&gt;&#xA;&lt;li&gt;&lt;a href=&#34;#boc-protecting-groups-falling-off-at-high-temperatures-may-be-due-to-a-pericyclic-reaction&#34;&gt;Pericyclic Boc Deprotection&lt;/a&gt;&lt;/li&gt;&#xA;&lt;li&gt;&lt;a href=&#34;#vinitus-ciudad-condal-and-cervecer%C3%ADa-catalana-are-basically-the-same-restaurant&#34;&gt;I went to the same restaurant 3 times without knowing&lt;/a&gt;&lt;/li&gt;&#xA;&lt;li&gt;&lt;a href=&#34;#shiny-chemistry-all-from-coffee&#34;&gt;Shiny Chemistry, All from Coffee&lt;/a&gt;&lt;/li&gt;&#xA;&lt;li&gt;&lt;a href=&#34;#extracting-dna-from-strawberries&#34;&gt;Extracting DNA from Strawberries&lt;/a&gt;&lt;/li&gt;&#xA;&lt;/ol&gt;&#xA;&lt;h4 id=&#34;ethanol-becomes-gloopy-at-low-temperatures&#34;&gt;Ethanol becomes gloopy at low temperatures&lt;/h4&gt;&#xA;&lt;p&gt;Did you know that ethanol has a freezing point of -114.1°C :O&lt;/p&gt;&#xA;&lt;p&gt;If you cool ethanol down to a decently low temperature (say -50°C and lower), its viscosity will increase quite noticably, and it will turn from a nice flowy liquid to this strange thick gloopy substance. It does definitely make sense for the viscosity of a liquid to increase with decreasing temperature, but I guess we just don&amp;rsquo;t notice it that much with water as the freezing point of water is not very low.&lt;/p&gt;</description>
     </item>
   </channel>
 </rss>

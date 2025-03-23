@@ -6,8 +6,15 @@
     <description>Recent content in Challenges on Kernels and Cats</description>
     <generator>Hugo</generator>
     <language>en</language>
-    <lastBuildDate>Wed, 18 Dec 2024 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Thu, 13 Feb 2025 00:00:00 +0000</lastBuildDate>
     <atom:link href="https://kaligulaarmblessed.github.io/challenges/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>VR Training</title>
+      <link>https://kaligulaarmblessed.github.io/challenges/vr-training/</link>
+      <pubDate>Thu, 13 Feb 2025 00:00:00 +0000</pubDate>
+      <guid>https://kaligulaarmblessed.github.io/challenges/vr-training/</guid>
+      <description>&lt;p&gt;VR Training (Vulnerability Research, but also a play on Virtual Reality &amp;ndash; can you guess where this is from?) is a highly gamified binary exploitation crash course, which was written as a passion project of mine (it even has a funny storyline, just like its inspiration 😆). It follows the story of a group of new recruits as they uncover the secrets of cybersecurity megacorporation ROP LLC. &amp;ndash; does ROP LLC. simply provide cybersecurity for the modern world, or is there more than meets the eye?&lt;/p&gt;</description>
+    </item>
     <item>
       <title>AYCEP CTF 2024: Qualifiers and Finals Challenges</title>
       <link>https://kaligulaarmblessed.github.io/challenges/aycep2024-ctf/</link>
