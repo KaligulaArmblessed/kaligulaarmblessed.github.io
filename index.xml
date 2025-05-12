@@ -6,8 +6,15 @@
     <description>Recent content on Kernels and Cats</description>
     <generator>Hugo</generator>
     <language>en</language>
-    <lastBuildDate>Thu, 13 Feb 2025 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Fri, 07 Mar 2025 00:00:00 +0000</lastBuildDate>
     <atom:link href="https://kaligulaarmblessed.github.io/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>STANDCON 2025: Big Bang Theory</title>
+      <link>https://kaligulaarmblessed.github.io/challenges/standcon2025-bigbangtheory/</link>
+      <pubDate>Fri, 07 Mar 2025 00:00:00 +0000</pubDate>
+      <guid>https://kaligulaarmblessed.github.io/challenges/standcon2025-bigbangtheory/</guid>
+      <description>&lt;h4 id=&#34;challenge-description&#34;&gt;Challenge Description&lt;/h4&gt;&#xA;&lt;p&gt;Big Bang Theory was the final challenge in a set of three challenges (the first two being the hardware challenge by Justin and the snake game challenge by &lt;a href=&#34;https://mcdulltii.github.io/&#34;&gt;Aaron (@mcdulltii)&lt;/a&gt; respectively) used in Cyber League Finals (run during STANDCON 2025). The theme was &amp;ldquo;Defuse The Device&amp;rdquo;, where two teams of three had two hours to complete as many of the three challenges as possible before we all 💥 explode 💥&lt;/p&gt;</description>
+    </item>
     <item>
       <title>VR Training</title>
       <link>https://kaligulaarmblessed.github.io/challenges/vr-training/</link>

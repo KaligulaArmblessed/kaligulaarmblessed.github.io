@@ -115,7 +115,7 @@
 <li>Cross cache by spraying the target object</li>
 </ol>
 <p>In this case, let&rsquo;s use timerfd_ctx as our object allocated in the same cache as the victim object, and msg_msg as our cross cache target object. This means that we are trying to reallocate a slab originally allocated to the kmalloc-256 slab cache to the kmalloc-cg-256 slab cache.</p>
-<h4 id="step-1-spray-object-allocated-in-the-same-cache-as-the-victim-object----the-padding-spray">Step 1: Spray object allocated in the same cache as the victim object &ndash; The &ldquo;Padding Spray&rdquo;</h4>
+<h4 id="step-1-spray-object-allocated-in-the-same-cache-as-the-victim-object--the-padding-spray">Step 1: Spray object allocated in the same cache as the victim object &ndash; The &ldquo;Padding Spray&rdquo;</h4>
 <p>This spray will be done even before the victim object has been allocated. By spraying lots and lots of the same cache object, we are trying to exhaust the freelists for that particular cache (kmalloc-256), and trying to get the kernel to allocate a new slab to kmalloc-256. This will give us a clean slate to work with as when the new slab is allocated and partially filled with our padding spray, the only objects on the slab would either be the sprayed timerfd_ctx objects or objects that are yet to be allocated.</p>
 <p><img src="/images/cross-cache-for-lazy-people/newslab.jpg" alt="New slab with timerfds"></p>
 <p>Note that the objects allocated may not be continguous in memory nor in the order that they were allocated &ndash; this is due to CONFIG_SLAB_FREELIST_RANDOM.</p>

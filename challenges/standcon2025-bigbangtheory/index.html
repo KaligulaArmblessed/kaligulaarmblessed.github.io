@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+    <title>Kernels and Cats</title>
+    <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+    <meta content="utf-8" http-equiv="encoding">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="theme-color" content="#000084" />
+    <meta name="google-site-verification" content="733C7I2uDZnatcput9zZupeQ_PX5Z0BJ1HmTnGi0SJI" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+	<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+	<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+	<link rel="manifest" href="/site.webmanifest">
+	<link rel="icon" href="https://kaligulaarmblessed.github.io//favicon.ico">
+    <link rel="canonical" href="https://kaligulaarmblessed.github.io/">
+    
+    
+</head>
+<body>
+<nav class="navbar navbar-inverse navbar-fixed-top">
+    <div class="navbar-inner">
+        <div class="container">
+            <button type="button" class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse"></button>
+            <a class="brand" href="https://kaligulaarmblessed.github.io/">Kernels and Cats</a>
+            <div class="nav-collapse collapse">
+                <ul class="nav">
+                    
+                    
+                        
+                            <li>
+                                <a href="/about/">
+                                    
+                                    <span>About</span>
+                                </a>
+                            </li>
+                        
+                    
+                        
+                            <li>
+                                <a href="/post/">
+                                    
+                                    <span>All posts</span>
+                                </a>
+                            </li>
+                        
+                    
+                        
+                            <li>
+                                <a href="/challenges/">
+                                    
+                                    <span>CTF Challenges</span>
+                                </a>
+                            </li>
+                        
+                    
+                        
+                            <li>
+                                <a href="/lab-compendium/">
+                                    
+                                    <span>Lab Compendium</span>
+                                </a>
+                            </li>
+                        
+                    
+                        
+                            <li>
+                                <a href="/random-facts/">
+                                    
+                                    <span>Random Fun Facts</span>
+                                </a>
+                            </li>
+                        
+                    
+                </ul>
+            </div>
+        </div>
+    </div>
+</nav><div id="content" class="container">
+
+<div class="row-fluid navmargin">
+    <div class="page-header">
+        <h1>STANDCON 2025: Big Bang Theory - Fri, Mar 7, 2025</h1>
+    </div>
+    <p class="lead"></p>
+    <h4 id="challenge-description">Challenge Description</h4>
+<p>Big Bang Theory was the final challenge in a set of three challenges (the first two being the hardware challenge by Justin and the snake game challenge by <a href="https://mcdulltii.github.io/">Aaron (@mcdulltii)</a> respectively) used in Cyber League Finals (run during STANDCON 2025). The theme was &ldquo;Defuse The Device&rdquo;, where two teams of three had two hours to complete as many of the three challenges as possible before we all 💥 explode 💥</p>
+<p>Here&rsquo;s the challenge description:</p>
+<blockquote>
+<p>To uncover the secrets of the <del>bomb</del> device (and prevent everyone from going out in a fiery mess!), you will need to read secrets from the kernel with the help of your trusty debugger and qemu.</p></blockquote>
+<p>Challenge files can be obtained here: <a href="https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Big_Bang_Theory">https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/Big_Bang_Theory</a></p>
+<p>Note that the files distributed to the participants (dist) and the files hosted on the server (service) are different &ndash; this is because the goal of the challenge is just to leak the secret message (obtaining root is not required). The secret message is actually a simple Chemistry riddle, which when solved will tell the participants which wire to cut to defuse the, ahem, <strong>device</strong>. ❌💣 ✅🖥️</p>
+<h4 id="fun-facts-and-spoilers">Fun Facts and Spoilers</h4>
+<p>Fun fact 1: I was made to hide underneath a table for ✨ dramatic effect ✨, and pop out only when the kernel challenge was revealed. I was underneath the table in the middle:</p>
+<p><img src="/images/standcon2025-bigbangtheory/notunderatable.jpg" alt="View from Not Underneath A Table"></p>
+<p>If you have ever wondered what the view from underneath a table is like, here you go:</p>
+<p><img src="/images/standcon2025-bigbangtheory/undertableview.jpg" alt="View from Underneath A Table"></p>
+<p>Fun fact 2: I was kicked once when I was underneath the table 😭</p>
+<p>If you were able to leak the secret message, this is what you would have got:</p>
+<pre tabindex="0"><code>5TANDing here I realize
+The elements
+can be my guide 
+My atomic weight
+Is twice my number
+Bonded with 6 hydrogens
+We form a hexagon
+My number is
+the secret key
+To stopping this bomb
+From combusting you see
+</code></pre><p>This is a Chemistry riddle. There are a few elements with an atomic weight that is twice their atomic number &ndash; carbon, nitrogen and oxygen to name a few. The riddle then states that when bonded with 6 hydrogens, they will form a hexagon &ndash; this is a reference to benzene (C<del>6</del>H<del>6</del>), which comprises of 6 carbons and 6 hydrogens. Here is the aromatic representation of benzene: ⏣, and here is the Kekule representation ⌬ (this is totally not an excuse for me to put cute Chemistry symbols onto my blog). The riddle finally states that the &ldquo;number&rdquo; (referring to the atomic number) is the secret key to stopping the bomb from combusting, meaning that the participants have to cut the <strong>6th</strong> wire (since carbon&rsquo;s atomic number is 6)!</p>
+<p>There are also other references in this riddle &ndash; &ldquo;5TANDing here&rdquo; is a reference to both &ldquo;5TANDCON&rdquo; (since this is the fifth iteration of STANDCON) and the song &ldquo;It Has To Be This Way&rdquo; from Metal Gear Rising: Revengeance (which is the awesomest stupid thing to exist and the stupidest awesome thing to exist according to a YouTuber, and I agree with this judgement wholeheartedly). If you haven&rsquo;t noticed from other posts on this blog, MGR is one of my favourite games, and many of my CTF challenges have silly MGR references in them (one of them being <a href="https://kaligulaarmblessed.github.io/post/dead-pwners-society/">Dead Pwners&rsquo; Society&rsquo;s supposedly &ldquo;F**king Invincible Kernel&rdquo;</a> with all its protections). Also, during Cyber League Finals, two songs were played: the instrumental of <a href="https://www.youtube.com/watch?v=ZYAPgPH9hsI">MGR&rsquo;s It Has To Be This Way</a> (this links to the vocal version though, because it is simply an iconic meme) when the kernel challenge was revealed, and <a href="https://www.youtube.com/watch?v=Y5bGnPOfgKQ">Hacknet OS&rsquo;s Panic Track</a> by The Algorithm (an awesome band) for the last two minutes or so of the CTF.</p>
+<p>Challenge design wise, I&rsquo;ve always wanted to turn the silly <code>anon_vma_name</code> technique into a CTF challenge because I thought it would be funny so here it is!</p>
+<p>Now, for the solution:</p>
+<ol>
+<li>Exploit double fetch by quickly flipping a variable</li>
+<li>Turn double fetch into heap overflow, then do a one byte overwrite to corrupt a pointer so you have two pointers pointing at the same object</li>
+<li>Trigger free to get UAF</li>
+<li>Spray anon_vma_name over the victim object</li>
+<li>Trigger the ticker write function to write the secret to the anon_vma_name object</li>
+<li>Leak the riddle about which wire to cut by reading /proc/pid/maps</li>
+</ol>
+<p>The full exploit can be obtained here: <a href="https://github.com/KaligulaArmblessed/CTF-Challenges/blob/main/Big_Bang_Theory/solution/exploit.c">https://github.com/KaligulaArmblessed/CTF-Challenges/blob/main/Big_Bang_Theory/solution/exploit.c</a></p>
+<p>One of my other favourite things that happened in Cyber League Finals was the hand-drawn hardware diagram by Justin given to the participants:</p>
+<img src="/images/standcon2025-bigbangtheory/hardware_drawing.jpg" alt="Hardware drawing" width="600" style="margin-bottom: 20px;"/>
+<p>The other thing that happened in STANDCON that I found incredibly funny was this:</p>
+<p><img src="/images/standcon2025-bigbangtheory/vr-trainer.jpg" alt="VR Trainer"></p>
+<p>Yes, this is totally not a silly reference&hellip;</p>
+
+    <h4><a href="https://kaligulaarmblessed.github.io/">Back to Home</a></h4>
+</div>
+
+
+        </div><footer class="container">
+    <hr class="soften">
+    <p>
+&copy; 
+
+    Kaligula Armblessed
+
+<span id="thisyear">2025</span>
+
+
+        | Built on <a href="//gohugo.io" target="_blank">Hugo</a>
+
+</p>
+    <p class="text-center">
+        
+        <a href="https://twitter.com/KaligulaSec">Twitter</a> 
+        
+        <a href="https://github.com/KaligulaArmblessed">GitHub</a> 
+        
+    </p>
+</footer>
+
+</body><link rel="stylesheet" href="/css/bootstrap.css">
+<link rel="stylesheet" href="/css/bootstrap-responsive.css">
+<link rel="stylesheet" href="/css/style.css">
+
+<script src="/js/jquery.js"></script>
+<script src="/js/bootstrap-386.js"></script>
+<script src="/js/bootstrap-transition.js"></script>
+<script src="/js/bootstrap-alert.js"></script>
+<script src="/js/bootstrap-modal.js"></script>
+<script src="/js/bootstrap-dropdown.js"></script>
+<script src="/js/bootstrap-scrollspy.js"></script>
+<script src="/js/bootstrap-tab.js"></script>
+<script src="/js/bootstrap-tooltip.js"></script>
+<script src="/js/bootstrap-popover.js"></script>
+<script src="/js/bootstrap-button.js"></script>
+<script src="/js/bootstrap-collapse.js"></script>
+<script src="/js/bootstrap-carousel.js"></script>
+<script src="/js/bootstrap-typeahead.js"></script>
+<script src="/js/bootstrap-affix.js"></script>
+<script>
+    _386 = { 
+        fastLoad: false ,
+        onePass: true , 
+        speedFactor: 1 
+    };
+
+    
+    function ThisYear() {
+        document.getElementById('thisyear').innerHTML = new Date().getFullYear();
+    };
+</script></html>
