@@ -6,8 +6,15 @@
     <description>Recent content in Challenges on Kernels and Cats</description>
     <generator>Hugo</generator>
     <language>en</language>
-    <lastBuildDate>Fri, 07 Mar 2025 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Fri, 11 Jul 2025 00:00:00 +0000</lastBuildDate>
     <atom:link href="https://kaligulaarmblessed.github.io/challenges/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>LNC 5.0: Utility Pole</title>
+      <link>https://kaligulaarmblessed.github.io/challenges/lnc5-utilitypole/</link>
+      <pubDate>Fri, 11 Jul 2025 00:00:00 +0000</pubDate>
+      <guid>https://kaligulaarmblessed.github.io/challenges/lnc5-utilitypole/</guid>
+      <description>&lt;p&gt;This is a two part series written by the wonderful &lt;a href=&#34;https://github.com/deltadeltalambda&#34;&gt;Lambda&lt;/a&gt; and I.&lt;/p&gt;&#xA;&lt;p&gt;&lt;strong&gt;Utility Pole: Revenge (Pt. 1)&lt;/strong&gt;&lt;/p&gt;&#xA;&lt;blockquote&gt;&#xA;&lt;p&gt;ROP LLC. has attracted spies ever since our website became popular&amp;hellip; too popular. Now all communications must be guarded. Do you know enough about utility poles to pinpoint 10 locations and pass the security check? Make haste, for if you manage to bypass the security check before the next wave, our CISO will grant you early access to our newest data center, as well as crucial company secrets that would aid your journey.&lt;/p&gt;</description>
+    </item>
     <item>
       <title>STANDCON 2025: Big Bang Theory</title>
       <link>https://kaligulaarmblessed.github.io/challenges/standcon2025-bigbangtheory/</link>

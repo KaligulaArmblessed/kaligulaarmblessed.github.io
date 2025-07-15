@@ -92,7 +92,7 @@
     </div>
     <p class="lead"></p>
     <h4 id="tldr">TLDR</h4>
-<p>Utility Pole: Revenge (Pt. 1) and Utility Pole: Revengeance (Pt. 2) are a series of collab challenges written by <a href="https://github.com/adaisyx">Lambda</a> and I for LNC 5.0. Part 1 (written by Lambda) was a geo-OSINT challenge where players had to identify the locations of 10 utility poles, and part 2 (written by me) was a kernel pwn challenge. The vulnerability was a 2 null-byte heap overflow, which can be utilized for privilege escalation by employing the PageJack technique.</p>
+<p>Utility Pole: Revenge (Pt. 1) and Utility Pole: Revengeance (Pt. 2) are a series of collab challenges written by <a href="https://github.com/deltadeltalambda">Lambda</a> and I for LNC 5.0. Part 1 (written by Lambda) was a geo-OSINT challenge where players had to identify the locations of 10 utility poles, and part 2 (written by me) was a kernel pwn challenge. The vulnerability was a 2 null-byte heap overflow, which can be utilized for privilege escalation by employing the PageJack technique.</p>
 <h4 id="table-of-contents">Table of Contents</h4>
 <ol>
 <li><a href="#the-story-behind-utility-pole-revengeance">The Story Behind Utility Pole: Revengeance</a></li>
@@ -106,14 +106,14 @@
 <p>Some of you might know that I am a very big fan of Metal Gear Rising: Revengeance (see <a href="https://kaligulaarmblessed.github.io/post/dead-pwners-society/">Dead Pwners&rsquo; Society</a>, <a href="https://kaligulaarmblessed.github.io/challenges/standcon2025-bigbangtheory/">Big Bang Theory</a>, etc). In MGR, during one of the boss fights, evil corporation Desperado&rsquo;s leader, Sundowner, fights with main character Raiden (whose real name is Jack) by chopping down a utility pole and swinging it at him:</p>
 <p><img src="/images/utilitypole-revengeance/utilitypole.png" alt="The utility pole man himself"></p>
 <p>(Yes, I went to play MGR to get these screenshots)</p>
-<p>I found this stupidly funny, so as any sane person would do, I turned it into a CTF challenge for AYCEP CTF 2024: <a href="https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/AYCEP_2024/utilitypole">utilitypole</a>. However, as I have never written an OSINT challenge before, utilitypole V1™ turned out to be guessy and way more difficult than I&rsquo;ve expected (whoops). Some reactions on Discord for example:</p>
+<p>I found this stupidly funny, so as any sane person would do, I turned it into a CTF challenge (AYCEP CTF 2024&rsquo;s <a href="https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/AYCEP_2024/utilitypole">utilitypole</a>). However, as I have never written an OSINT challenge before, utilitypole V1™ turned out to be guessy and way more difficult than I&rsquo;ve expected (whoops). Some reactions on Discord for example:</p>
 <img src="/images/utilitypole-revengeance/discord_reactions.jpg" alt="Discord reactions" width="600" style="margin-bottom: 20px;"/>
-<p>Since I have written challenges for LNC CTF last year, I thought that it would be funny if a second version of the utility pole challenge was <strong>disguised as an OSINT, only for the players to be greeted with a kernel pwn challenge once they have solved the geoguessr part</strong>. So, I called OSINT legend Lambda (who spent 18 hours solving a geo-OSINT challenge where the only clues were a road and a butterfly 🦋 &ndash; she found the exact location btw) to craft the geoguessr segment of the challenge, while I wrote the kernel pwn. I&rsquo;ve always wanted to write a PageJack challenge (and totally not because I want to make a stupid MGR joke), hence this challenge came into being.</p>
+<p>Since I have written challenges for LNC CTF last year, I thought that it would be funny if a second version of the utility pole challenge was <strong>disguised as an OSINT, only for the players to be greeted with a kernel pwn challenge once they have solved the geoguessr part</strong>. So, I called OSINT legend &ldquo;Triangle&rdquo; Lambda (who spent 18 hours solving a geo-OSINT challenge where the only clues were a road and a butterfly 🦋 &ndash; she found the exact location btw) to craft the geoguessr segment of the challenge, while I wrote the kernel pwn. I&rsquo;ve always wanted to write a PageJack challenge (and totally not because I want to make a stupid MGR joke), hence this challenge came into being.</p>
 <h4 id="challenge-descriptions">Challenge Descriptions</h4>
 <p><strong>Utility Pole: Revenge (Pt. 1)</strong></p>
 <blockquote>
 <p>ROP LLC. has attracted spies ever since our website became popular&hellip; too popular. Now all communications must be guarded. Do you know enough about utility poles to pinpoint 10 locations and pass the security check? Make haste, for if you manage to bypass the security check before the next wave, our CISO will grant you early access to our newest data center, as well as crucial company secrets that would aid your journey.</p></blockquote>
-<p>This part of the challenge was written by <strong>Lambda</strong> &ndash; you can see her full writeup <a href="https://github.com/Lag-and-Crash/2025/blob/main/challenges/osint/utilitypole_revenge/solution/writeup.md">here</a>. (Every utility pole is also based on an MGR reference which is simply peak 🔥🔥)</p>
+<p>This part of the challenge was written by <strong>Lambda</strong> &ndash; you can see her full writeup <a href="https://github.com/Lag-and-Crash/2025/blob/main/challenges/osint/utilitypole_revenge/solution/writeup.md">here</a> (note: currently this link does not work &ndash; repo should be public-ed soon!). (Every utility pole is also based on an MGR reference which is simply peak 🔥🔥)</p>
 <p><strong>Utility Pole: Secret Data (Pt. 1.5)</strong></p>
 <p>The challenge was designed such that both Revenge (Pt. 1) and Revengeance (Pt. 2) can be solved independently, but if you solve part 1, you will get access to the source code (which is the secret data in this case) of the kernel module.</p>
 <p><strong>Utility Pole: Revengeance (Pt. 2)</strong></p>
@@ -374,12 +374,18 @@ LNC25{I_7H1nK_1T5_t1m3_f07_J4Ck_t0_L37_3R_r1P!!}
 </code></pre><p>Hope that you guys enjoyed the challenge! :D</p>
 <h4 id="my-favourite-challenge">My Favourite Challenge</h4>
 <p>I would also like to take this moment to give a shout out to my absolute favourite challenge (written by <a href="https://github.com/Kairos-T">Kairos</a>) in this CTF, which I believe is of <del>insane</del> <strong>impossible</strong> difficulty:</p>
+<p><strong>Touch Grass (200 points):</strong></p>
 <blockquote>
 <p>its time you look away from your screen and touch some REAL GRASS!
 take a picture of you making an &ldquo;L&rdquo; with your hand and using it to touch some grass, then open a ticket with that pic to get the flag :)
 sample pic given below (leftmost in the collage below)</p></blockquote>
 <p>Here are some responses that we got (including fake grass and AI generated grass 💀💀💀):</p>
 <p><img src="/images/utilitypole-revengeance/grass.jpg" alt="Grassssss"></p>
+<p>Also, if you enjoyed the ROP LLC. series of challenges in LNC 5.0, there is one more such challenge:</p>
+<p><strong>World Marshal Web (by Lambda):</strong></p>
+<blockquote>
+<p>ROP LLC, the World&rsquo;s leading definitely-not-evil cybersecurity firm, is under growing scrutiny. As their newest intern, you must make ropllc.com popular so the company can use it to spread propaganda - I mean, spread their Good Name - more effectively.</p></blockquote>
+<p>You can access this challenge <a href="https://github.com/Lag-and-Crash/2025-public/tree/main/challenges/misc/World%20Marshal%20Web">here</a>.</p>
 <h4 id="references-and-credits">References and Credits</h4>
 <ol>
 <li><a href="https://github.com/arttnba3/D3CTF2023_d3kcache">https://github.com/arttnba3/D3CTF2023_d3kcache</a> (Original PageJack CTF challenge)</li>
@@ -388,7 +394,7 @@ sample pic given below (leftmost in the collage below)</p></blockquote>
 <li><a href="https://r1ru.github.io/posts/6/">https://r1ru.github.io/posts/6/</a> (Check out his kernel pwn series!!)</li>
 <li>Lambda for Utility Pole: Revenge (Pt. 1)</li>
 <li>Lambda and Cryptsaria for listening to me ramble about kpwn and MGR</li>
-<li>Metal Gear Rising: Revengeance (goated)</li>
+<li>Metal Gear Rising: Revengeance (memes are the DNA of the soul)</li>
 </ol>
 
     <h4><a href="https://kaligulaarmblessed.github.io/">Back to Home</a></h4>

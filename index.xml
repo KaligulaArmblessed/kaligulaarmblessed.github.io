@@ -9,11 +9,18 @@
     <lastBuildDate>Fri, 11 Jul 2025 00:00:00 +0000</lastBuildDate>
     <atom:link href="https://kaligulaarmblessed.github.io/index.xml" rel="self" type="application/rss+xml" />
     <item>
+      <title>LNC 5.0: Utility Pole</title>
+      <link>https://kaligulaarmblessed.github.io/challenges/lnc5-utilitypole/</link>
+      <pubDate>Fri, 11 Jul 2025 00:00:00 +0000</pubDate>
+      <guid>https://kaligulaarmblessed.github.io/challenges/lnc5-utilitypole/</guid>
+      <description>&lt;p&gt;This is a two part series written by the wonderful &lt;a href=&#34;https://github.com/deltadeltalambda&#34;&gt;Lambda&lt;/a&gt; and I.&lt;/p&gt;&#xA;&lt;p&gt;&lt;strong&gt;Utility Pole: Revenge (Pt. 1)&lt;/strong&gt;&lt;/p&gt;&#xA;&lt;blockquote&gt;&#xA;&lt;p&gt;ROP LLC. has attracted spies ever since our website became popular&amp;hellip; too popular. Now all communications must be guarded. Do you know enough about utility poles to pinpoint 10 locations and pass the security check? Make haste, for if you manage to bypass the security check before the next wave, our CISO will grant you early access to our newest data center, as well as crucial company secrets that would aid your journey.&lt;/p&gt;</description>
+    </item>
+    <item>
       <title>Utility Pole: Revengeance -- PageJack [LNC 5.0]</title>
       <link>https://kaligulaarmblessed.github.io/post/utilitypole/</link>
       <pubDate>Fri, 11 Jul 2025 00:00:00 +0000</pubDate>
       <guid>https://kaligulaarmblessed.github.io/post/utilitypole/</guid>
-      <description>&lt;h4 id=&#34;tldr&#34;&gt;TLDR&lt;/h4&gt;&#xA;&lt;p&gt;Utility Pole: Revenge (Pt. 1) and Utility Pole: Revengeance (Pt. 2) are a series of collab challenges written by &lt;a href=&#34;https://github.com/adaisyx&#34;&gt;Lambda&lt;/a&gt; and I for LNC 5.0. Part 1 (written by Lambda) was a geo-OSINT challenge where players had to identify the locations of 10 utility poles, and part 2 (written by me) was a kernel pwn challenge. The vulnerability was a 2 null-byte heap overflow, which can be utilized for privilege escalation by employing the PageJack technique.&lt;/p&gt;</description>
+      <description>&lt;h4 id=&#34;tldr&#34;&gt;TLDR&lt;/h4&gt;&#xA;&lt;p&gt;Utility Pole: Revenge (Pt. 1) and Utility Pole: Revengeance (Pt. 2) are a series of collab challenges written by &lt;a href=&#34;https://github.com/deltadeltalambda&#34;&gt;Lambda&lt;/a&gt; and I for LNC 5.0. Part 1 (written by Lambda) was a geo-OSINT challenge where players had to identify the locations of 10 utility poles, and part 2 (written by me) was a kernel pwn challenge. The vulnerability was a 2 null-byte heap overflow, which can be utilized for privilege escalation by employing the PageJack technique.&lt;/p&gt;</description>
     </item>
     <item>
       <title>STANDCON 2025: Big Bang Theory</title>
