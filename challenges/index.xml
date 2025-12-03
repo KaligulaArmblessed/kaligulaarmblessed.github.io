@@ -6,8 +6,15 @@
     <description>Recent content in Challenges on Kernels and Cats</description>
     <generator>Hugo</generator>
     <language>en</language>
-    <lastBuildDate>Fri, 11 Jul 2025 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Tue, 02 Dec 2025 00:00:00 +0000</lastBuildDate>
     <atom:link href="https://kaligulaarmblessed.github.io/challenges/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>HEX ADVENT 2025: Make A Wish</title>
+      <link>https://kaligulaarmblessed.github.io/challenges/hexadvent-makeawish/</link>
+      <pubDate>Tue, 02 Dec 2025 00:00:00 +0000</pubDate>
+      <guid>https://kaligulaarmblessed.github.io/challenges/hexadvent-makeawish/</guid>
+      <description>&lt;p&gt;Let&amp;rsquo;s make a wish! But before we can tell Santa our true desires, we need to first understand some key concepts.&lt;/p&gt;&#xA;&lt;h4 id=&#34;what-is-binary-exploitation&#34;&gt;What is Binary Exploitation?&lt;/h4&gt;&#xA;&lt;p&gt;Binary exploitation, also known as &amp;ldquo;pwn&amp;rdquo;, is the art of exploiting memory corruption or logic vulnerabilities in compiled executables and controlling code execution.&lt;/p&gt;&#xA;&lt;h4 id=&#34;common-userland-attacks&#34;&gt;Common Userland Attacks&lt;/h4&gt;&#xA;&lt;p&gt;Computers often have different rings of privileges which allow different level of access to resources. The core of the operating system, known as the kernel, runs with ring 0 privileges, while applications (such as web browsers, document processors etc.) run on ring 3 (known as userland). Memory corruption vulnerabilities in userland and kernel land can both be exploited, and they do share some key concepts!&lt;/p&gt;</description>
+    </item>
     <item>
       <title>LNC 5.0: Utility Pole</title>
       <link>https://kaligulaarmblessed.github.io/challenges/lnc5-utilitypole/</link>

@@ -85,81 +85,32 @@
         </div>
     </div>
 </nav><div id="content" class="container">
-<article class="row-fluid navmargin">
-    <header class="page-header">
-        <h1>Challenges</h1>
-    </header>
-    
-    
-</article>
+
+<div class="row-fluid navmargin">
+    <div class="page-header">
+        <h1>HEX ADVENT 2025: Make A Wish - Tue, Dec 2, 2025</h1>
+    </div>
+    <p class="lead"></p>
+    <p>Let&rsquo;s make a wish! But before we can tell Santa our true desires, we need to first understand some key concepts.</p>
+<h4 id="what-is-binary-exploitation">What is Binary Exploitation?</h4>
+<p>Binary exploitation, also known as &ldquo;pwn&rdquo;, is the art of exploiting memory corruption or logic vulnerabilities in compiled executables and controlling code execution.</p>
+<h4 id="common-userland-attacks">Common Userland Attacks</h4>
+<p>Computers often have different rings of privileges which allow different level of access to resources. The core of the operating system, known as the kernel, runs with ring 0 privileges, while applications (such as web browsers, document processors etc.) run on ring 3 (known as userland). Memory corruption vulnerabilities in userland and kernel land can both be exploited, and they do share some key concepts!</p>
+<p>Most CTFs feature userland pwn challenges, and some techniques include:</p>
 <ul>
-
-
-    <li>
-        <a href="https://kaligulaarmblessed.github.io/challenges/hexadvent-makeawish/">2025-12-02 | HEX ADVENT 2025: Make A Wish</a>
-    </li>
-
-    <li>
-        <a href="https://kaligulaarmblessed.github.io/challenges/lnc5-utilitypole/">2025-07-11 | LNC 5.0: Utility Pole</a>
-    </li>
-
-    <li>
-        <a href="https://kaligulaarmblessed.github.io/challenges/standcon2025-bigbangtheory/">2025-03-07 | STANDCON 2025: Big Bang Theory</a>
-    </li>
-
-    <li>
-        <a href="https://kaligulaarmblessed.github.io/challenges/vr-training/">2025-02-13 | VR Training</a>
-    </li>
-
-    <li>
-        <a href="https://kaligulaarmblessed.github.io/challenges/aycep2024-ctf/">2024-12-18 | AYCEP CTF 2024: Qualifiers and Finals Challenges</a>
-    </li>
-
-    <li>
-        <a href="https://kaligulaarmblessed.github.io/challenges/idekctf2024-dead-pwners-society/">2024-08-17 | idekCTF 2024: Dead Pwners Society</a>
-    </li>
-
-    <li>
-        <a href="https://kaligulaarmblessed.github.io/challenges/m53-introduction-to-kernel-pwn/">2024-04-06 | M53 Sharing Session: Introduction to Kernel Exploitation</a>
-    </li>
-
-    <li>
-        <a href="https://kaligulaarmblessed.github.io/challenges/lnc4-cheminventory/">2024-03-11 | LNC 4.0: Cheminventory</a>
-    </li>
-
-    <li>
-        <a href="https://kaligulaarmblessed.github.io/challenges/lnc4-welcome2pwn/">2024-03-11 | LNC 4.0: Welcome2Pwn</a>
-    </li>
-
-    <li>
-        <a href="https://kaligulaarmblessed.github.io/challenges/standcon2023-meowcrosoft-word/">2023-12-08 | STANDCON 2023: Meowcrosoft Word</a>
-    </li>
-
-    <li>
-        <a href="https://kaligulaarmblessed.github.io/challenges/idekctf2022-gone-fishing/">2023-01-13 | idekCTF 2022*: Gone Fishing</a>
-    </li>
-
-    <li>
-        <a href="https://kaligulaarmblessed.github.io/challenges/idekctf2022-sus-meow/">2023-01-13 | idekCTF 2022*: Sus Meow</a>
-    </li>
-
-    <li>
-        <a href="https://kaligulaarmblessed.github.io/challenges/standcon2022-newmath/">2022-06-18 | STANDCON 2022: New Math</a>
-    </li>
-
-    <li>
-        <a href="https://kaligulaarmblessed.github.io/challenges/cys-introduction-to-rop/">2022-03-13 | CYS Sharing Session: Introduction to ROP</a>
-    </li>
-
-    <li>
-        <a href="https://kaligulaarmblessed.github.io/challenges/idekctf2021-are-you-lstening-to-me/">2021-12-11 | idekCTF 2021: Are you lstening to me??</a>
-    </li>
-
-    <li>
-        <a href="https://kaligulaarmblessed.github.io/challenges/idekctf2021-retrosynthesis/">2021-12-11 | idekCTF 2021: Retrosynthesis</a>
-    </li>
-
+<li>ret2win (overwriting a return address or function pointer to control rip, and returning to an existing function): <a href="https://guyinatuxedo.github.io/05-bof_callfunction/csaw16_warmup/index.html">https://guyinatuxedo.github.io/05-bof_callfunction/csaw16_warmup/index.html</a></li>
+<li>ret2shellcode (controlling rip to jump to executable stack, where shellcode to perform specific actions is placed): <a href="https://guyinatuxedo.github.io/06-bof_shellcode/tu18_shellaeasy/index.html">https://guyinatuxedo.github.io/06-bof_shellcode/tu18_shellaeasy/index.html</a></li>
 </ul>
+<p>Understanding these concepts will be useful to solving this challenge (even though the challenge is in kernel land 😉)!</p>
+<h4 id="setting-up-a-kernel-debugging-station">Setting Up A Kernel Debugging Station</h4>
+<p>Make A Wish is a kernel pwn challenge, which means that instead of exploiting a binary in userland, you will be exploiting a kernel module. Typical userland pwn exploits are written in python, but as you will need to make specific syscalls to the operating system to exploit the vulnerability in the kernel module, you will be writing your exploit in C.</p>
+<p>For a guide on how to set up debugging for this challenge, refer to: <a href="https://kaligulaarmblessed.github.io/challenges/lnc4-cheminventory/">https://kaligulaarmblessed.github.io/challenges/lnc4-cheminventory/</a></p>
+<p>Once you have set up a debugging station, it is time to find the vulnerability in the module! I recommend decompiling the .ko file with a tool such as Ghidra or IDA. Once you have found the vulnerability, think about the primitives that you have, and if a technique similar to the ones mentioned above exist for the kernel!</p>
+<p>Happy hunting and have fun!</p>
+
+    <h4><a href="https://kaligulaarmblessed.github.io/">Back to Home</a></h4>
+</div>
+
 
         </div><footer class="container">
     <hr class="soften">
