@@ -125,7 +125,7 @@ uid=1000(cheminventory) gid=1000(cheminventory) groups=1000(cheminventory)
 <h4 id="becoming-the-root-user-in-the-debug-setup">Becoming the Root User in the Debug Setup</h4>
 <p>It is very useful to be the root user while debugging a kernel challenge.</p>
 <p>The following shell script can be used to unzip the initramfs archive:</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sh" data-lang="sh"><span style="display:flex;"><span>mkdir initramfs
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-sh" data-lang="sh"><span style="display:flex;"><span>mkdir initramfs
 </span></span><span style="display:flex;"><span>cd initramfs
 </span></span><span style="display:flex;"><span>cp ../initramfs.cpio.gz .
 </span></span><span style="display:flex;"><span>gunzip ./initramfs.cpio.gz
@@ -138,10 +138,10 @@ uid=1000(cheminventory) gid=1000(cheminventory) groups=1000(cheminventory)
 <pre tabindex="0"><code>::sysinit:/etc/init.d/rcS
 ::once:-sh -c &#39;clear; setuidgid 0 sh; poweroff&#39;
 </code></pre><p>To recompress the initramfs archive, run the following shell script:</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sh" data-lang="sh"><span style="display:flex;"><span>cd initramfs
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-sh" data-lang="sh"><span style="display:flex;"><span>cd initramfs
 </span></span><span style="display:flex;"><span>find . -print0 <span style="color:#ae81ff">\
-</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>| cpio --null -ov --format<span style="color:#f92672">=</span>newc <span style="color:#ae81ff">\
-</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span>| gzip -9 &gt; initramfs.cpio.gz
+</span></span></span><span style="display:flex;"><span>| cpio --null -ov --format<span style="color:#f92672">=</span>newc <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span>| gzip -9 &gt; initramfs.cpio.gz
 </span></span><span style="display:flex;"><span>mv ./initramfs.cpio.gz ../
 </span></span></code></pre></div><p>Now run the run.sh script again, and you should be logged in as root!</p>
 <pre tabindex="0"><code>/ # whoami
@@ -199,7 +199,7 @@ qemu-system-x86_64 -s -S \
 
     Kaligula Armblessed
 
-<span id="thisyear">2025</span>
+<span id="thisyear">2026</span>
 
 
         | Built on <a href="//gohugo.io" target="_blank">Hugo</a>
@@ -207,7 +207,7 @@ qemu-system-x86_64 -s -S \
 </p>
     <p class="text-center">
         
-        <a href="https://twitter.com/KaligulaSec">Twitter</a> 
+        <a href="https://x.com/KaligulaSec">Twitter</a> 
         
         <a href="https://github.com/KaligulaArmblessed">GitHub</a> 
         

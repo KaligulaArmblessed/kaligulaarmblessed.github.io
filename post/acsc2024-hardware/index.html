@@ -117,7 +117,7 @@ Authored by Chainfire73
 Authored by v3ct0r and Chainfire73
 </code></pre><p>A binary <code>vault</code> was provided, as well as a Dockerfile to start a container to test the exploit locally. When you connect to the remote netcat instance, you will be given a user shell with access to python.</p>
 <p>Let&rsquo;s take a look at the decompilation of the vault binary:</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">main</span>(<span style="color:#66d9ef">void</span>)
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">main</span>(<span style="color:#66d9ef">void</span>)
 </span></span><span style="display:flex;"><span>
 </span></span><span style="display:flex;"><span>{
 </span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">ssize_t</span> sVar1;
@@ -153,7 +153,7 @@ Authored by v3ct0r and Chainfire73
 <li>If the character is correct, delay(), then return to instruction 1</li>
 </ol>
 <p>In short, we will be able to perform a timing-based side channel attack and bruteforce the PIN digit by digit. This is because if the character is correct, the program will take longer to run as it calls delay and starts another iteration of the loop, but if the character is wrong, the program will just return. We can do that with a simple python script (I had to use subprocess because pwntools was not installed on the remote box :&lt;):</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#f92672">import</span> subprocess
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#f92672">import</span> subprocess
 </span></span><span style="display:flex;"><span><span style="color:#f92672">import</span> time
 </span></span><span style="display:flex;"><span>
 </span></span><span style="display:flex;"><span><span style="color:#75715e">## ACSC{b377er_d3L4y3d_7h4n_N3v3r_b42fd3d840948f3e} -- the flag!</span>
@@ -198,7 +198,7 @@ Authored by op
 <p>While running strings, I noticed that there was some sort of python code that looked like it was used for encoding key presses:</p>
 <p><img src="/images/acsc2024-hardware/picopico-keypresses.jpg" alt="picopico keypresses"></p>
 <p>And there was also this really suspicious bit at the end:</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#f92672">import</span> storage
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#f92672">import</span> storage
 </span></span><span style="display:flex;"><span>storage<span style="color:#f92672">.</span>disable_usb_drive()
 </span></span><span style="display:flex;"><span><span style="color:#f92672">import</span> time
 </span></span><span style="display:flex;"><span>L<span style="color:#f92672">=</span>len
@@ -250,7 +250,7 @@ Authored by op
 <p><img src="/images/acsc2024-hardware/picopico-interesting.jpg" alt="firmware interesting"></p>
 <p>That number looks familiar! That is actually our target for the XOR, and it contains the flag!</p>
 <p>We can simply dump the memory from that region and perform the XOR to get the flag:</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span>info <span style="color:#f92672">=</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\x10\x53\x7f\x2b\x41\xa0\x71\x51\x9f\xca\xfd\x84\x35\x0a\xd2\xb0\x1e\xa8\xa9\xb7\x10\x1f\x55\x7a\x8c\x98\xb2\x69\xef\x92\xc5\x15\xd0\x4b\xff\x87\x17\x63\xe4\x62\xc6\xa5\xb2\xbc\x8e\xef\xd8\x24\xc3\x19\x3e\xbf\x8b\xbe\xd7\x76\x71\xe1\x84\x27\x98\x9d\x87\x73\x2e\x63\x19\xbf\xae\xd4\x0b\x8d\xf3\xfd\x76\xe4\x73\xcb\xe5\x25\x5b\xdd\x07\xf6\xc1\xd3\xd9\xb8\x89\xa5\x00\x00\x00\x00\x00\x00</span><span style="color:#e6db74">&#34;</span>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span>info <span style="color:#f92672">=</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\x10\x53\x7f\x2b\x41\xa0\x71\x51\x9f\xca\xfd\x84\x35\x0a\xd2\xb0\x1e\xa8\xa9\xb7\x10\x1f\x55\x7a\x8c\x98\xb2\x69\xef\x92\xc5\x15\xd0\x4b\xff\x87\x17\x63\xe4\x62\xc6\xa5\xb2\xbc\x8e\xef\xd8\x24\xc3\x19\x3e\xbf\x8b\xbe\xd7\x76\x71\xe1\x84\x27\x98\x9d\x87\x73\x2e\x63\x19\xbf\xae\xd4\x0b\x8d\xf3\xfd\x76\xe4\x73\xcb\xe5\x25\x5b\xdd\x07\xf6\xc1\xd3\xd9\xb8\x89\xa5\x00\x00\x00\x00\x00\x00</span><span style="color:#e6db74">&#34;</span>
 </span></span><span style="display:flex;"><span>
 </span></span><span style="display:flex;"><span>flag <span style="color:#f92672">=</span> []
 </span></span><span style="display:flex;"><span>
@@ -277,7 +277,7 @@ Authored by Chainfire73
 </code></pre><p>This challenge is about power analysis, which is a type of side-channel attack that looks at the power consumption of hardware to gain information about the operations that the machine is performing. Some types of math require more power than others, and by analyzing power traces, we are able to determine what cryptographic algorithms are being used, and how we can potentially crack them.</p>
 <p>We are given 2 files: <code>textins.npy</code> and <code>traces.npy</code>. Textins is the array for the plain text, and traces is the power traces. Having never done a power analysis before, I went to google for tutorials, and came across this wonderful walkthrough for power analysis by coastalwhite: <a href="https://coastalwhite.github.io/intro-power-analysis/intro.html">https://coastalwhite.github.io/intro-power-analysis/intro.html</a></p>
 <p>In his walkthrough, he goes through step by step how to crack an AES key, which is what we need here! This is all covered superbly in the &ldquo;Breaking AES&rdquo; section of his writeup, and the script he provides works for solving this challenge:</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#75715e">#!/bin/python3</span>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#75715e">#!/bin/python3</span>
 </span></span><span style="display:flex;"><span>
 </span></span><span style="display:flex;"><span><span style="color:#f92672">import</span> numpy <span style="color:#66d9ef">as</span> np
 </span></span><span style="display:flex;"><span><span style="color:#f92672">from</span> tqdm <span style="color:#f92672">import</span> trange
@@ -455,7 +455,7 @@ Authored by Chainfire73
 
 Authored by splitline
 </code></pre><p>The source of the webpage was given in <code>app.js</code>:</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-js" data-lang="js"><span style="display:flex;"><span><span style="color:#66d9ef">const</span> <span style="color:#a6e22e">express</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">require</span>(<span style="color:#e6db74">&#39;express&#39;</span>);
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-js" data-lang="js"><span style="display:flex;"><span><span style="color:#66d9ef">const</span> <span style="color:#a6e22e">express</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">require</span>(<span style="color:#e6db74">&#39;express&#39;</span>);
 </span></span><span style="display:flex;"><span><span style="color:#66d9ef">const</span> <span style="color:#a6e22e">crypto</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">require</span>(<span style="color:#e6db74">&#39;crypto&#39;</span>);
 </span></span><span style="display:flex;"><span><span style="color:#66d9ef">const</span> <span style="color:#a6e22e">FLAG</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">process</span>.<span style="color:#a6e22e">env</span>.<span style="color:#a6e22e">FLAG</span> <span style="color:#f92672">||</span> <span style="color:#e6db74">&#39;flag{this_is_a_fake_flag}&#39;</span>;
 </span></span><span style="display:flex;"><span>
@@ -510,7 +510,7 @@ Authored by splitline
 </span></span><span style="display:flex;"><span>});
 </span></span></code></pre></div><p>The &ldquo;guest&rdquo; and &ldquo;user&rdquo; users exist. &ldquo;guest&rdquo;&rsquo;s password is &ldquo;guest&rdquo;, but &ldquo;user&rdquo;&rsquo;s password is some giant randomly generated hex string, which is not fun. Looking at the source code will tell us that guest <strong>seemingly</strong> does not have permission to view the flag.</p>
 <p>Here is the interesting part of the source code:</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-js" data-lang="js"><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">user</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">USER_DB</span>[<span style="color:#a6e22e">username</span>];
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-js" data-lang="js"><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#a6e22e">user</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">USER_DB</span>[<span style="color:#a6e22e">username</span>];
 </span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">user</span> <span style="color:#f92672">&amp;&amp;</span> <span style="color:#a6e22e">user</span>.<span style="color:#a6e22e">password</span> <span style="color:#f92672">==</span> <span style="color:#a6e22e">password</span>) {
 </span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">username</span> <span style="color:#f92672">===</span> <span style="color:#e6db74">&#39;guest&#39;</span>) {
 </span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">res</span>.<span style="color:#a6e22e">send</span>(<span style="color:#e6db74">&#39;Welcome, guest. You do not have permission to view the flag&#39;</span>);
@@ -542,7 +542,7 @@ Authored by splitline
 
     Kaligula Armblessed
 
-<span id="thisyear">2025</span>
+<span id="thisyear">2026</span>
 
 
         | Built on <a href="//gohugo.io" target="_blank">Hugo</a>
@@ -550,7 +550,7 @@ Authored by splitline
 </p>
     <p class="text-center">
         
-        <a href="https://twitter.com/KaligulaSec">Twitter</a> 
+        <a href="https://x.com/KaligulaSec">Twitter</a> 
         
         <a href="https://github.com/KaligulaArmblessed">GitHub</a> 
         

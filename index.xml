@@ -6,14 +6,35 @@
     <description>Recent content on Kernels and Cats</description>
     <generator>Hugo</generator>
     <language>en</language>
-    <lastBuildDate>Tue, 02 Dec 2025 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Sun, 13 Sep 2026 00:00:00 +0000</lastBuildDate>
     <atom:link href="https://kaligulaarmblessed.github.io/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>MUNch CTF 2026: Autonomous Security Tower</title>
+      <link>https://kaligulaarmblessed.github.io/challenges/munchctf2026-ast/</link>
+      <pubDate>Sun, 13 Sep 2026 00:00:00 +0000</pubDate>
+      <guid>https://kaligulaarmblessed.github.io/challenges/munchctf2026-ast/</guid>
+      <description>&lt;p&gt;Challenge files: &lt;a href=&#34;https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/AutonomousSecurityTower&#34;&gt;https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/AutonomousSecurityTower&lt;/a&gt;&lt;/p&gt;&#xA;&lt;p&gt;Do note that this is an attack-defence service.&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>MUNch CTF 2026: SOLIS</title>
+      <link>https://kaligulaarmblessed.github.io/challenges/munchctf2026-solis/</link>
+      <pubDate>Sun, 13 Sep 2026 00:00:00 +0000</pubDate>
+      <guid>https://kaligulaarmblessed.github.io/challenges/munchctf2026-solis/</guid>
+      <description>&lt;p&gt;Challenge files: &lt;a href=&#34;https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/SOLIS&#34;&gt;https://github.com/KaligulaArmblessed/CTF-Challenges/tree/main/SOLIS&lt;/a&gt;&lt;/p&gt;&#xA;&lt;p&gt;Do note that this is an attack-defence service.&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>HEX ADVENT 2025: Ho Ho Heap</title>
+      <link>https://kaligulaarmblessed.github.io/challenges/hexadvent-hohoheap/</link>
+      <pubDate>Tue, 02 Dec 2025 00:00:00 +0000</pubDate>
+      <guid>https://kaligulaarmblessed.github.io/challenges/hexadvent-hohoheap/</guid>
+      <description>&lt;p&gt;Heaps of gifts, heaps of fun!&lt;/p&gt;&#xA;&lt;p&gt;Challenge files: &lt;a href=&#34;https://github.com/star-sg/challenges/tree/main/Dec%202025/hohoheap_pwn&#34;&gt;https://github.com/star-sg/challenges/tree/main/Dec%202025/hohoheap_pwn&lt;/a&gt;&lt;/p&gt;</description>
+    </item>
     <item>
       <title>HEX ADVENT 2025: Make A Wish</title>
       <link>https://kaligulaarmblessed.github.io/challenges/hexadvent-makeawish/</link>
       <pubDate>Tue, 02 Dec 2025 00:00:00 +0000</pubDate>
       <guid>https://kaligulaarmblessed.github.io/challenges/hexadvent-makeawish/</guid>
-      <description>&lt;p&gt;Let&amp;rsquo;s make a wish! But before we can tell Santa our true desires, we need to first understand some key concepts.&lt;/p&gt;&#xA;&lt;h4 id=&#34;what-is-binary-exploitation&#34;&gt;What is Binary Exploitation?&lt;/h4&gt;&#xA;&lt;p&gt;Binary exploitation, also known as &amp;ldquo;pwn&amp;rdquo;, is the art of exploiting memory corruption or logic vulnerabilities in compiled executables and controlling code execution.&lt;/p&gt;&#xA;&lt;h4 id=&#34;common-userland-attacks&#34;&gt;Common Userland Attacks&lt;/h4&gt;&#xA;&lt;p&gt;Computers often have different rings of privileges which allow different level of access to resources. The core of the operating system, known as the kernel, runs with ring 0 privileges, while applications (such as web browsers, document processors etc.) run on ring 3 (known as userland). Memory corruption vulnerabilities in userland and kernel land can both be exploited, and they do share some key concepts!&lt;/p&gt;</description>
+      <description>&lt;p&gt;Let&amp;rsquo;s make a wish! But before we can tell Santa our true desires, we need to first understand some key concepts.&lt;/p&gt;&#xA;&lt;p&gt;Challenge files: &lt;a href=&#34;https://github.com/star-sg/challenges/tree/main/Dec%202025/makeawish_pwn&#34;&gt;https://github.com/star-sg/challenges/tree/main/Dec%202025/makeawish_pwn&lt;/a&gt;&lt;/p&gt;&#xA;&lt;h4 id=&#34;what-is-binary-exploitation&#34;&gt;What is Binary Exploitation?&lt;/h4&gt;&#xA;&lt;p&gt;Binary exploitation, also known as &amp;ldquo;pwn&amp;rdquo;, is the art of exploiting memory corruption or logic vulnerabilities in compiled executables and controlling code execution.&lt;/p&gt;&#xA;&lt;h4 id=&#34;common-userland-attacks&#34;&gt;Common Userland Attacks&lt;/h4&gt;&#xA;&lt;p&gt;Computers often have different rings of privileges which allow different level of access to resources. The core of the operating system, known as the kernel, runs with ring 0 privileges, while applications (such as web browsers, document processors etc.) run on ring 3 (known as userland). Memory corruption vulnerabilities in userland and kernel land can both be exploited, and they do share some key concepts!&lt;/p&gt;</description>
     </item>
     <item>
       <title>LNC 5.0: Utility Pole</title>

